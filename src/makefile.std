@@ -81,15 +81,16 @@ IRC=TRUE
 # Sysadmins of commercial Unix and/or BSD might prefer this
 #LIBDIR = /usr/local/lib/tome/
 # If you like the old default, use this one
-LIBDIR = ./lib/
+#LIBDIR = ./lib/
 # Another example: single user installation using absolute path
 #LIBDIR = /home/myloginname/lib/tome/
-
+LIBDIR = /var/games/tome/
 
 # Where ToME binary goes
-BINDIR = /usr/local/games
+#BINDIR = /usr/local/games
 # Another common location
 #BINDIR = /usr/local/bin
+BINDIR = /usr/games/
 
 # The game will run suid to this user
 OWNER = games
@@ -152,13 +153,14 @@ CC = gcc
 # including "USE_GETCH" and "USE_CURS_SET".  Note that "config.h" will
 # attempt to "guess" at many of these flags based on your system.
 #
-COPTS = -Wall -O1 -pipe -g
+#COPTS = -Wall -O1 -pipe -g
+COPTS = -Wall -O2 -fomit-frame-pointer
 INCLUDES = -I/usr/X11R6/include
-DEFINES = -DUSE_X11 \
-	-DUSE_EGO_GRAPHICS -DUSE_TRANSPARENCY -DSUPPORT_GAMMA \
+DEFINES = -DUSE_XAW -DUSE_GCU -DUSE_TPOSIX -DUSE_CURS_SET \
+	-DUSE_TRANSPARENCY -DUSE_EGO_GRAPHICS -DSUPPORT_GAMMA \
 	-DUSE_PRECISE_CMOVIE -DUSE_UNIXSOCK
-LIBS = -lX11 -L/usr/X11R6/lib
-
+LIBS = -lXaw -lXmu -lXt -lX11 -lncurses -ltermcap -L/usr/X11R6/lib
+LDFLAGS = -s
 
 
 ##
@@ -457,10 +459,10 @@ install: default
 	[ -d $(DESTDIR)$(LIBDIR) ] || mkdir -p $(DESTDIR)$(LIBDIR)
 	[ -d $(DESTDIR)$(BINDIR) ] || mkdir -p $(DESTDIR)$(BINDIR)
 	cp -r ../lib/* $(DESTDIR)$(LIBDIR)
-	chown -R $(OWNER) $(DESTDIR)$(LIBDIR)
+	chgrp -R $(OWNER) $(DESTDIR)$(LIBDIR)
 	cp -f $(TARGET) $(DESTDIR)$(BINDIR)/$(TARGET)
-	chown $(OWNER) $(DESTDIR)$(BINDIR)/$(TARGET)
-	chmod 4755 $(DESTDIR)$(BINDIR)/$(TARGET)
+	chgrp $(OWNER) $(DESTDIR)$(BINDIR)/$(TARGET)
+	chmod 2755 $(DESTDIR)$(BINDIR)/$(TARGET)
 
 # old-install: $(TARGET)
 #	cp $(TARGET) ..

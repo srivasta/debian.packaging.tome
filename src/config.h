@@ -90,7 +90,7 @@
 /*
  * OPTION: Include "ncurses.h" instead of "curses.h" in "main-gcu.c"
  */
-/* #define USE_NCURSES */
+#define USE_NCURSES
 
 
 /*
@@ -386,7 +386,7 @@
  * that file. 
  */
 #ifndef DEFAULT_PATH
-# define DEFAULT_PATH "./lib/"
+# define DEFAULT_PATH "/var/games/tome"
 #endif
 
 
@@ -448,7 +448,7 @@
 /*
  * OPTION: Person to bother if something goes wrong.
  */
-#define MAINTAINER      "darkgod@t-o-m-e.net"
+#define MAINTAINER      "srivasta@debian.org"
 
 
 /*
@@ -520,7 +520,7 @@
 /* ToME options: */
 
 /* Should the player know his / her starting life rate? */
-/* #define SHOW_LIFE_RATE */
+#define SHOW_LIFE_RATE
 
 /* Do we want different characters for different races? */
 #define VARIABLE_PLAYER_GRAPH
