@@ -17,7 +17,7 @@ add_quest
 	["global"] =    "GOD_QUEST",
 	["name"] =      "God quest",
 	["desc"] =      function()
-			local home, home_axis
+			local home, home_axis, player_axis
 
 			if quest(GOD_QUEST).status == QUEST_STATUS_TAKEN then
 

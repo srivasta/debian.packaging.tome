@@ -7613,8 +7613,6 @@ void do_cmd_symbiotic(void)
 						/* overflow alert */
 						q_ptr->exp = m_ptr->exp;
 						q_ptr->elevel = m_ptr->level;
-						q_ptr->dd = m_ptr->speed;
-						q_ptr->found_aux4 = m_ptr->ac;
 						object_aware(q_ptr);
 						object_known(q_ptr);
 
@@ -7669,13 +7667,9 @@ void do_cmd_symbiotic(void)
 
 				/* TODO fix this hack hack hack hackity hack with ToME 3 flags */
 				m_ptr = &m_list[m_idx];
+				monster_gain_exp(m_idx, o_ptr->exp, TRUE);
 				m_ptr->hp = o_ptr->pval2;
 				m_ptr->maxhp = o_ptr->pval3;
-				/* overflow alert */
-				m_ptr->exp = o_ptr->exp;
-				m_ptr->level = o_ptr->elevel;
-				m_ptr->speed = o_ptr->dd;
-				m_ptr->ac = o_ptr->found_aux4;
 
 				floor_item_increase(0 - item, -1);
 				floor_item_describe(0 - item);
@@ -7698,7 +7692,7 @@ void do_cmd_symbiotic(void)
 			/* Life Share */
 		case 3:
 			{
-				s32b percent1, percent2, max;
+				s32b percent1, percent2;
 
 				if (!o_ptr->k_idx)
 				{
@@ -7707,20 +7701,19 @@ void do_cmd_symbiotic(void)
 				}
 
 				r_ptr = &r_info[o_ptr->pval];
-				max = maxroll(r_ptr->hdice, r_ptr->hside);
 
 				percent1 = p_ptr->chp;
 				percent1 = (percent1 * 100) / p_ptr->mhp;
 
 				percent2 = o_ptr->pval2;
-				percent2 = (percent2 * 100) / max;
+				percent2 = (percent2 * 100) / o_ptr->pval3;
 
 				/* Now get the average */
 				percent1 = (percent1 + percent2) / 2;
 
 				/* And set the hp of monster & player to it */
 				p_ptr->chp = (percent1 * p_ptr->mhp) / 100;
-				o_ptr->pval2 = (percent1 * max) / 100;
+				o_ptr->pval2 = (percent1 * o_ptr->pval3) / 100;
 
 				/* Redraw */
 				p_ptr->redraw |= (PR_HP);
@@ -7743,7 +7736,8 @@ void do_cmd_symbiotic(void)
 					break;
 				}
 
-				use_symbiotic_power(o_ptr->pval, FALSE, FALSE, TRUE);
+				if (0 > use_symbiotic_power(o_ptr->pval, FALSE, FALSE, TRUE))
+					return;
 
 				break;
 			}
@@ -7751,7 +7745,7 @@ void do_cmd_symbiotic(void)
 			/* Heal Symbiote */
 		case 5:
 			{
-				int max, hp;
+				int hp;
 
 				if (!o_ptr->k_idx)
 				{
@@ -7760,10 +7754,9 @@ void do_cmd_symbiotic(void)
 				}
 
 				r_ptr = &r_info[o_ptr->pval];
-				max = maxroll(r_ptr->hdice, r_ptr->hside);
-				hp = max * (15 + get_skill_scale(SKILL_SYMBIOTIC, 35)) / 100;
+				hp = o_ptr->pval3 * (15 + get_skill_scale(SKILL_SYMBIOTIC, 35)) / 100;
 				o_ptr->pval2 += hp;
-				if (o_ptr->pval2 > max) o_ptr->pval2 = max;
+				if (o_ptr->pval2 > o_ptr->pval3) o_ptr->pval2 = o_ptr->pval3;
 
 				msg_format("%s is healed.", symbiote_name(TRUE));
 
@@ -7783,7 +7776,8 @@ void do_cmd_symbiotic(void)
 					break;
 				}
 
-				use_symbiotic_power(o_ptr->pval, TRUE, FALSE, TRUE);
+				if(0 > use_symbiotic_power(o_ptr->pval, TRUE, FALSE, TRUE))
+					return;
 
 				break;
 			}

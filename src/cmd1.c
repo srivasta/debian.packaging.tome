@@ -866,7 +866,7 @@ static void carried_monster_attack(s16b m_idx, bool *fear, bool *mdeath,
 	ac = t_ptr->ac;
 
 	/* Extract the effective monster level */
-	rlev = ((r_ptr->level >= 1) ? r_ptr->level : 1);
+	rlev = ((o_ptr->elevel >= 1) ? o_ptr->elevel : 1);
 
 	/* Get the monster name (or "it") */
 	monster_desc(t_name, t_ptr, 0);

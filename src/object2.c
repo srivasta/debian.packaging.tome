@@ -3388,11 +3388,18 @@ static void a_m_aux_4(object_type *o_ptr, int level, int power)
 			int r_idx = get_mon_num(dun_level);
 			r_ptr = &r_info[r_idx];
 
-			o_ptr->pval2 = maxroll(r_ptr->hdice, r_ptr->hside);
 			if (!(r_ptr->flags1 & RF1_NEVER_MOVE))
 				o_ptr->pval = r_idx;
 			else
 				o_ptr->pval = 20;
+
+			r_idx = o_ptr->pval;
+			r_ptr = &r_info[r_idx];
+
+			o_ptr->pval3 = maxroll(r_ptr->hdice, r_ptr->hside);
+			o_ptr->pval2 = o_ptr->pval2;
+			o_ptr->exp = 0;
+			o_ptr->elevel = r_ptr->level;
 			break;
 		}
 
