@@ -4009,6 +4009,9 @@ void calc_bonuses(bool silent)
 	/* resistance to fire cancel sensibility to fire */
 	if (p_ptr->resist_fire || p_ptr->oppose_fire || p_ptr->immune_fire)
 		p_ptr->sensible_fire = FALSE;
+
+	/* Let the scripts do what they need */
+	process_hooks(HOOK_CALC_BONUS_END, "(d)", silent);
 }
 
 
