@@ -4370,10 +4370,6 @@ becomes 0, allowing spells to summon fiery blades and such
 [M]- Increase Thunderlord rarities -- neil
 
 14/12/2002 -- T.o.M.E 2.1.0 aka "No Surrender, No Retreat"
-# Keys:
-#   I = Interface, M = Monster, O = Object, G = Gameplay,
-#   m = Misc, P = Player, D = Dungeon, B = Bug
-
 
 14/12/2002
 [B]- Artifact spoiler was messed up
@@ -5333,3 +5329,36 @@ becomes 0, allowing spells to summon fiery blades and such
 [B]- permanent_levels marked experimental because it is broken -- neil
 
 17/11/2003 --  T.o.M.E 2.2.4 aka 'A Bug's Life'
+
+19/11/2003
+[B]- Fix monster possessor crash -- neil
+[B]- Fix random quest skill requester -- neil
+
+20/11/2003
+[B]- Fix crash when picking up ammo into your quiver that can't be fired
+     with the launcher you are wielding -- neil
+
+22/11/2003
+[B]- God quest fix -- neil
+
+24/11/2003
+[B]- Disintegrating walls should not bother Yavanna -- neil
+
+01/12/2003
+[B]- Yet another try at fixing levelled carried monsters.  Their attacks
+     are affected by their level now and their hitpoints are handled better.
+     I should have said this for the last release, but un-hypnotize any pets
+     before upgrading from 2.2.2. Otherwise compatibility is fine. -- neil
+
+05/12/2003
+[B]- Semi-wraiths should not be hurt by climbing over mountains -- neil
+
+08/12/2003
+[B]- Fixed Flame of Udun spell
+
+10/12/2003
+[B]- Diggers are not weapons and should not be displayed as such -- neil
+[O]- Some items that give damage bonuses will be more clear about it -- neil
+[M]- Drain attacks can't drain the one artifact wand, staff, or horn -- neil
+
+[V]  T.o.M.E 2.2.5 aka "Death of a Bug"

@@ -942,6 +942,7 @@ static int process_lasting_spell(s16b music)
 	}
 
 	use_mana = tolua_getnumber(L, -(lua_gettop(L) - oldtop), 0);
+	lua_settop(L, oldtop);
 	return use_mana;
 }
 
@@ -1261,7 +1262,7 @@ bool is_recall = FALSE;
 /*
  * Handle certain things once every 10 game turns
  *
- * Note that a single movement in the overhead wilderness mode 
+ * Note that a single movement in the overhead wilderness mode
  * consumes 132 times as much energy as a normal one...
  */
 static void process_world(void)
@@ -3192,23 +3193,23 @@ static void process_world(void)
 				{
 					monster_type *m_ptr;
 					monster_race *r_ptr;
-	
+
 					mx = p_ptr->px;
 					my = p_ptr->py + 1;
 					get_pos_player(5, &my, &mx);
 					msg_print("Your egg hatches!");
 					place_monster_aux(my, mx, o_ptr->pval2, FALSE, FALSE, MSTATUS_PET);
-	
+
 					m_ptr = &m_list[cave[my][mx].m_idx];
 					r_ptr = race_inf(m_ptr);
-	
+
 					if ((r_ptr->flags9 & RF9_IMPRESED) && can_create_companion())
 					{
 						msg_format("And you have given the imprint to your %s!",
 						           r_name + r_ptr->name);
 						m_ptr->status = MSTATUS_COMPANION;
 					}
-	
+
 					inven_item_increase(i, -1);
 					inven_item_describe(i);
 					inven_item_optimize(i);

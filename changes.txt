@@ -1,22 +1,39 @@
-T.o.M.E 2.2.5 aka "They've Got A Secret" changes
+(null) 0.0.0 changes
 
-Monster changes:
-- Drain attacks can't drain the one artifact wand, staff, or horn -- neil
+Interface changes:
+- Pressing Escape gets you out of the pet dismissal list -- neil
 
-Object changes:
-- Some items that give damage bonuses will be more clear about it -- neil
+Misc changes:
+- Helpfiles: bearform combat help, music typos, barbarian revisions.
+  -- fearoffours
+ - Typos in the description of arrows, shots, bolts; punctuation in the
+   mushroom quest -- masmarangio
+- HOOK_CALC_BONUS_END hooks
+- Helpfiles: corrected starting equipment of mindcrafters -- masmarangio
+ - Backport of old helpfile updates: no Geomancy for Alchemists and Rune-
+   crafters, updated luck spoiler, corruption spoiler in crpt_aux.lua, a
+   link in skills.txt, an example in automatizer.txt. 
+   monsters3.c: changed 'golem' to 'creature', since the Mind Steal Spell
+   also allows to control a monster. -- masmarangio
+- Typo (massage -> message) from the forum -- masmarangio
+- Capitalisation in the names of junkarts -- masmarangio
+- mindcraft_info: Corrected and expanded the info for mindcraft powers 
+  -- masmarangio
+- Small corrections in luck spoiler, description of Manwe's Blessing and
+  m_mimic.txt -- masmarangio
+  
 
 Bug fixes:
-- Fix monster possessor crash -- neil
-- Fix random quest skill requester -- neil
-- Fix crash when picking up ammo into your quiver that can't be fired
-  with the launcher you are wielding -- neil
-- God quest fix -- neil
-- Disintegrating walls should not bother Yavanna -- neil
-- Yet another try at fixing levelled carried monsters.  Their attacks
-  are affected by their level now and their hitpoints are handled better.
-  I should have said this for the last release, but un-hypnotize any pets
-  before upgrading from 2.2.2. Otherwise compatibility is fine. -- neil
-- Semi-wraiths should not be hurt by climbing over mountains -- neil
-- Fixed Flame of Udun spell
-- Diggers are not weapons and should not be displayed as such -- neil
+- Prevent recall to Lost Temple before getting the quest -- neil
+- Automatizer now accepts TV_TOTEM -- neil
+- Some vaults incorrectly named -- fearoffours
+- Wight quest crash fix by 'amaurea' -- neil
+- God choosen at random was broken -- masmarangio
+- Typo in q_one.c (or -> of)
+- Don't use a turn when cancelling a possessor action -- neil
+ - summon_true crashed the game with a summon skill < 1 -- masmarangio
+ - test_object_wish: aware status is saved and restored -- masmarangio
+- God quest will no longer give inaccurate or misleading directions. It 
+  also will now give directions from two static features, and an 
+  approximate, relative distance from each of those points. 
+  -- fearoffours

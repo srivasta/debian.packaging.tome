@@ -6839,7 +6839,7 @@ bool apply_set(s16b a_idx, s16b set_idx)
 }
 
 bool apply_flags_set(s16b a_idx, s16b set_idx,
-                     s32b *f1, s32b *f2, s32b *f3, s32b *f4, s32b *f5, s32b *esp)
+                     u32b *f1, u32b *f2, u32b *f3, u32b *f4, u32b *f5, u32b *esp)
 {
 	set_type *s_ptr = &set_info[set_idx];
 	int i, j;
