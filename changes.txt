@@ -1,80 +1,22 @@
-T.o.M.E 2.2.4 aka "A Bug's Life" changes
+T.o.M.E 2.2.5 aka "They've Got A Secret" changes
 
-Interface changes:
-- Adam Bolt's Tiles are now "New Tiles", as others have worked on them and
-  stuff. -- fearoffours
+Monster changes:
+- Drain attacks can't drain the one artifact wand, staff, or horn -- neil
 
 Object changes:
-- Restore spaces to artifact descriptions -- neil
-- Changed descriptions of some junkart activations. -- fearoffours
-- Non-functioning artifact instrument activations removed -- neil
-
-Player changes:
-- Wood Elves and Hobbits weren't getting the extra might bonuses
-  they were entitled to -- neil
-
-Misc changes:
-- Applied Ken Dubuc's patches to parsers to make them line ending independant
-- Savefiles on multiuser systems are now in HOME/.tome/2.2/save, to comply
-  with the new 3.0.0 naming scheme that is coming.
-  People upgrading from 2.2.x to 2.2.4 should move their savefiles there
-- Setting module to "all" for an automatizer rule makes the rule apply
-  to all modules -- neil
-- Wizard mode is now turned off at birth -- neil
-- Help updates: macros and macro recorder, dwarf racial ability, more on
-  dodging, link to m_mimic.txt from skills.txt, object inventory letter
-  colouring significance. -- fearoffours
-- Helpfiles updated to reflect that corruptions are permanent and there is
-  no corrupted sub-race. --fearoffours
-
-Dungeon changes:
-- "The lava burns you", becomes "you move across the lava" to accomodate
-  IM_FIRE and flying characters. -- fearoffours
+- Some items that give damage bonuses will be more clear about it -- neil
 
 Bug fixes:
-- Detect doors and traps displays as costing 3, not 5 now. -- fearoffours
-- Maeglin quest reward wording altered (saves confusion for sorcerors).
-  -- fearoffours
-- Typos in One Ring parchment and Necromancy help fixed. -- fearoffours
-- Typos in ultra-good ending, lost-sword quest rewards and flag description
-  fixed. -- fearoffours
-- Axemasters now start with a Hatchet -- neil
-- Fix "analyze monster" activation -- neil
-- Fix library quest breakage of Melkor curses -- neil
-- Fix failure rates for abilities in possessed bodies, patch by 'Slappy'
-  -- neil
-- Monsters detected ONLY by telepathy were not removed from visible monsters
-  list after they had gone out of range. Thanks Slappy for fix. -- fearoffours
-- Recharged junkarts would not always give a notification message. Thanks
-  Slappy for fix. -- fearoffours
-- Completion of Necromancer quest could be triggered incorrectly.
-  -- fearoffours
-- Monsters don't appear to disappear for a turn if you polymorph them -- neil
-- Flying semi-wraiths shouldn't be hurt by flying over trees -- neil
-- Recalling to new lost temples could have crashed the game. -- fearoffours
-- God quest directions could be grammatically incorrect. -- fearoffours
-- Items containing spells should be browsable again -- neil
-- Random artifact mimicry cloaks should now show up correctly -- neil
-- Random artifacts that can contain spells will not come with
-  Globe of Light anymore -- neil
-- Certain non-random artifacts that can contain spells will not come with
-  Globe of Light anymore, either -- neil
-- Pack overflow/weapon disappearing bug fixed, with big thanks to Kevin
-  W. Thomas for telling me where to look -- neil
-- Trap of Divine Wrath would benefit you -- neil
-- Blood of Life would revive necromancers in undead form -- neil
-- Hostile monsters won't get free kills of friendly monsters anymore -- neil
-- Eggs work again -- neil
-- Wishing for ego rods works -- neil
-- Temples now accept blessed boomerangs -- neil
-- If you learn anti-magic, you stop following any Valar -- neil
-- typo in v_info.txt -- fearoffours
-- Old Mage's quest wouldn't always disappear from quest screen when fully
-  rewarded. -- fearoffours
-- No more shafts in certain places -- neil
-- Percing shots will not grossly inflate in damage anymore -- neil
-- No genocide in home quests -- neil
-- Silent Switching can no longer take off permanently cursed items -- neil
-- Fix memory error in command handling -- neil
-- Hypnotizing and restoring levelled monsters now works correctly -- neil
-- permanent_levels marked experimental because it is broken -- neil
+- Fix monster possessor crash -- neil
+- Fix random quest skill requester -- neil
+- Fix crash when picking up ammo into your quiver that can't be fired
+  with the launcher you are wielding -- neil
+- God quest fix -- neil
+- Disintegrating walls should not bother Yavanna -- neil
+- Yet another try at fixing levelled carried monsters.  Their attacks
+  are affected by their level now and their hitpoints are handled better.
+  I should have said this for the last release, but un-hypnotize any pets
+  before upgrading from 2.2.2. Otherwise compatibility is fine. -- neil
+- Semi-wraiths should not be hurt by climbing over mountains -- neil
+- Fixed Flame of Udun spell
+- Diggers are not weapons and should not be displayed as such -- neil

@@ -5229,4 +5229,107 @@ becomes 0, allowing spells to summon fiery blades and such
 [B]- Tree Roots incorrect bonuses fixed
 [B]- Fixed incorrect display of some skill bonuses
 
-15/9/2003 --  T.o.M.E 2.2.3 aka 'The Quality of Mercy'
+15/09/2003 --  T.o.M.E 2.2.3 aka 'The Quality of Mercy'
+
+22/09/2003
+[B]- Detect doors and traps displays as costing 3, not 5 now. -- fearoffours
+[B]- Maeglin quest reward wording altered (saves confusion for sorcerors).
+     -- fearoffours
+[I]- Adam Bolt's Tiles are now "New Tiles", as others have worked on them and
+     stuff. -- fearoffours
+
+25/09/2003
+[B]- Typos in One Ring parchment and Necromancy help fixed. -- fearoffours
+
+27/09/2003
+[B]- Typos in ultra-good ending, lost-sword quest rewards and flag description
+     fixed. -- fearoffours
+[O]- Restore spaces to artifact descriptions -- neil
+
+28/09/2003
+[B]- Axemasters now start with a Hatchet -- neil
+[B]- Fix "analyze monster" activation -- neil
+
+04/10/2003
+[B]- Fix library quest breakage of Melkor curses -- neil
+
+05/10/2003
+[B]- Fix failure rates for abilities in possessed bodies, patch by 'Slappy'
+     -- neil
+
+06/10/2003
+[B]- Monsters detected ONLY by telepathy were not removed from visible monsters
+     list after they had gone out of range. Thanks Slappy for fix. -- fearoffours
+[B]- Recharged junkarts would not always give a notification message. Thanks
+     Slappy for fix. -- fearoffours
+[O]- Changed descriptions of some junkart activations. -- fearoffours
+[B]- Completion of Necromancer quest could be triggered incorrectly.
+     -- fearoffours
+[D]- "The lava burns you", becomes "you move across the lava" to accomodate
+     IM_FIRE and flying characters. -- fearoffours
+
+07/10/2003
+[m]- Applied Ken Dubuc's patches to parsers to make them line ending independant
+[m]- Savefiles on multiuser systems are now in HOME/.tome/2.2/save, to comply
+     with the new 3.0.0 naming scheme that is coming.
+     People upgrading from 2.2.x to 2.2.4 should move their savefiles there
+
+08/10/2003
+[B]- Monsters don't appear to disappear for a turn if you polymorph them -- neil
+[m]- Setting module to "all" for an automatizer rule makes the rule apply
+     to all modules -- neil
+
+11/10/2003
+[B]- Flying semi-wraiths shouldn't be hurt by flying over trees -- neil
+
+13/10/2003
+[B]- Recalling to new lost temples could have crashed the game. -- fearoffours
+[B]- God quest directions could be grammatically incorrect. -- fearoffours
+
+23/10/2003
+[B]- Items containing spells should be browsable again -- neil
+[B]- Random artifact mimicry cloaks should now show up correctly -- neil
+[B]- Random artifacts that can contain spells will not come with
+     Globe of Light anymore -- neil
+[B]- Certain non-random artifacts that can contain spells will not come with
+     Globe of Light anymore, either -- neil
+[B]- Pack overflow/weapon disappearing bug fixed, with big thanks to Kevin
+     W. Thomas for telling me where to look -- neil
+[m]- Wizard mode is now turned off at birth -- neil
+[B]- Trap of Divine Wrath would benefit you -- neil
+[B]- Blood of Life would revive necromancers in undead form -- neil
+[B]- Hostile monsters won't get free kills of friendly monsters anymore -- neil
+
+28/10/2003
+[B]- Eggs work again -- neil
+[B]- Wishing for ego rods works -- neil
+
+29/10/2003
+[B]- Temples now accept blessed boomerangs -- neil
+[O]- Non-functioning artifact instrument activations removed -- neil
+[B]- If you learn anti-magic, you stop following any Valar -- neil
+[P]- Wood Elves and Hobbits weren't getting the extra might bonuses
+     they were entitled to -- neil
+[B]- typo in v_info.txt -- fearoffours
+[m]- Help updates: macros and macro recorder, dwarf racial ability, more on
+     dodging, link to m_mimic.txt from skills.txt, object inventory letter
+     colouring significance. -- fearoffours
+[B]- Old Mage's quest wouldn't always disappear from quest screen when fully
+     rewarded. -- fearoffours
+
+30/10/2003
+[m]- Helpfiles updated to reflect that corruptions are permanent and there is
+     no corrupted sub-race. --fearoffours
+
+03/11/2003
+[B]- No more shafts in certain places -- neil
+[B]- Percing shots will not grossly inflate in damage anymore -- neil
+[B]- No genocide in home quests -- neil
+
+11/11/2003
+[B]- Silent Switching can no longer take off permanently cursed items -- neil
+[B]- Fix memory error in command handling -- neil
+[B]- Hypnotizing and restoring levelled monsters now works correctly -- neil
+[B]- permanent_levels marked experimental because it is broken -- neil
+
+17/11/2003 --  T.o.M.E 2.2.4 aka 'A Bug's Life'

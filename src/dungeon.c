@@ -760,13 +760,12 @@ static void regen_monsters(void)
 	if (o_ptr->k_idx)
 	{
 		monster_race *r_ptr = &r_info[o_ptr->pval];
-		int max = maxroll(r_ptr->hdice, r_ptr->hside);
 
 		/* Allow regeneration (if needed) */
-		if (o_ptr->pval2 < max)
+		if (o_ptr->pval2 < o_ptr->pval3)
 		{
 			/* Hack -- Base regeneration */
-			frac = max / 100;
+			frac = o_ptr->pval3 / 100;
 
 			/* Hack -- Minimal regeneration rate */
 			if (!frac) frac = 1;
@@ -779,7 +778,7 @@ static void regen_monsters(void)
 			o_ptr->pval2 += frac;
 
 			/* Do not over-regenerate */
-			if (o_ptr->pval2 > max) o_ptr->pval2 = max;
+			if (o_ptr->pval2 > o_ptr->pval3) o_ptr->pval2 = o_ptr->pval3;
 
 			/* Redraw (later) */
 			p_ptr->redraw |= (PR_MH);
@@ -1682,8 +1681,15 @@ static void process_world(void)
 	 */
 	if (!cave_floor_bold(p_ptr->py, p_ptr->px))
 	{
+		int feature = cave[p_ptr->py][p_ptr->px].feat;
+
 		/* Player can walk through or fly over trees */
-		if ((has_ability(AB_TREE_WALK) || p_ptr->fly) && (cave[p_ptr->py][p_ptr->px].feat == FEAT_TREES))
+		if ((has_ability(AB_TREE_WALK) || p_ptr->fly) && (feature == FEAT_TREES))
+		{
+			/* Do nothing */
+		}
+		/* Player can climb over mountains */
+		else if ((p_ptr->climb) && (f_info[feature].flags1 & FF1_CAN_CLIMB))
 		{
 			/* Do nothing */
 		}
@@ -4732,17 +4738,15 @@ void process_player(void)
 			bool stop = TRUE;
 			object_type *o_ptr;
 			monster_race *r_ptr;
-			int max;
 
 			/* Get the carried monster */
 			o_ptr = &p_ptr->inventory[INVEN_CARRY];
 			r_ptr = &r_info[o_ptr->pval];
-			max = maxroll(r_ptr->hdice, r_ptr->hside);
 
 			/* Stop resting */
 			if ((!p_ptr->drain_life) && (p_ptr->chp != p_ptr->mhp)) stop = FALSE;
 			if ((!p_ptr->drain_mana) && (p_ptr->csp != p_ptr->msp)) stop = FALSE;
-			if (o_ptr->pval2 != max) stop = FALSE;
+			if (o_ptr->pval2 < o_ptr->pval3) stop = FALSE;
 			if (p_ptr->blind || p_ptr->confused) stop = FALSE;
 			if (p_ptr->poisoned || p_ptr->afraid) stop = FALSE;
 			if (p_ptr->stun || p_ptr->cut) stop = FALSE;
