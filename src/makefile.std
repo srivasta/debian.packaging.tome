@@ -127,13 +127,13 @@ CC = gcc
 # attempt to "guess" at many of these flags based on your system.
 #
 #COPTS = -Wall -O1 -pipe -g
-COPTS = -Wall -O2 -fomit-frame-pointer
+COPTS = -m32 -Wall -O2 -fomit-frame-pointer
 INCLUDES = -I/usr/X11R6/include
 DEFINES = -DUSE_XAW -DUSE_GCU -DUSE_TPOSIX -DUSE_CURS_SET \
 	-DUSE_TRANSPARENCY -DUSE_EGO_GRAPHICS -DSUPPORT_GAMMA \
 	-DUSE_PRECISE_CMOVIE -DUSE_UNIXSOCK
 LIBS = -L/usr/X11R6/lib -lXaw -lXmu -lXt -lX11 -lncurses -ltermcap
-LDFLAGS = -s
+LDFLAGS = -s -m32
 
 
 ##

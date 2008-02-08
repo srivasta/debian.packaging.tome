@@ -14,13 +14,13 @@
 
 #ifdef PRIVATE_USER_PATH
 
-static void module_reset_dir_aux(cptr dir, cptr new_path)
+static void module_reset_dir_aux(cptr *dir, cptr new_path)
 {
 	char buf[1025];
-	cptr *d = &dir;
+	cptr *d = dir;
 
 	/* Build the new path */
-	strnfmt(buf, 1024, "%s%s%s", dir, PATH_SEP, new_path);
+	strnfmt(buf, 1024, "%s%s%s", *dir, PATH_SEP, new_path);
 
 	string_free(*d);
 	*d = string_make(buf);
@@ -75,12 +75,12 @@ void module_reset_dir(cptr dir, cptr new_path)
 #ifdef PRIVATE_USER_PATH_DATA
 	else if (!strcmp(dir, "data"))
 	{
-		module_reset_dir_aux(ANGBAND_DIR_DATA, new_path);
+		module_reset_dir_aux(&ANGBAND_DIR_DATA, new_path);
 	}
 #endif
 	else if (!strcmp(dir, "save"))
 	{
-		module_reset_dir_aux(ANGBAND_DIR_SAVE, new_path);
+		module_reset_dir_aux(&ANGBAND_DIR_SAVE, new_path);
 
 		/* Tell the savefile code that we must not use setuid */
 		savefile_setuid = FALSE;
