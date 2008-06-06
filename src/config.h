@@ -446,7 +446,7 @@
 /*
  * OPTION: Person to bother if something goes wrong.
  */
-#define MAINTAINER      "srivasta@debian.org"
+#define MAINTAINER      "tome@packages.debian.org"
 
 
 /*

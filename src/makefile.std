@@ -127,13 +127,14 @@ CC = gcc
 # attempt to "guess" at many of these flags based on your system.
 #
 #COPTS = -Wall -O1 -pipe -g
-COPTS = -Wall -O2 -fomit-frame-pointer
-INCLUDES = -I/usr/X11R6/include
-DEFINES = -DUSE_XAW -DUSE_GCU -DUSE_TPOSIX -DUSE_CURS_SET \
-	-DUSE_TRANSPARENCY -DUSE_EGO_GRAPHICS -DSUPPORT_GAMMA \
-	-DUSE_PRECISE_CMOVIE -DUSE_UNIXSOCK
-LIBS = -L/usr/X11R6/lib -lXaw -lXmu -lXt -lX11 -lncurses -ltermcap
-LDFLAGS = -s
+COPTS    = -Wall -O2 -fomit-frame-pointer -pipe -g
+INCLUDES = -I/usr/X11R6/include $(shell sdl-config --cflags)                 
+DEFINES  = -DUSE_XAW -DUSE_GCU -DUSE_SDL -DUSE_TPOSIX -DUSE_CURS_SET    \
+	   -DUSE_TRANSPARENCY -DUSE_EGO_GRAPHICS -DSUPPORT_GAMMA        \
+	   -DUSE_PRECISE_CMOVIE -DUSE_UNIXSOCK
+LIBS     = -L/usr/X11R6/lib -lXaw -lXmu -lXt -lX11  -lncurses -ltermcap \
+           $(shell sdl-config --libs)  -lSDL_image -lSDL_ttf -lSDL_gfx  \
+           -lSDL_net -lSDL_mixer
 
 
 ##
@@ -207,22 +208,22 @@ LDFLAGS = -s
 ##
 ## Variation -- Use "main-xaw.c" instead of "main-x11.c"
 ##
-#SDL_CONFIG ?= sdl-config
 #COPTS = -Wall -O1 -pipe -g
-#INCLUDES = `$(SDL_CONFIG) --cflags`
+#INCLUDES = -I/usr/X11R6/include
 #DEFINES = -DUSE_XAW -DUSE_GCU \
 #	-DUSE_TRANSPARENCY -DUSE_EGO_GRAPHICS -DSUPPORT_GAMMA
-#LIBS = `$(SDL_CONFIG) --libs` -lSDL_image -lSDL_ttf -lcurses
+#LIBS = -lXaw -lXmu -lXt -lX11 -lcurses -ltermcap -L/usr/X11R6/lib
 
 ##
 ## Variation -- Use "main-sdl.c" instead of "main-x11.c"
 ##
+#SDL_CONFIG ?= sdl-config
 #COPTS = -Wall -O1 -pipe -g
-#INCLUDES = `sdl-config --cflags`
+#INCLUDES = `$(SDL_CONFIG) --cflags`
 #DEFINES = -DUSE_SDL -DUSE_GCU \
 #	-DUSE_EGO_GRAPHICS -DUSE_TRANSPARENCY \
 #	-DUSE_PRECISE_CMOVIE -DUSE_UNIXSOCK -DSUPPORT_GAMMA
-#LIBS = `sdl-config --libs` -lSDL_image -lcurses
+#LIBS = `$(SDL_CONFIG) --libs` -lSDL_image -lSDL_ttf -lcurses
 
 ##
 ## Variation -- Use "main-cap.c" instead of "main-gcu.c"
@@ -474,9 +475,12 @@ install: default
 	[ -d $(DESTDIR)$(LIBDIR) ] || mkdir -p $(DESTDIR)$(LIBDIR)
 	[ -d $(DESTDIR)$(BINDIR) ] || mkdir -p $(DESTDIR)$(BINDIR)
 	cp -r ../lib/* $(DESTDIR)$(LIBDIR)
+#	chown -R $(OWNER) $(DESTDIR)$(LIBDIR)
 	chgrp -R $(OWNER) $(DESTDIR)$(LIBDIR)
 	cp -f $(TARGET) $(DESTDIR)$(BINDIR)/$(TARGET)
+#	chown $(OWNER) $(DESTDIR)$(BINDIR)/$(TARGET)
 	chgrp $(OWNER) $(DESTDIR)$(BINDIR)/$(TARGET)
+#	chmod 4755 $(DESTDIR)$(BINDIR)/$(TARGET)
 	chmod 2755 $(DESTDIR)$(BINDIR)/$(TARGET)
 
 # old-install: $(TARGET)
