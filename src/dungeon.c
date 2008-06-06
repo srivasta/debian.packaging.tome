@@ -954,7 +954,7 @@ static void gere_class_special()
 	case CLASS_MANA_PATH:
 		{
 			/* Does the player have enought mana ? */
-			if (p_ptr->csp < (p_ptr->druid_extra & 255))
+			if (p_ptr->csp < (s32b)(p_ptr->druid_extra & 255))
 			{
 				p_ptr->druid_extra = 0;
 				p_ptr->druid_extra2 = CLASS_NONE;
@@ -996,7 +996,7 @@ static void gere_class_special()
 	case CLASS_WINDS_MANA:
 		{
 			/* Does the player have enought mana ? */
-			if (p_ptr->csp < (p_ptr->druid_extra & 255))
+			if (p_ptr->csp < (s32b)(p_ptr->druid_extra & 255))
 			{
 				p_ptr->druid_extra = CLASS_NONE;
 				msg_print("You stop expulsing mana winds.");
