@@ -10,6 +10,7 @@
 
 #include <limits.h>
 #include <stddef.h>
+#include <stdint.h>
 
 
 
@@ -36,7 +37,7 @@
 ** GREP LUA_NUMBER to change that
 */
 #ifndef LUA_NUM_TYPE
-#define LUA_NUM_TYPE long
+#define LUA_NUM_TYPE int32_t
 #endif
 
 typedef LUA_NUM_TYPE Number;
@@ -50,7 +51,7 @@ typedef LUA_NUM_TYPE Number;
 
 
 
-typedef unsigned long lint32;  /* unsigned int with at least 32 bits */
+typedef int_least32_t lint32;  /* unsigned int with at least 32 bits */
 
 
 #define MAX_SIZET	((size_t)(~(size_t)0)-2)
