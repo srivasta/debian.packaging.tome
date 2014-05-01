@@ -1,0 +1,14 @@
+tome (2.3.1-1) unstable; urgency=low
+
+  * Yet again, the save file format has changed incompatibly, requiring
+    that a new character be created from scratch.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Sun, 23 Jan 2005 10:57:26 -0600
+
+tome (2.3.0-1) unstable; urgency=low
+
+  * This version changed the save format, so older save files can not be
+    read by this version.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Sun, 23 Jan 2005 10:56:42 -0600
+

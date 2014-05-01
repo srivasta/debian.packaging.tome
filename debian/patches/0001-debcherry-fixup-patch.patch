@@ -1,0 +1,272 @@
+From 303b40dfacae90506045a867e9faf742b6318c69 Mon Sep 17 00:00:00 2001
+From: Manoj Srivastava <srivasta@golden-gryphon.com>
+Date: Wed, 30 Apr 2014 22:53:05 -0700
+Subject: [PATCH 1/2] debcherry fixup patch
+
+36e907c [topic--debian]: FTBFS due to binutils-gold
+	 - no changes against upstream or conflicts
+1021e15 [master]: First phase of a ove to a new build system using dh.
+	 - no changes against upstream or conflicts
+23433b4 Added the debian submodule.
+	 - extra changes or conflicts
+b15c77f Reduce divergence from upstream, and move to sdl variant
+	 - extra changes or conflicts
+815d966 Set the maintainewr address to be a debian role address
+	 - no changes against upstream or conflicts
+a83a04d Fix typo in man page
+	 - no changes against upstream or conflicts
+a3d690b Revert the -m32 flags; use linux32 instead at run-time
+	 - extra changes or conflicts
+79cab02 Build in 32bit mode
+	 - extra changes or conflicts
+de0507e Fix initialization of directory for loading/saving games.
+	 - extra changes or conflicts
+ae5a5b4 Really synch with upstream
+	 - extra changes or conflicts
+a2f1a5c Added a manual page
+	 - extra changes or conflicts
+18bd448 Changes to integrate tome into Debian
+	 - extra changes or conflicts
+---
+ src/config.h     |   8 ++--
+ src/makefile.std |  32 +++++++++------
+ src/tome.man     | 123 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 147 insertions(+), 16 deletions(-)
+ create mode 100644 src/tome.man
+
+diff --git a/src/config.h b/src/config.h
+index d626062..6db4ff8 100644
+--- a/src/config.h
++++ b/src/config.h
+@@ -90,7 +90,7 @@
+ /*
+  * OPTION: Include "ncurses.h" instead of "curses.h" in "main-gcu.c"
+  */
+-/* #define USE_NCURSES */
++#define USE_NCURSES
+ 
+ 
+ /*
+@@ -377,7 +377,7 @@
+  * that file.
+  */
+ #ifndef DEFAULT_PATH
+-# define DEFAULT_PATH "./lib/"
++# define DEFAULT_PATH "/var/games/tome"
+ #endif
+ 
+ 
+@@ -446,7 +446,7 @@
+ /*
+  * OPTION: Person to bother if something goes wrong.
+  */
+-#define MAINTAINER      "darkgod@t-o-m-e.net"
++#define MAINTAINER      "tome@packages.debian.org"
+ 
+ 
+ /*
+@@ -518,7 +518,7 @@
+ /* ToME options: */
+ 
+ /* Should the player know his / her starting life rate? */
+-/* #define SHOW_LIFE_RATE */
++#define SHOW_LIFE_RATE
+ 
+ /* Do we want different characters for different races? */
+ #define VARIABLE_PLAYER_GRAPH
+diff --git a/src/makefile.std b/src/makefile.std
+index c9247df..9407cdb 100644
+--- a/src/makefile.std
++++ b/src/makefile.std
+@@ -54,15 +54,16 @@
+ # Sysadmins of commercial Unix and/or BSD might prefer this
+ #LIBDIR = /usr/local/lib/tome/
+ # If you like the old default, use this one
+-LIBDIR = ./lib/
++#LIBDIR = ./lib/
+ # Another example: single user installation using absolute path
+ #LIBDIR = /home/myloginname/lib/tome/
+-
++LIBDIR = /var/games/tome/
+ 
+ # Where ToME binary goes
+-BINDIR = /usr/local/games
++#BINDIR = /usr/local/games
+ # Another common location
+ #BINDIR = /usr/local/bin
++BINDIR = /usr/games/
+ 
+ # The game will run suid to this user
+ OWNER = games
+@@ -125,12 +126,16 @@ CC = gcc
+ # including "USE_GETCH" and "USE_CURS_SET".  Note that "config.h" will
+ # attempt to "guess" at many of these flags based on your system.
+ #
+-COPTS = -Wall -O1 -pipe -g
+-INCLUDES = -I/usr/X11R6/include
+-DEFINES = -DUSE_X11 \
+-	-DUSE_EGO_GRAPHICS -DUSE_TRANSPARENCY -DSUPPORT_GAMMA \
+-	-DUSE_PRECISE_CMOVIE -DUSE_UNIXSOCK
+-LIBS = -L/usr/X11R6/lib -lX11
++#COPTS = -Wall -O1 -pipe -g
++COPTS    = -Wall -O2 -fomit-frame-pointer -pipe -g
++INCLUDES = -I/usr/X11R6/include $(shell sdl-config --cflags)
++DEFINES  = -DUSE_XAW -DUSE_GCU -DUSE_SDL -DUSE_TPOSIX -DUSE_CURS_SET    \
++	   -DUSE_TRANSPARENCY -DUSE_EGO_GRAPHICS -DSUPPORT_GAMMA        \
++	   -DUSE_PRECISE_CMOVIE -DUSE_UNIXSOCK
++LIBS     = -L/usr/X11R6/lib -lXaw -lXmu -lXt -lX11  -lncurses -ltermcap \
++           $(shell sdl-config --libs)  -lSDL_image -lSDL_ttf -lSDL_gfx  \
++           -lSDL_net -lSDL_mixer -lm
++
+ 
+ ##
+ ## Variation -- Only support "main-gtk2.c" (not "main-gcu.c, main-x11.c")
+@@ -470,10 +475,13 @@ install: default
+ 	[ -d $(DESTDIR)$(LIBDIR) ] || mkdir -p $(DESTDIR)$(LIBDIR)
+ 	[ -d $(DESTDIR)$(BINDIR) ] || mkdir -p $(DESTDIR)$(BINDIR)
+ 	cp -r ../lib/* $(DESTDIR)$(LIBDIR)
+-	chown -R $(OWNER) $(DESTDIR)$(LIBDIR)
++#	chown -R $(OWNER) $(DESTDIR)$(LIBDIR)
++	chgrp -R $(OWNER) $(DESTDIR)$(LIBDIR)
+ 	cp -f $(TARGET) $(DESTDIR)$(BINDIR)/$(TARGET)
+-	chown $(OWNER) $(DESTDIR)$(BINDIR)/$(TARGET)
+-	chmod 4755 $(DESTDIR)$(BINDIR)/$(TARGET)
++#	chown $(OWNER) $(DESTDIR)$(BINDIR)/$(TARGET)
++	chgrp $(OWNER) $(DESTDIR)$(BINDIR)/$(TARGET)
++#	chmod 4755 $(DESTDIR)$(BINDIR)/$(TARGET)
++	chmod 2755 $(DESTDIR)$(BINDIR)/$(TARGET)
+ 
+ # old-install: $(TARGET)
+ #	cp $(TARGET) ..
+diff --git a/src/tome.man b/src/tome.man
+new file mode 100644
+index 0000000..4d48ce9
+--- /dev/null
++++ b/src/tome.man
+@@ -0,0 +1,123 @@
++.\" Hey, Emacs! This is an -*- nroff -*- source file.
++.\" Copyright (c) 2003 Manoj Srivastava <srivasta@debian.org>
++.\"
++.\" This is free documentation; you can redistribute it and/or
++.\" modify it under the terms of the GNU General Public License as
++.\" published by the Free Software Foundation; either version 2 of
++.\" the License, or (at your option) any later version.
++.\"
++.\" The GNU General Public License's references to "object code"
++.\" and "executables" are to be interpreted as the output of any
++.\" document formatting or typesetting system, including
++.\" intermediate and printed output.
++.\"
++.\" This manual is distributed in the hope that it will be useful,
++.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
++.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++.\" GNU General Public License for more details.
++.\"
++.\" You should have received a copy of the GNU General Public
++.\" License along with this manual; if not, write to the Free
++.\" Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139,
++.\" USA.
++.\"
++.\" This manual is distributed in the hope that it will be useful,
++.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
++.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++.\" GNU General Public License for more details.
++.\"
++.\" You should have received a copy of the GNU General Public
++.\" License along with this manual; if not, write to the Free
++.\" Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139,
++.\" USA.
++.\"
++.\" $Id: tome.man,v 1.1 2003/08/02 05:01:25 srivasta Exp $
++.TH TOME 6 "August 1 2003" "Debian" "Debian GNU/Linux manual"
++.SH NAME
++tome \- is a graphical dungeon adventure game in the vein of rogue
++.SH SYNOPSIS
++.B tome
++.I [options]
++.I [\-\- suboptions]
++.SH DESCRIPTION
++This manual page explains the Debian package
++.B "tome".
++.B Tome 
++is a single-player, 
++.I graphical
++dungeon adventure game using textual characters
++to represent the walls and floors of a dungeon and the inhabitants therein,
++in the vein of 
++.I rogue, 
++.I hack, 
++.I nethack, 
++and 
++.I moria.
++.PP
++This version of
++.B Tome
++has been compiled with both 
++.I ncurses
++and the 
++.I X Windowing system.
++and hence can be played on a virtual console as well as under 
++.I X.
++In the latter case, the game pulls up multiple windows.
++.SH OPTIONS
++.PD 0
++.TP 10
++.B \-h 
++Print out a usage message.
++.TP
++.BR \-n
++Start a new character
++.TP
++.BR \-f
++Request fiddle mode (no high score entry)
++.TP
++.BR \-w
++Request wizard mode (no high score entry)
++.TP
++.BR \-v
++Request sound mode
++.TP
++.BR \-g
++Request graphics mode
++.TP
++.BR \-o
++Request original keyset
++.TP
++.BR \-r
++Request rogue-like keyset
++.TP
++.BR \-s<num>  
++Show <num> high scores
++.TP
++.BR \-u<who>  
++Use your <who> savefile
++.TP
++.BR \-m<sys>  
++Force 'main-<sys>.c' usage
++.TP
++.BR \-d<lib>=<path>  
++Define a 'lib' dir sub-path. Valid values of lib are help info user
++bone save data apex xtra edit file
++.PD
++.SH "GETTING STARTED"
++To start with, you can just say tome -uTest, and that creates a
++save file with the file name 
++.I /var/games/tome/save/<UID>Test. 
++The best place to get help is the program itself; help is reached by
++the command
++.B ?
++and presents a menu of choices.
++.PP
++Program options can be set  using the = command. To see what the
++various options mean, access the List of Options help menu with the ?
++command. 
++.SH "SEE ALSO"
++.BR nethack (6).
++.BR angband (6).
++.SH AUTHOR
++This manual page was written Manoj Srivastava <srivasta@debian.org>,
++for the Debian GNU/Linux system.
+-- 
+2.0.0.rc0
+

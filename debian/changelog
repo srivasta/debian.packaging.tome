@@ -1,0 +1,600 @@
+tome (2.3.5-3) unstable; urgency=low
+
+  * New bug fixing release.
+  * Bug fix: "FTBFS due to binutils-gold", thanks to Bhavani Shankar
+    R. Added -lm toi the linker line.    (Closes: #607552).
+  * Bug fix: "depends on obsolete libmikmod2 on powerpc", thanks to Julien
+    Cristau. This is not a direct dependency, so rebuilding should fix it.
+    (Closes: #742598).
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 30 Apr 2014 21:50:57 -0700
+
+tome (2.3.5-2) unstable; urgency=low
+
+  * [f4042dd] Fix code which needed a 32 bit int to not use int/long
+    On amd64, but not on i386, tome produces LUA errors at various
+    times. The errors occur at savefile load, when wileding a weapon,
+    unweilding a weapon, and for other events. The same homedir, same
+    savefiles, same config, same etc., does not produce errors in the
+    32bit build of the package.
+
+    The error seems to be that the type Number needs to be a 32bit wide
+    integer; and seems to be defined by default as an long, with an option
+    to define it as an int for amd64. However, for the 11 arches Debian
+    supports, this would lead to a morass of selecting architectures in
+    the makefile to override the type; a better solution is to use
+    stdint.h and use a type which is 32 bits wide by design: int32_t.
+
+    Bug fix: "frequent LUA errors on amd64, possibly influencing game
+    logic", thanks to jrodman@debbugs.spamportal.net</a>; The fix was
+    inspired by a different fix proposed by Daniel White.
+
+    This fixes the LUA errors, and             (Closes: Bug#419825)
+    This is an important bug fix.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Tue, 21 Oct 2008 08:36:01 -0500
+
+tome (2.3.5-1) unstable; urgency=low
+
+  * New upstream release
+    Interface changes:
+    - The X11 and Xaw interfaces now save the dungeon and player when the
+      window is closed.
+    - Fixed cpu churning bug that occurs when using certain window managers and
+      ToME is maximized.
+    Gameplay changes:
+    - Player speed now set correctly when Demon Hide corruption is enabled.
+    - ToME now correctly sets various Balrog flags when player in Balrog form.
+    - ToME now correctly sets the teleport flags when teleport corruption is
+      enabled.
+    - ToME now uses the qrand7.map file when generating princess quests.
+    - Bigs changes for generate.c to get it to produce the princess and thrain
+      rooms. Also code clean up of room geranation code.
+    Object changes:
+    - Slings of Buckland can now be generated.
+    - Wiki Bug 510. Added the WIELD_CAST flag to all artifact instruments to
+      fix problems when casting spells.
+    Misc changes:
+    - Fixed small typo in the commands help file.
+    - Added help for the Mathom House.
+    - Fixed various compile time warnings in various files.
+    - Added makefile support for main-gtk2.c in makefile.std
+    - Values found in documentation for spectral race modifiers now match values
+      found in p_info.txt.
+    - Wiki Bug 837. Removed references to old inscriptions handling code in
+      documentation.
+    - Wiki Bug 564. Do not use the word 'restrict' as a variable name anymore.
+      It conflicts with keywords used by the Sun Studio Compiler.
+    - Wiki Bug 517. Fixed incorrect descriptoin of artifacts in help files.
+    - Changed description of Disarm spell to more accurately reflect what it
+      does.
+    - ToME now correctly compiles main-gtk2.c on 64-bit machines.
+    Bug fixes:
+    - Wiki Bugs 841, 405, 360. Changes to get ToME to correctly build 64-bit
+      executables.
+    - Applied killerbunnies patch to identify objects on grid before squelching.
+    - Applied killer bunnies patch to keep the fate "you are fated to find
+      something special" from creating something special with an inappropriate
+      base object.
+    - Applied killerbunnies patch stops symbiotes from gaining levels simply
+      by being hypnotized and released.
+    - ToME now saves tim_fly, tim_poison, tim_regen and tim_regen_power.
+    - Stores now display the inventory correctly after a purchase.
+    - The race the legends display now works correctly with more than 10 dead
+      characters in history.
+    - Characters are no longer generated with 0 mana points.
+    - Wiki Bug 839. ToME no longer penalizes an object when it is not actually
+      cursed.
+    - Wiki Bug 838. The melee style will now switch correctly from Bear to the
+      primary melee style when switching out of Bear form.
+    - Wiki Bug 826. The inventory and equipment windows now update when the
+      player identifies the entire pack or uses the *Greater Identify* spell.
+    - Wiki Bug 819. No more bogus level leaving messages.
+    - Wiki Bug 722. ToME no longer crashes purple staircases have been trapped.
+    - Wiki Bug 624. Ensure savefiles go to save and not scpt when using modules.
+    - Wiki Bug 537. Partial fix of infinite loop during stair allocation on
+      small levels.
+    - Wiki Bug 530. ToME no longer drops items inappropriately when changing
+      melee styles.
+    - Wiki Bug 528. Character dumps now show the correct number of princess and
+      lost sword quests.
+    - Wiki Bug 526. ToME no longer enters an infinite loop when fighting in
+      bare-hand combat sylte and bare-hand skill is < 1.
+    - Wiki Bug 523. All types of recall check if the user really wants to leave
+      a unique level.
+    - Wiki Bug 506. ToME no longer crashes attempting to drop non-existant
+      artifacts.
+    - Wiki Bug 419. Use SKILL_BOULDER instead of SKILL_ARCHERY when throwing
+      a boulder.
+    - Wiki Bug 411. Black breath no longer gets 3 chances to happen.
+    - Wiki Bug 394 and 393. Inertia Control autocasting can no longer cast a
+      spell when antimagic field > 0 or when wielding a dark sword.
+    - Wiki Bug 334. Companions are no longer saved in dungone save files.
+    - Work around Mac OS 10.4.11 getlogin() bug - Neil
+    - Wiki Bug 397. ToME no longer crashes on XP and Vista systems when viewing
+      quests or other info from the knowledge menu.
+  * Change the control file to reflect the repo change to git.
+  * Update the build depends to reflect the fact that we now also compile
+    the SDL version, which is the preferred back end.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Tue, 27 May 2008 17:35:12 -0500
+
+tome (2.3.4-2) unstable; urgency=low
+
+  * Added patch to allow saving games when playing optional modules. Patch
+    from  Bob Vincent                                     Closes: #428910
+
+ -- Manoj Srivastava <srivasta@debian.org>  Fri, 08 Feb 2008 00:38:49 -0600
+
+tome (2.3.4-1) unstable; urgency=low
+
+  * New upstream release
+    Interface changes:
+    - Fix window position saving on Mac OS, patch by John Love-Jensen
+      -- Neil
+    Bug fixes:
+    - Remove buggy trap of Stair Movement -- Neil
+    - Fix typo in one monster's flags - Iain
+    - Fix word wrapping in character sheet, patch from "ZizzoTheInfinite"
+      -- Neil
+
+ -- Manoj Srivastava <srivasta@debian.org>  Fri, 27 Oct 2006 09:58:27 -0500
+
+tome (2.3.3-3) unstable; urgency=low
+
+  * Updated copyright file.
+  * remove obsolete libxaw8-dev dependency
+
+ -- Manoj Srivastava <srivasta@debian.org>  Fri, 16 Jun 2006 08:49:48 -0500
+
+tome (2.3.3-2) unstable; urgency=low
+
+  * Updated build dependencies.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed,  8 Feb 2006 10:45:14 -0600
+
+tome (2.3.3-1) unstable; urgency=low
+
+  * New upstream release
+    Interface changes:
+    - Miscellaneous documentation, spelling and grammar fixes. -- gwooledge
+    - Update AC display after fixing armor in the buildings. -- gwooledge
+    - Fix damage display for Thaumaturgy ball spells. -- gwooledge
+    - Honor exp_need option when displaying object experience. -- gwooledge
+    - Restored and updated some missing help files. -- gwooledge
+    - Handling of Command key modified in Mac OS X UI.  It should be accessible
+      in macros now if it wasn't before -- Neil
+    Gameplay changes:
+    - Lost sword quest rewards always give a minimum skill modifier of 0.3.
+      -- gwooledge
+    - (Mass) Genocide damage is applied all at once to avoid bug #228.
+      -- gwooledge
+    Monster changes:
+    - Kavlax should be many-headed. -- gwooledge
+    - Regular (non-Joke, non-Cth, non-Z) monsters should not breathe nuke,
+      because it has a side effect we don't want in ToME -- Neil
+    Object changes:
+    - Removed pointless slays, brands, and bonuses on Pick of Erebor --  Neil
+    - When examining books, demonology equipment and instruments in stores, show
+      both the object's powers and its spells. -- gwooledge
+    - Junk should stack just like skeletons.  Patch by StarweaverBlue.
+      -- gwooledge
+    - Mac OS X builds now put all the game data into the bundle, storing all
+      user data in the user's Library (some preferences in
+      Library/Preferences/net.t-o-m-e.tome.plist, the rest in
+      Library/Application Support/ToME. -- Neil
+    Player changes:
+    - All new partial summon upkeep formula -- neil
+    Dungeon changes:
+    - Edit one vault to open up some inaccessible rooms -- Neil
+    - A certain early trap should be less deadly (and appear a bit later).
+      -- gwooledge
+    Bug fixes:
+    - Alchemy: disallow repowering double-ego items, unless the character has
+      the artifact creation ability.  Based on patch by Andrey Egoshin.
+      -- gwooledge
+    - Lost sword quest skill reward probabilities were computed incorrectly.
+      Fix suggested by Dan Rosenberry. -- gwooledge
+    - Don't let a player trick the Valar by getting drained and re-gaining
+      levels -- Neil
+    - Don't allow Runecraft and Thaumaturgy spells to go explode inside walls
+      and seep through --  Neil
+    - When consuming magic essences, don't stop prematurely.  Based on patch
+      by Andrey Egoshin. -- gwooledge
+    - Upkeep cost for partial summons was not always charged. -- gwooledge
+    - Some staves were being generated with the wrong tval, causing several bugs
+      including (but not limited to) staves being unrechargeable. -- gwooledge
+    - Saving throw was not calculated correctly. -- gwooledge
+    - Disallow negative experience alchemy abuses.  Based on patch by Andrey
+      Egoshin. -- gwooledge
+    - Nonliving and undead pets won't be angered by lack of breathable air.
+      -- gwooledge
+    - Don't use the "POSIX" setuid calls on Mac OS X, as they apparently break
+      compilation -- neil
+    - Certain monster spells were hard-coded for the wrong number of equipment
+      slots. -- gwooledge
+    - Incorrect operator used in cave generation code.  Effect unknown, but it
+      *might* possibly fix some of the Orc cave crashes.-- gwooledge
+    - Don't allow uniques or quest monsters to just disappear to the move of
+      another monster -- Neil
+    - Attempt to work around some crashes in the fractal cave generator -- Neil
+
+ -- Manoj Srivastava <srivasta@debian.org>  Fri, 30 Dec 2005 15:54:19 -0600
+
+tome (2.3.2-1) unstable; urgency=low
+
+  * New upstream release.
+        Interface changes:
+        - If easy_disarm is off, don't trigger known traps while walking normally.
+          Added a new extended command "blunder" to let players trigger traps on
+          purpose. -- gwooledge
+        - Lots of documentation, spelling and grammar fixes, including:
+          * the now-outdated race/class ability tables, replaced with skill tables
+          * the missing documentation for the set of extended commands
+          * far too many others to mention here
+          -- gwooledge
+        - Added sanity and speed to the character screen (and hence the text dump).
+          Consolidated HP and SP into one line to make room. -- gwooledge
+        - Allow shopping to use the correct keys in roguelike mode. -- gwooledge
+        - Push a certain potion type a little deeper into the dungeon -- Neil
+        - Make piety display light blue when praying, to make it easier to tell
+          when you're praying. -- gwooledge
+        - Don't display ordinary resists when there's also an immunity to the same
+          element, in an object description. -- gwooledge
+        - Display the (colored) character for uniques in the Known Uniques list (~2).
+          -- gwooledge
+        - Add "Check abilities" extended command/macro.  This gives roguelike keyset
+          players a way to access the ability screen other than "\N", although it's
+          still one more keystroke than "\N" is.... -- gwooledge
+        - Clean up some offensive messages, patch courtesy of 'The Fury' -- Neil
+        - Include the resistances grid on character sheets dumped on death.
+          This makes them consistent with the ones generated before death, and
+          is more informative and useful for post mortem analyses. -- gwooledge
+        - Examining a totem will recall the monster it summons -- Neil
+        - Examining a corpse will recall the monster it was -- Neil
+
+        Object changes:
+        - Prevent random artifact bolts from giving extra blows -- Neil
+        - Correct the types of certain artifact trap sets to match their weights
+          and descriptions. -- gwooledge
+        - Potions of Cure Insanity were too cheap. -- gwooledge
+
+        Player changes:
+        - Warriors no longer get a secret special three bonus blows spread over the
+          50 character levels.  The three blows are now tied to Weaponmastery.
+          Module authors should adjust accordingly, or their warriors may get three
+          blows they didn't have before. -- Neil
+
+        Bug fixes:
+        - Don't allow trap doors on quest levels or on chests. -- gwooledge
+        - Update view after high-powered globe of light. -- gwooledge
+        - Don't allow use of stairs (any < or > movement command) while rooted
+          to the floor (by the Yavanna spell). -- gwooledge
+        - Try again to keep traps from wrecking a certain plot element -- Neil
+        - Fix module file handling for multi-user installs.  Now character sheets,
+          automatizer file, and the rest will be read and written in
+          ~/.tome/2.3/modulename as they should. -- Neil
+        - Try harder to save persistent levels when recalling out -- Neil
+        - Fix all sub-racial skill bonuses, along with Maia racial skill bonuses
+          -- Neil
+  * Bug fix: "tome must be build against libxaw7", thanks to serge
+                                                                     (Closes: #305759).
+
+ -- Manoj Srivastava <srivasta@debian.org>  Thu, 11 Aug 2005 15:03:52 -0500
+
+tome (2.3.1-1) unstable; urgency=low
+
+  * New upstream release.
+       - Fix loading and saving of skills, I hope.  Unfortunately this breaks save
+         compatiability, though.  The saves must be deleted again. -- Neil
+       - Fix negative skills -- Neil
+       - Don't use weaponmastery combat when weaponmastery skill is negative -- Neil
+
+ -- Manoj Srivastava <srivasta@debian.org>  Sat, 22 Jan 2005 17:33:40 -0600
+
+tome (2.3.0-1) unstable; urgency=low
+
+  * New upstream release.
+
+     Gameplay changes:
+     - Added the new Mimic shapes and updated the old ones -- masmarangio
+     - Destroying items manually now takes no time -- neil
+     - Added the spell Sterilize and Staves of Sterilization from ToME 3.0.0.
+     - Added the spell Inertia Control from ToME 3.0.0 -- masmarangio
+
+     Object changes:
+     - Removed portable holes as have been useless for as long as merchants have
+     been removed from game. --fearoffours
+     - k_info.txt: Changed comments and descriptions of the items, mostly from
+     the wiki (Bug # 176) and added missing descriptions (IdeaArchive)
+     Added article (&) in the name of armours (Bug # 81),
+     The spelling of some item names was changed: Scroll of Enchant Armour,
+     *Enchant Armour*, Curse Armour, Summon Monsters, Basilard
+     Added COULD2H to the Claymore and MUST2H to the Espadon.
+     - ra_info.txt: Added a STR-increasing part without combat bonuses for diggers
+     - e_info.txt: Diggers cannot be of Earthquakes anymore (there are combat boni
+     involved) - perhaps an own ego type should be added... -- masmarangio
+     - No more blessed boomerangs -- neil
+
+     Player changes:
+     - Class no longer influences the internal Angband 'skills' of Disarming,
+     Magic Devices, Saving Throw, Stealth, Searching, Perception, Hand-to-Hand
+     combat, Missile Combat, and Throwing. ToME skills instead have the same
+     effect for all classes. -- neil
+     - Water Bite no longer has a damage cap -- neil
+     - Except for infravision, all innate class or racial effects on skills are
+     gone. All skills have equal effect for all classes, and races now give
+     starting skill bonuses. -- Neil
+     - Mages are more geared toward a mix of Magic and Combat, while Sorcerors
+     have more options than pure Sorcery -- Neil
+     - Priests disarm as well as Warriors do now -- neil
+
+     Misc changes:
+     - a_info.txt: Updated names of artifacts in the comments -- masmarangio
+     - object.pkg: Added psychometry() for easier mindcraft testing.
+     - birth.txt, index.txt : Corrected and added abbreviations
+     gen_idx.lua: removed non-existent file and sorted file list
+     - Updated luckspoiler -- masmarangio
+     - Typo in s_fire.lua, from the wiki -- masmarangio
+     - rm_skeleton.txt, rm_zombie.txt: They cannot restore life force, and zombies
+     are not resistant to nether -- masmarangio
+     - Helpfile updates for all character classes. -- masmarangio
+     - util.pkg: Added lite_spot() and note_spot() for modules -- masmarangio
+     - g_melkor.txt: Added fire resistance for worshippers of Melkor
+     - p_info.txt: Removed the useless skill Prayer for Maiar -- masmarangio
+     - help file documentation restructuring, copying appropriate rewrites from
+     wiki. -- fearoffours
+     - Various minor changes to helpfiles, reflecting current changes to
+     documentaiton on the wiki. --fearoffours
+     - k_info.txt: Fixed name of the commented out portable holes -- masmarangio
+     - Fixed some typographical errors, mostly from the wiki:
+     cmd1.c: [The monster] fall -> falls, deleted space (Bug # 80 from the wiki)
+     k_info.txt: Added & for Climbing sets (Bug # 81 from the wiki)
+     q_one.c: You felt -> You fell (Bug # 94 from the wiki)
+     monster2.c: It tries to breed but he fails: he -> it (Bug # 98 from the wiki)
+     bldg.c: Changed wording of the soothsayer (Bug # 106 from the wiki)
+     tables.c: Minor changes in the One Ring quest (Bug # 117 from the wiki)
+     q_invas.c: jumps out of the between -> appears, deleted spaces,
+     added single quotes in direct speech (Bug # 119 from the wiki)
+     q_between.c: Deleted space, changed comments -- masmarangio
+     - book-4.txt: Capitalised 'Ring' (Bug # 135 from the wiki) -- masmarangio
+     - options.txt: Also removed the options from the help file -- masmarangio
+     - cmd6.c: replaced the recall activation code by recall_player -- masmarangio
+     - monster1.c: missing spaces in description (Bug # 169) -- masmarangio
+     - Modules need to define three new variables to control the chance or
+     random artifact generation. random_artifact_weapon_chance,
+     random_artifact_armor_chance, random_artifact_jewelry_chance control
+     the chance for different types of items. -- neil
+     - mods_aux.lua: Added default values for random artifact generation;
+     updated the skill values -- masmarangio
+     - cmd6.c: protect evil -> protection from evil, s_stick.lua: town -> surface
+     q_betwen.c, q_invas.c: speak -> speaks (from the forum) -- masmarangio
+     - tr_info.txt: Spelling of Lite (Bug # 182), Armor, Paralyzing -- masmarangio
+     - The (Ctrl-Q) Quest screen now shows which number god quest you have been given
+     and an additional line in your character dump shows how many have been
+     successfully completed. -- fearoffours
+     - Help updates from the wiki - lots of it Maylith's work, esp FAQ updates.
+     -- fearoffours
+     - Corrected the description of the Disarm, Call the Elements and Channel
+     Elements spells (without changing the code) (Bug # 175) -- masmarangio
+     - tome-faq.txt, index.txt: Typo (Bug # 196) -- masmarangio
+     - s_info.txt: Antimagic: generates -> generate (Bug # 198) -- masmarangio
+     - powers.c: replaced the recall power code by recall_player
+     q_troll.c: Fixed typos from the wiki (Bug # 208) -- masmarangio
+     - tables.c: Removed harpers and some other small changes (Bug # 212)
+     cmd6.c: Added "and" in the description of ACT_ROHAN (Bug # 213)
+     -- masmarangio
+     - m_demono.txt, s_demon.lua: armor -> armour class (Bug # 217)
+     - dun3.18: description of DimGates: fills -> fill (Bug # 223)
+     -- masmarangio
+     - init1.c: The parser adds missing spaces at the end of the
+     description of artifacts, like it did for objects. -- masmarangio
+     - Race, class and race modifier help files updates to reflect changes
+     in skill bonuses. -- fearoffours
+     Some changes to random artifact and scrolls of artifact creation
+     (See Bugs # 206, 222, 226 on the wiki):
+     - externs.h: Moved some functions listed under spells2.c to proper sections
+     - k_info.txt: Added "mundane" to the description of the scroll
+     - q_ultrag.c: Quest texts changed as reported in Bug # 210 -- masmarangio
+     - spells.lua: Sorted the Conveyance spells by level (Bug # 233)
+     -- masmarangio
+     - Helpfiles reflect changes to skills (priest disarming and racial
+     spirituality update). -- fearoffours
+     - library.lua: Added OBJ_FOUND_REWARD to the tome (Bug # 237) -- masmarangio
+
+     Dungeon changes:
+     - Added the first new special level from ToME 3.0.0, Galleon in Helcaraxe
+     -- masmarangio
+     - Added the special level Factory in the Illusory Castle -- masmarangio
+     - dungeon.c: Level of the Death dungeon is the minimum level from d_info.txt
+
+     Bug fixes:
+     - dungeon.c: Light should consume fuel at a rate of 1 / turn -- masmarangio
+     - A store (e.g. the mathom house) can contain up to 255 items (in defines.h
+     STORE_INVEN_MAX limited the number of items to 24) (Note: the limit is
+     stored in a byte in loadsaves.c) -- masmarangio
+     - s_meta.lua: Inertia controlled spells are not casted in wilderness mode.
+     s_mana.lua: Inertia level of Disruption Shield is 9 (needed spell level 45)
+     m_meta.txt: Added a list of controllable spells -- masmarangio
+     - p_info.txt: Archers and Rangers gain the missing Spirituality skill
+     p_info.txt: Removed the old Mimic Cloak (new cloak in player.lua)
+     - p_info.txt: Thunderlords start with Stealth -16.000 (from the wiki)
+     - cmd7.c: Fixed Alchemy recharging bug (thanks to Scott)
+     - al_info.txt: Removed the old Mimic Potions -- masmarangio
+     - monspeak.txt: Added some lines for Groo to fix a bug -- masmarangio
+     - files.c: Corrected display of Climb flag, immunity to Nether, negative
+     pvals < -9. Added Sentient, Clone, Spider ESP flags. -- masmarangio
+     - files.c: Added flags from the gods and spell schools to the character
+     screen. Added also flags from wielded symbiotes. -- masmarangio
+     - cmd4.c: Quest list without random quests in DL > 98 -- masmarangio
+     - randart.c: An item with pval > 0 (e.g. an Elven Cloak) can gain parts
+     with a max_pval = 0 (e.g. resistances and immunities) -- masmarangio
+     - ow_info.txt: missing C: lines reduced the purse to 0 -- masmarangio
+     - object1.c: don't wield bolts with instruments and pebbles with boomerangs
+     (Bug # 127 from the wiki) -- masmarangio
+     - object1.c: mention_use and describe_use list all available slots, check all
+     weapon weights and distinguish between instruments and bows (Bug # 87)
+     object1.c: Res Chaos implies Res Confusion (for the character screen)
+     xtra1.c: Magical breath implies Water breath (from the wiki) -- masmarangio
+     - Z and Cth monster options removed, as in ToME 3. This fixes, among other
+     things, the Death Orb issues. -- neil
+     - a_info.txt: Corrected two typos (Bugs # 140, 146 from the wiki)
+     k_info.txt: Changed description of Bastard Sword, added RES_CHAOS to the
+     known flags of a Blade of Chaos (it's mentioned in the description)
+     files.c: Terminated highscore strings with \0, changed total_points
+     slightly to prevent an overflow error (Bug # 139 from the wiki)
+     v_info.txt: Corrected the x size of vault 99 and 104 -- masmarangio
+     - dungeon.c: Set dungeon_type to wilderness when recalling out. This should
+     fix the various Moria recalling bugs (Bug # 95)
+     - spells2.c: Redraw trap status after passwall (Bug # 51)
+     store.c: Removed '))' when displaying a large store -- masmarangio
+     - al_info.txt: removed recipe for Scroll of Spell (Bug # 179), added recipe
+     for Staff of Sterilisation (Bug # 77) -- masmarangio
+     - cmd6.c: Added timeout for junkarts in the activation description (ugly fix)
+     tables.c: Replaced ACT_CURE_POISON by not used ACT_CURE_POIS -- masmarangio
+     - Once a god quest is failed, you will not receive any more god quests.
+     -- fearoffours
+     - bldg.c: Research item (Bug # 191) and research monster are now paid
+     correctly -- masmarangio
+     - spells2.c: Diggers cannot be enchanted with scrolls -- masmarangio
+     - files.c: Fixed displayed barehanded damage (Patch from Scott, Bug # 195)
+     -- masmarangio
+     - files.c: Remove / restore CAVE_VIEW before / after saving the game.
+     This solves a long standing bug with the lighting of the dungeon
+     since the temporary arrays that hold the position of the viewed
+     grids are not stored in the save file (Bug # 19). -- masmarangio
+     - cmd6.c: the selection of artifactable items can be escaped now
+     randart.c: *ID* the object before listing the powers, some re-ordering
+     - spells2.c: Re-add diggers to item_tester_artifactable, and limit the
+     selection to normal items due to complains (no ego items or artifacts)
+     - ra_info.txt: Fixed two W-lines with 4 entries and added a missing C-line
+     - k_info.txt: Reduced throwing damage of totems to 1 -- masmarangio
+     - st_info.txt: Fixed the changed item names in the stores (StatusReport3)
+     - Fix for disappearing artifacts (especially guardian artifacts) during load / save
+     thanks to SimonSorc
+
+ -- Manoj Srivastava <srivasta@debian.org>  Tue,  7 Dec 2004 19:22:40 -0600
+
+tome (2.2.7-1) unstable; urgency=low
+
+  * New upstream release. This is a bug fix release.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Sun, 13 Jun 2004 22:02:32 -0500
+
+tome (2.2.6-2) unstable; urgency=low
+
+  * Bug fix: "XSIisms in postinst, prerm; violates policy 10.4", thanks to
+    Clint Adams                                          (Closes: #237959).
+
+ -- Manoj Srivastava <srivasta@debian.org>  Sun, 14 Mar 2004 12:24:19 -0600
+
+tome (2.2.6-1) unstable; urgency=low
+
+  * New upstream release
+
+    Interfaces changes:
+    * Pressing Escape gets you out of the pet dismissal list -- neil
+
+    Misc changes:
+    * Helpfiles: bearform combat help, music typos, barbarian
+      revisions. -- fearoffours
+    * - Typos in the description of arrows, shots, bolts; punctuation in
+        the mushroom quest -- masmarangio
+    * HOOK_CALC_BONUS_END hooks
+    * Helpfiles: corrected starting equipment of mindcrafters -- masmarangio
+    * - Backport of old helpfile updates: no Geomancy for Alchemists and
+      Rune- crafters, updated luck spoiler, corruption spoiler in
+      crpt_aux.lua, a link in skills.txt, an example in
+      automatizer.txt. monsters3.c: changed 'golem' to 'creature', since the
+      Mind Steal Spell also allows to control a monster. -- masmarangio
+    * Typo (massage -> message) from the forum -- masmarangio
+    * Capitalisation in the names of junkarts -- masmarangio
+    * mindcraft_info: Corrected and expanded the info for mindcraft powers -- masmarangio
+    * Small corrections in luck spoiler, description of Manwe's Blessing
+       and m_mimic.txt -- masmarangio
+
+    Bug fixes:
+    * Prevent recall to Lost Temple before getting the quest -- neil
+    * Automatizer now accepts TV_TOTEM -- neil
+    * Some vaults incorrectly named -- fearoffours
+    * Wight quest crash fix by 'amaurea' -- neil
+    * God choosen at random was broken -- masmarangio
+    * Typo in q_one.c (or -> of)
+    * Don't use a turn when cancelling a possessor action -- neil
+    * - summon_true crashed the game with a summon skill < 1 -- masmarangio
+    * - test_object_wish: aware status is saved and restored -- masmarangio
+    * God quest will no longer give inaccurate or misleading
+      directions. It also will now give directions from two static features,
+      and an approximate, relative distance from each of those points. --
+      fearoffours
+
+  * Bug fix: "Error in /usr/lib/menu/tome", thanks to Philipp Kolmann
+    (Closes: #234871).
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 10 Mar 2004 23:45:55 -0600
+
+tome (2.2.5-1) unstable; urgency=low
+
+  * New upstream release
+  Monsters changes:
+    * Drain attacks can't drain the one artifact wand, staff, or horn -- neil
+
+  Objects changes:
+    * Some items that give damage bonuses will be more clear about it -- neil
+
+  Bug fixes:
+    * Fix monster possessor crash -- neil
+    * Fix random quest skill requester -- neil
+    * Fix crash when picking up ammo into your quiver that can't be
+      fired with the launcher you are wielding -- neil
+    * God quest fix -- neil
+    * Disintegrating walls should not bother Yavanna -- neil
+    * Yet another try at fixing levelled carried monsters. Their
+      attacks are affected by their level now and their hitpoints are
+      handled better. I should have said this for the last release,
+      but un-hypnotize any pets before upgrading from 2.2.2. Otherwise
+      compatibility is fine. -- neil
+    * Semi-wraiths should not be hurt by climbing over mountains -- neil
+    * Fixed Flame of Udun spell
+    * Diggers are not weapons and should not be displayed as such -- neil
+
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 24 Dec 2003 10:59:50 -0600
+
+tome (2.2.4-1) unstable; urgency=low
+
+  * New upstream Bugfix version.
+  * Redid the build system.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Mon, 24 Nov 2003 23:52:59 -0600
+
+tome (2.2.3-1) unstable; urgency=low
+
+  * New upstream Bugfix version.
+  * Fixed the menuentry for tome, quoting a " char.  closes: Bug#207648
+
+ -- Manoj Srivastava <srivasta@debian.org>  Fri, 03 Oct 2003 10:58:24 -0500
+
+tome (2.2.2.0-CVS031001-1) unstable; urgency=low
+
+  * Fixed usage of chown root.root in the rules files.
+  * This is a major security update; hundreds of potential buffer
+    overflows (most of them not exploitable) have been fixed in this
+    version. At the request of upstream, this audit was done on the CVS
+    version.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 27 Aug 2003 02:05:02 -0500
+
+tome (2.2.2-2) unstable; urgency=low
+
+  * Added clarifications to the copyright file, after personal
+    communications from Dark God <darkgod@t-o-m-e.net>, the author of the
+    Tome variant.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Sat,  2 Aug 2003 13:59:46 -0500
+
+tome (2.2.2-1) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Fri,  1 Aug 2003 22:02:44 -0500
