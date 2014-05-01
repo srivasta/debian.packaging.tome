@@ -128,13 +128,13 @@ CC = gcc
 #
 #COPTS = -Wall -O1 -pipe -g
 COPTS    = -Wall -O2 -fomit-frame-pointer -pipe -g
-INCLUDES = -I/usr/X11R6/include $(shell sdl-config --cflags)                 
+INCLUDES = -I/usr/X11R6/include $(shell sdl-config --cflags)
 DEFINES  = -DUSE_XAW -DUSE_GCU -DUSE_SDL -DUSE_TPOSIX -DUSE_CURS_SET    \
 	   -DUSE_TRANSPARENCY -DUSE_EGO_GRAPHICS -DSUPPORT_GAMMA        \
 	   -DUSE_PRECISE_CMOVIE -DUSE_UNIXSOCK
 LIBS     = -L/usr/X11R6/lib -lXaw -lXmu -lXt -lX11  -lncurses -ltermcap \
            $(shell sdl-config --libs)  -lSDL_image -lSDL_ttf -lSDL_gfx  \
-           -lSDL_net -lSDL_mixer
+           -lSDL_net -lSDL_mixer -lm
 
 
 ##
