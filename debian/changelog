@@ -1,3 +1,12 @@
+tome (2.3.5-4) unstable; urgency=low
+
+  * On purge, get rid of /var/games/tome directory (and all the score
+    files)  (Closes: #663525).
+  * Bug fix #663525: "unowned files after purge (policy 6.8, 10.8)", thanks to
+    Andreas Beckmann
+
+ -- Manoj Srivastava <srivasta@debian.org>  Mon, 05 May 2014 10:49:34 -0700
+
 tome (2.3.5-3) unstable; urgency=low
 
   * New bug fixing release.

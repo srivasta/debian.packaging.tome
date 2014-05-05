@@ -86,7 +86,7 @@ case "$1" in
 	    rm -rf /var/lib/games/${package_name}/
 	fi
         if [ -d "/var/games/${package_name}" ]; then
-            find "/var/games/${package_name}" -type f -name \*.raw -exec rm {} \;
+            rm -rf "/var/games/${package_name}"
         fi
 
     # remove the configuration file itself
