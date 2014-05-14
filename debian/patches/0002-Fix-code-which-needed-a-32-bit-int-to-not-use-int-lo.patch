@@ -1,4 +1,4 @@
-From 9558c380a07f8dd133ddf49dc140f769e78262e4 Mon Sep 17 00:00:00 2001
+From b0fc4ea81ad13d6b08aad56484ff82352432115e Mon Sep 17 00:00:00 2001
 From: Manoj Srivastava <srivasta@debian.org>
 Date: Tue, 21 Oct 2008 08:25:47 -0500
 Subject: [PATCH 2/2] Fix code which needed a 32 bit int to not use int/long

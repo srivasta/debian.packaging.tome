@@ -1,3 +1,19 @@
+tome (2.3.7-ah-1) unstable; urgency=low
+
+  * New upstream maintenance release
+    - Remove item pval from antimagic field strength calculation since it
+      may be both non-zero and invisible (to the player).
+    - Miscellaneous 64 bit fixes.
+    - Fix Lua errors when hitting <ESC> while choosing spell.
+    - Killerbunnies: Automatizer: Add patch which adds new <inventory/>
+      and <equipment/> rules.
+    - Killerbunnies: Add "you do not know all your fate" to Fate menu
+      if you haven't been discovered all your fates.
+    - Killerbunnies: Display a message if trying to activate Piercing Shots
+      without the necessary skill levels.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 14 May 2014 14:43:34 -0700
+
 tome (2.3.6-ah-1) unstable; urgency=medium
 
   * Upstream development of version 2 has moved into maintenance mode,

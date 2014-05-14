@@ -8,7 +8,7 @@ Build-Depends: libxaw7-dev, debhelper (>= 9.0.0),
  libncurses5-dev | libncurses-dev | ncurses-dev,
  libsdl1.2-dev | libsdl-dev, libsdl-mixer1.2-dev,
  libsdl-gfx1.2-dev, libsdl-image1.2-dev, libsdl-ttf2.0-dev,
- libsdl-net1.2-dev, dpkg-dev (>= 1.16.0)
+ libsdl-net1.2-dev, dpkg-dev (>= 1.16.0), cmake
 Standards-Version: 3.9.5.0
 
 Package: tome

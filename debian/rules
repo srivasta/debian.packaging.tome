@@ -40,7 +40,6 @@ export DEB_HOST_MULTIARCH  := $(shell $(DPKG_ARCH) $(ha) -qDEB_HOST_MULTIARCH)
 %:
 	dh $@
 override_dh_auto_build:
-	$(MAKE) -C src -f makefile.std
 	bash -n debian/postinst
 	bash -n debian/postrm
 	bash -n debian/prerm
@@ -48,7 +47,6 @@ override_dh_auto_build:
 	bash -n debian/Tome.sh
 
 override_dh_install:
-	$(MAKE) -C src -f makefile.std DESTDIR=$(TMPTOP) install
 	$(make_directory)    $(TMPTOP)/etc/$(package) $(PKG_STATLIB)
 	chmod 0644           $(PKG_LIBDIR)/edit/s_factory.map
 	chmod 0644           $(PKG_LIBDIR)/edit/s_ship.map
@@ -74,7 +72,6 @@ override_dh_fixperms:
 
 override_dh_clean:
 	dh_clean
-	$(MAKE) -C src -f makefile.std clean
 	touch ./lib/apex/delete.me
 	touch ./lib/data/delete.me
 	touch ./lib/info/delete.me

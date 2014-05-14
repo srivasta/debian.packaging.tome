@@ -1,6 +1,6 @@
-From 38e8771b6ba3701a472618ab59af1e86190837e6 Mon Sep 17 00:00:00 2001
+From 4519d4785ce84f04a2da6041c049a5c3b2360e23 Mon Sep 17 00:00:00 2001
 From: Manoj Srivastava <srivasta@golden-gryphon.com>
-Date: Wed, 14 May 2014 13:30:41 -0700
+Date: Wed, 14 May 2014 14:44:06 -0700
 Subject: [PATCH 1/2] debcherry fixup patch
 
 36e907c [topic--debian]: FTBFS due to binutils-gold
@@ -35,7 +35,7 @@ a2f1a5c Added a manual page
  create mode 100644 src/tome.man
 
 diff --git a/src/config.h b/src/config.h
-index d626062..6db4ff8 100644
+index 343f675..8c084e3 100644
 --- a/src/config.h
 +++ b/src/config.h
 @@ -90,7 +90,7 @@
@@ -47,7 +47,7 @@ index d626062..6db4ff8 100644
  
  
  /*
-@@ -377,7 +377,7 @@
+@@ -277,7 +277,7 @@
   * that file.
   */
  #ifndef DEFAULT_PATH
@@ -56,7 +56,7 @@ index d626062..6db4ff8 100644
  #endif
  
  
-@@ -446,7 +446,7 @@
+@@ -346,7 +346,7 @@
  /*
   * OPTION: Person to bother if something goes wrong.
   */
@@ -65,7 +65,7 @@ index d626062..6db4ff8 100644
  
  
  /*
-@@ -518,7 +518,7 @@
+@@ -382,7 +382,7 @@
  /* ToME options: */
  
  /* Should the player know his / her starting life rate? */
@@ -75,7 +75,7 @@ index d626062..6db4ff8 100644
  /* Do we want different characters for different races? */
  #define VARIABLE_PLAYER_GRAPH
 diff --git a/src/makefile.std b/src/makefile.std
-index 3d762d4..4139c11 100644
+index 486d500..869b160 100644
 --- a/src/makefile.std
 +++ b/src/makefile.std
 @@ -54,15 +54,16 @@
@@ -102,7 +102,7 @@ index 3d762d4..4139c11 100644
  # including "USE_GETCH" and "USE_CURS_SET".  Note that "config.h" will
  # attempt to "guess" at many of these flags based on your system.
  #
--COPTS = -Wall -O1 -pipe -g
+-COPTS = -Wall -O1 -Wno-unused-value -pipe -g
 -INCLUDES = -I/usr/X11R6/include
 -DEFINES = -DUSE_X11 \
 -	-DUSE_EGO_GRAPHICS -DUSE_TRANSPARENCY -DSUPPORT_GAMMA \
