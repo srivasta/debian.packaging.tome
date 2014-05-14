@@ -1,3 +1,24 @@
+tome (2.3.6-ah-1) unstable; urgency=medium
+
+  * Upstream development of version 2 has moved into maintenance mode,
+    with a new upstream git repository at:
+    git://gitorious.org/tome2/tome2.git
+    - Don't generate impassable glass walls.
+    - Mark *all* quest monsters properly.
+    - Avoid generating up staircases in selected dungeons.
+    - Mimicry cloaks of Abomination now aggravate properly.
+    - Properly handle item set effects with certain traps.
+    - Fix crash bug during character dumps.
+    - Misc. Mimicry fixes.
+    - Prevent immunities from Balrog Form persisting too long.
+    - Fix for loading/saving on Linux distribution using Fortify.
+    - Fix for module directory paths.
+    - Fix miscellaneous problems on 64-bit platforms.
+    - Princess room should now always be generated.
+    - Extra Blows applies to barehand combat too.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 14 May 2014 13:49:42 -0700
+
 tome (2.3.5-4) unstable; urgency=low
 
   * On purge, get rid of /var/games/tome directory (and all the score

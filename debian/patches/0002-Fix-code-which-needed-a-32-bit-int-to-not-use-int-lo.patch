@@ -1,4 +1,4 @@
-From 808d268f231e0ff1f3e0fed733b9221c48270c88 Mon Sep 17 00:00:00 2001
+From 9558c380a07f8dd133ddf49dc140f769e78262e4 Mon Sep 17 00:00:00 2001
 From: Manoj Srivastava <srivasta@debian.org>
 Date: Tue, 21 Oct 2008 08:25:47 -0500
 Subject: [PATCH 2/2] Fix code which needed a 32 bit int to not use int/long
@@ -54,5 +54,5 @@ index 4b12450..39a1e0d 100644
  
  #define MAX_SIZET	((size_t)(~(size_t)0)-2)
 -- 
-2.0.0.rc0
+2.0.0.rc2
 

@@ -1,6 +1,6 @@
-From 303b40dfacae90506045a867e9faf742b6318c69 Mon Sep 17 00:00:00 2001
+From 38e8771b6ba3701a472618ab59af1e86190837e6 Mon Sep 17 00:00:00 2001
 From: Manoj Srivastava <srivasta@golden-gryphon.com>
-Date: Wed, 30 Apr 2014 22:53:05 -0700
+Date: Wed, 14 May 2014 13:30:41 -0700
 Subject: [PATCH 1/2] debcherry fixup patch
 
 36e907c [topic--debian]: FTBFS due to binutils-gold
@@ -75,7 +75,7 @@ index d626062..6db4ff8 100644
  /* Do we want different characters for different races? */
  #define VARIABLE_PLAYER_GRAPH
 diff --git a/src/makefile.std b/src/makefile.std
-index c9247df..9407cdb 100644
+index 3d762d4..4139c11 100644
 --- a/src/makefile.std
 +++ b/src/makefile.std
 @@ -54,15 +54,16 @@
@@ -268,5 +268,5 @@ index 0000000..4d48ce9
 +This manual page was written Manoj Srivastava <srivasta@debian.org>,
 +for the Debian GNU/Linux system.
 -- 
-2.0.0.rc0
+2.0.0.rc2
 
