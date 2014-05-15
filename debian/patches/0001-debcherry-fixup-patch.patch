@@ -1,10 +1,12 @@
-From 4519d4785ce84f04a2da6041c049a5c3b2360e23 Mon Sep 17 00:00:00 2001
+From d87f41f54d9b8dfb0b5919e4b3a8d81ced96a8a5 Mon Sep 17 00:00:00 2001
 From: Manoj Srivastava <srivasta@golden-gryphon.com>
-Date: Wed, 14 May 2014 14:44:06 -0700
+Date: Wed, 14 May 2014 19:55:51 -0700
 Subject: [PATCH 1/2] debcherry fixup patch
 
-36e907c [topic--debian]: FTBFS due to binutils-gold
+dad3b13 [master]:  New upstream release
 	 - no changes against upstream or conflicts
+36e907c [topic--debian]: FTBFS due to binutils-gold
+	 - extra changes or conflicts
 1021e15 [master]: First phase of a ove to a new build system using dh.
 	 - no changes against upstream or conflicts
 23433b4 Added the debian submodule.
@@ -28,14 +30,13 @@ a2f1a5c Added a manual page
 18bd448 Changes to integrate tome into Debian
 	 - extra changes or conflicts
 ---
- src/config.h     |   8 ++--
- src/makefile.std |  32 +++++++++------
- src/tome.man     | 123 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
- 3 files changed, 147 insertions(+), 16 deletions(-)
+ src/config.h |   8 ++--
+ src/tome.man | 123 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 127 insertions(+), 4 deletions(-)
  create mode 100644 src/tome.man
 
 diff --git a/src/config.h b/src/config.h
-index 343f675..8c084e3 100644
+index 143740e..8892a14 100644
 --- a/src/config.h
 +++ b/src/config.h
 @@ -90,7 +90,7 @@
@@ -47,7 +48,7 @@ index 343f675..8c084e3 100644
  
  
  /*
-@@ -277,7 +277,7 @@
+@@ -269,7 +269,7 @@
   * that file.
   */
  #ifndef DEFAULT_PATH
@@ -56,7 +57,7 @@ index 343f675..8c084e3 100644
  #endif
  
  
-@@ -346,7 +346,7 @@
+@@ -338,7 +338,7 @@
  /*
   * OPTION: Person to bother if something goes wrong.
   */
@@ -65,7 +66,7 @@ index 343f675..8c084e3 100644
  
  
  /*
-@@ -382,7 +382,7 @@
+@@ -374,7 +374,7 @@
  /* ToME options: */
  
  /* Should the player know his / her starting life rate? */
@@ -74,70 +75,6 @@ index 343f675..8c084e3 100644
  
  /* Do we want different characters for different races? */
  #define VARIABLE_PLAYER_GRAPH
-diff --git a/src/makefile.std b/src/makefile.std
-index 486d500..869b160 100644
---- a/src/makefile.std
-+++ b/src/makefile.std
-@@ -54,15 +54,16 @@
- # Sysadmins of commercial Unix and/or BSD might prefer this
- #LIBDIR = /usr/local/lib/tome/
- # If you like the old default, use this one
--LIBDIR = ./lib/
-+#LIBDIR = ./lib/
- # Another example: single user installation using absolute path
- #LIBDIR = /home/myloginname/lib/tome/
--
-+LIBDIR = /var/games/tome/
- 
- # Where ToME binary goes
--BINDIR = /usr/local/games
-+#BINDIR = /usr/local/games
- # Another common location
- #BINDIR = /usr/local/bin
-+BINDIR = /usr/games/
- 
- # The game will run suid to this user
- OWNER = games
-@@ -125,12 +126,16 @@ CC = gcc
- # including "USE_GETCH" and "USE_CURS_SET".  Note that "config.h" will
- # attempt to "guess" at many of these flags based on your system.
- #
--COPTS = -Wall -O1 -Wno-unused-value -pipe -g
--INCLUDES = -I/usr/X11R6/include
--DEFINES = -DUSE_X11 \
--	-DUSE_EGO_GRAPHICS -DUSE_TRANSPARENCY -DSUPPORT_GAMMA \
--	-DUSE_PRECISE_CMOVIE -DUSE_UNIXSOCK
--LIBS = -L/usr/X11R6/lib -lX11
-+#COPTS = -Wall -O1 -pipe -g
-+COPTS    = -Wall -O2 -fomit-frame-pointer -pipe -g
-+INCLUDES = -I/usr/X11R6/include $(shell sdl-config --cflags)
-+DEFINES  = -DUSE_XAW -DUSE_GCU -DUSE_SDL -DUSE_TPOSIX -DUSE_CURS_SET    \
-+	   -DUSE_TRANSPARENCY -DUSE_EGO_GRAPHICS -DSUPPORT_GAMMA        \
-+	   -DUSE_PRECISE_CMOVIE -DUSE_UNIXSOCK
-+LIBS     = -L/usr/X11R6/lib -lXaw -lXmu -lXt -lX11  -lncurses -ltermcap \
-+           $(shell sdl-config --libs)  -lSDL_image -lSDL_ttf -lSDL_gfx  \
-+           -lSDL_net -lSDL_mixer -lm
-+
- 
- ##
- ## Variation -- Only support "main-gtk2.c" (not "main-gcu.c, main-x11.c")
-@@ -470,10 +475,13 @@ install: default
- 	[ -d $(DESTDIR)$(LIBDIR) ] || mkdir -p $(DESTDIR)$(LIBDIR)
- 	[ -d $(DESTDIR)$(BINDIR) ] || mkdir -p $(DESTDIR)$(BINDIR)
- 	cp -r ../lib/* $(DESTDIR)$(LIBDIR)
--	chown -R $(OWNER) $(DESTDIR)$(LIBDIR)
-+#	chown -R $(OWNER) $(DESTDIR)$(LIBDIR)
-+	chgrp -R $(OWNER) $(DESTDIR)$(LIBDIR)
- 	cp -f $(TARGET) $(DESTDIR)$(BINDIR)/$(TARGET)
--	chown $(OWNER) $(DESTDIR)$(BINDIR)/$(TARGET)
--	chmod 4755 $(DESTDIR)$(BINDIR)/$(TARGET)
-+#	chown $(OWNER) $(DESTDIR)$(BINDIR)/$(TARGET)
-+	chgrp $(OWNER) $(DESTDIR)$(BINDIR)/$(TARGET)
-+#	chmod 4755 $(DESTDIR)$(BINDIR)/$(TARGET)
-+	chmod 2755 $(DESTDIR)$(BINDIR)/$(TARGET)
- 
- # old-install: $(TARGET)
- #	cp $(TARGET) ..
 diff --git a/src/tome.man b/src/tome.man
 new file mode 100644
 index 0000000..4d48ce9

@@ -1,3 +1,26 @@
+tome (2.3.8-ah-1) unstable; urgency=low
+
+  * New upstream release
+    Game:
+    - Fix duration display for the Shapeshift Mimicry power. Thanks
+      to morchant for the fix.
+    - Fix for creating "inventory" and "equipment" rules from the
+      Automatizer UI. Thanks to morchant for the fix.
+    - Fix for Lua code which should hopefully get things working better
+      for OpenBSD users. Thanks to Kernigh for the patch.
+    - Change "molten glass wall" to use a different internal code to
+      hopefully avoid clashes with modules such as Theme.
+    - Removed the check on low fuel on your light source when traveling.
+      It doesn't make sense since you can already travel without any light
+      equipped.
+    Build System:
+    - Added support for building the GTK2 interface; only lightly tested.
+    - Miscellaneous fixes to the CMake files. Thanks to Kernigh for
+      contributing these.
+  * Now that we are using cmake, undo changes we made to Makefile.std
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 14 May 2014 19:38:32 -0700
+
 tome (2.3.7-ah-1) unstable; urgency=low
 
   * New upstream maintenance release
