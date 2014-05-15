@@ -39,6 +39,10 @@ export DEB_HOST_MULTIARCH  := $(shell $(DPKG_ARCH) $(ha) -qDEB_HOST_MULTIARCH)
 
 %:
 	dh $@
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DSYSTEM_INSTALL:BOOL=true
+
 override_dh_auto_build:
 	bash -n debian/postinst
 	bash -n debian/postrm
@@ -56,10 +60,10 @@ override_dh_install:
 	                     ln -s /etc/$(package)/pref . ;     )
 	(cd $(PKG_LIBDIR);   mv help $(PKG_STATLIB);    \
 	                     ln -s $(PREFIX)/lib/$(package)/help   . ;   )
-	for i in save/delete.me ; do \
+	for i in save/delete.me ; do                 \
+            mkdir -p  $(PKG_LIBDIR)/save             \
 	    chmod 0644 $(PKG_LIBDIR)/$$i;            \
 	done
-	rm -f                $(PKG_LIBDIR)/apex/scores.raw
 	rm -f                $(PKG_LIBDIR)/apex/scores.raw
 	find                 $(PKG_LIBDIR) -type f -name .cvsignore -exec rm {} \;
 

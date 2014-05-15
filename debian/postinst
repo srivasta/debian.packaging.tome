@@ -122,16 +122,16 @@ case "$1" in
     fi
 
     # create a scores file if none exists
-    touch /var/games/${package_name}/apex/scores.raw
+    test ! -d /var/games/${package_name}/apex || touch /var/games/${package_name}/apex/scores.raw
 
     # Clean up ownership
     chown -R root:games /var/games/${package_name}/
 
     # Make sure the game can write the files it needs to write to
-    chmod -R g+w /var/games/${package_name}/user
-    chmod -R g+w /var/games/${package_name}/bone
-    chmod -R g+w /var/games/${package_name}/save
-    chmod -R g+w /var/games/${package_name}/apex
+    test ! -d /var/games/${package_name}/user || chmod -R g+w /var/games/${package_name}/user
+    test ! -d /var/games/${package_name}/bone || chmod -R g+w /var/games/${package_name}/bone
+    test ! -d /var/games/${package_name}/save || chmod -R g+w /var/games/${package_name}/save
+    test ! -d /var/games/${package_name}/apex || chmod -R g+w /var/games/${package_name}/apex
 
     # Activate menu-methods script
     ##: chmod a+x /etc/menu-methods/${package_name}

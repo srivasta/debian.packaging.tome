@@ -1,3 +1,14 @@
+tome (2.3.11-ah-2) unstable; urgency=low
+
+  * Modified the install paths to deploy to the FHS compliant
+    /usr/games/tome and /var/games/tome, as we have always done
+  * This is a major change, and includes theming. Some of the options have
+    changed. Because of this, the manual page has been removed; there is a
+    command line help  option and in game help until the manual page is
+    rewritten.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 14 May 2014 23:54:09 -0700
+
 tome (2.3.11-ah-1) unstable; urgency=low
 
   * New upstream release, with minor bug fixes.

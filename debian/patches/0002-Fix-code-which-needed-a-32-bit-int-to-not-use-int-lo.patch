@@ -1,7 +1,7 @@
-From 011bb9dac928ca046774592955599bc004cb8019 Mon Sep 17 00:00:00 2001
+From 448e655d55608b18ed6e8e387d5f9c86356900c8 Mon Sep 17 00:00:00 2001
 From: Manoj Srivastava <srivasta@debian.org>
 Date: Tue, 21 Oct 2008 08:25:47 -0500
-Subject: [PATCH 2/2] Fix code which needed a 32 bit int to not use int/long
+Subject: [PATCH 2/3] Fix code which needed a 32 bit int to not use int/long
 
 On amd64, but not on i386, tome produces LUA errors at various
 times. The errors occur at savefile load, when wileding a weapon,
