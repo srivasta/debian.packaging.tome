@@ -94,7 +94,7 @@ endif(WIN32)
 # Set the path for loading the library bits.
 #
 IF(SYSTEM_INSTALL)
-  SET(DEFAULT_PATH "${CMAKE_INSTALL_PREFIX}/lib/tome")
+  SET(DEFAULT_PATH "/var/games/tome")
 ELSE()
   SET(DEFAULT_PATH "./lib")
 ENDIF()
