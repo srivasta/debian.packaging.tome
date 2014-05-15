@@ -1,0 +1,12 @@
+This is the Debian GNU/Linux prepackaged version of the rogue-like game
+"Troubles on Middle Earth" (tome).  Tome has been derived from Angband,
+which itself has been written by several generations of
+programmers over the years, and is derived from an earlier game called
+moria. 
+
+This package was put together by Manoj Srivastava <srivasta@debian.org>, 
+from sources retrieved from directories under
+<URL:ftp://clockwork.dementia.org/angband/Variant/ToME/> 
+
+arch-tag: f25f6a43-5a92-4b97-8ecf-0439ecacd45e
+

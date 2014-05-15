@@ -1,0 +1,4 @@
+# exported from git by git-debcherry
+0001-debcherry-fixup-patch.patch
+0002-Fix-code-which-needed-a-32-bit-int-to-not-use-int-lo.patch
+0003-debian-cmake-fixes-Change-install-paths-to-FHS-compl.patch
