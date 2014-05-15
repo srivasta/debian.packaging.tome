@@ -1,9 +1,9 @@
-From eadbb0e82af4cdbbb26287f70fac89d48e32fb26 Mon Sep 17 00:00:00 2001
+From f15bddade628289039f9033e69004be33ad3d8ef Mon Sep 17 00:00:00 2001
 From: Manoj Srivastava <srivasta@golden-gryphon.com>
-Date: Wed, 14 May 2014 20:31:04 -0700
+Date: Wed, 14 May 2014 20:41:42 -0700
 Subject: [PATCH 1/2] debcherry fixup patch
 
-271bea2 [master]: New upstream release
+32318ec [master]: New upstream release
 	 - no changes against upstream or conflicts
 786d26c [master]:  New upstream release
 	 - extra changes or conflicts

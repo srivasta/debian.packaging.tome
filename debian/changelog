@@ -1,3 +1,9 @@
+tome (2.3.11-ah-1) unstable; urgency=low
+
+  * New upstream release, with minor bug fixes.
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 14 May 2014 20:40:47 -0700
+
 tome (2.3.10-ah-1) unstable; urgency=low
 
   * New upstream release
