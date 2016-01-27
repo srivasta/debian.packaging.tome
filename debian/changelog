@@ -1,3 +1,11 @@
+tome (2.3.11-ah-3) unstable; urgency=low
+
+  * Update standards version to 3.9.6. No changes needed
+  * Update the VCS-* fields in the control file to use https
+  * Move to source format 1.0 and use dgit to release
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 27 Jan 2016 10:43:27 -0800
+
 tome (2.3.11-ah-2) unstable; urgency=low
 
   * Modified the install paths to deploy to the FHS compliant

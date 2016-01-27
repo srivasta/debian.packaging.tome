@@ -1,6 +1,6 @@
 Source: tome
-VCS-Git: git://anonscm.debian.org/users/srivasta/debian/tome.git
-VCS-Browser: http://anonscm.debian.org/gitweb/?p=users/srivasta/debian/tome.git;a=summary
+VCS-Git: https://anonscm.debian.org/git/users/srivasta/debian/tome.git
+VCS-Browser: https://anonscm.debian.org/gitweb/?p=users/srivasta/debian/tome.git;a=summary
 Section: non-free/games
 Priority: optional
 Maintainer: Manoj Srivastava <srivasta@debian.org>
@@ -9,7 +9,7 @@ Build-Depends: libxaw7-dev, debhelper (>= 9.0.0),
  libsdl1.2-dev | libsdl-dev, libsdl-mixer1.2-dev,
  libsdl-gfx1.2-dev, libsdl-image1.2-dev, libsdl-ttf2.0-dev,
  libsdl-net1.2-dev, dpkg-dev (>= 1.16.0), cmake
-Standards-Version: 3.9.5.0
+Standards-Version: 3.9.6
 
 Package: tome
 Architecture: any

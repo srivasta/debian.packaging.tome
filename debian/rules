@@ -44,10 +44,10 @@ override_dh_auto_configure:
 	dh_auto_configure -- -DSYSTEM_INSTALL:BOOL=true
 
 override_dh_auto_build:
-	bash -n debian/postinst
-	bash -n debian/postrm
-	bash -n debian/prerm
-	bash -n debian/preinst
+	bash -n debian/tome.postinst
+	bash -n debian/tome.postrm
+	bash -n debian/tome.prerm
+	bash -n debian/tome.preinst
 	bash -n debian/Tome.sh
 
 override_dh_install:
