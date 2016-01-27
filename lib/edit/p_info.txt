@@ -8,8 +8,6 @@
 # Do not modify this file unless you know exactly what you are doing,
 # unless you wish to risk possible system crashes and broken savefiles.
 
-V:2.0.0
-
 ##############################################################################
 ##############################################################################
 ##############################################################################
@@ -341,35 +339,6 @@ C:a:k:+0:-100:Weaponmastery
 C:a:k:+0:-150:Magic-Device
 C:a:O:23:4:1d1
 C:a:O:111:50:1d1
-
-C:a:N:Alchemist
-C:a:D:Alchemists can quickly create powerful magic items through the correct use
-C:a:D:of the essences of magic they can extract from magical objects.
-C:a:k:+2000:+0:Magic
-C:a:k:+0:-600:Spell-power
-C:a:k:+0:-600:Necromancy
-C:a:k:+0:-600:Thaumaturgy
-C:a:k:+0:+250:Spirituality
-C:a:k:+0:+500:Combat
-C:a:k:+0:+200:Weaponmastery
-C:a:k:-1000:-600:Mana
-C:a:k:+0:-600:Fire
-C:a:k:+0:-600:Water
-C:a:k:+0:-600:Air
-C:a:k:+0:-600:Earth
-C:a:k:+0:-600:Conveyance
-C:a:k:+0:-600:Nature
-C:a:k:+0:-600:Temporal
-C:a:k:+0:-200:Divination
-C:a:k:+0:-200:Meta
-C:a:k:+0:-600:Mind
-C:a:k:+1000:+800:Alchemy
-C:a:k:+0:+50:Magic-Device
-C:a:O:31:1:1d1
-C:a:O:4:2:6d1
-C:a:O:2:1:1d1
-C:a:O:23:4:1d1
-C:a:G:EXPERIMENTAL
 
 C:N:2:Archer
 C:D:0:'Kill them before they see you' could be the motto of the archer class.
@@ -1953,22 +1922,3 @@ M:C:Rogue
 M:C:Mage
 M:C:Priest
 M:C:Loremaster
-#M:C:Test
-#M:C:Chaos-Warrior
-
-#M:N:1:B:Spellcasters -- Magic is The One True Way
-
-#M:N:2:y:Priests      -- Hail the powers of the Ainur
-#M:C:Mindcrafter
-
-#M:N:3:G:Beastfriends -- Monsters are fun
-#M:C:BeastMaster
-
-#M:N:4:v:Others       -- The way to your independence
-#M:C:Harper
-#M:C:Merchant
-
-#M:N:5:o:Tests        -- Test is you dare !
-#M:C:Test
-#M:C:Blade
-#M:C:Black-Knight

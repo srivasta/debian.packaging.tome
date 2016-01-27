@@ -20,11 +20,6 @@
 # Note that object zero is used for the "stack" picture (unused).
 
 
-# Version stamp (required)
-
-V:2.0.0
-
-
 ##### Something special #####
 
 N:0:something
@@ -1404,7 +1399,7 @@ G:=:d
 I:45:4:0
 W:5:0:2:250
 A:5/1
-a:HARDCORE=DEST_TELE
+a:DEST_TELE
 F:CURSED | TELEPORT | EASY_KNOW | ACTIVATE
 f:TELEPORT
 D:This ring will uncontrollably send you to different places at its whim.
@@ -1483,7 +1478,7 @@ I:45:18:0
 W:50:0:2:3000
 A:50/1
 P:0:0d0:0:0:15
-a:HARDCORE=BA_FIRE_4
+a:BA_FIRE_4
 F:RES_FIRE | IGNORE_FIRE | ACTIVATE
 f:RES_FIRE
 D:This fiery circlet grants you protection, makes fire less dangerous and even
@@ -1495,7 +1490,7 @@ I:45:17:0
 W:50:0:2:3000
 A:50/1
 P:0:0d0:0:0:15
-a:HARDCORE=BA_ACID_4
+a:BA_ACID_4
 F:RES_ACID | IGNORE_ACID | ACTIVATE
 f:RES_ACID
 D:This magical ring is imbued with spells of devouring acid, granting protection against such
@@ -1506,7 +1501,7 @@ G:=:d
 I:45:19:0
 W:50:0:2:3000
 A:50/1
-a:HARDCORE=BA_COLD_4
+a:BA_COLD_4
 P:0:0d0:0:0:15
 F:RES_COLD | IGNORE_COLD | ACTIVATE
 f:RES_COLD
@@ -2775,9 +2770,9 @@ W:127:0:4:0
 A:127/255
 P:0:1d1:0:0:0
 T:39:2
-F:NORM_ART | FULL_NAME | SPECIAL_GENE
+F:NORM_ART | FULL_NAME | SPECIAL_GENE | EASY_USE
 F:ACTIVATE | ACTIVATE_NO_WIELD
-a:SPELL=Artifact Eternal Flame
+a:ETERNAL_FLAME
 D:An impossibly bright, flickering living flame. It can be used
 D:once to imbue an object with the power of Eru Iluvatar himself.
 
@@ -3518,7 +3513,7 @@ I:38:1:0
 W:60:0:200:50000
 A:60/8
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_ACID
+a:BR_ACID
 F:RES_ACID | FLY |
 f:RES_ACID |
 F:ACTIVATE | IGNORE_ACID | IGNORE_ELEC | IGNORE_FIRE | IGNORE_COLD
@@ -3530,7 +3525,7 @@ I:38:2:0
 W:50:0:200:40000
 A:50/8
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_ELEC
+a:BR_ELEC
 F:RES_ELEC | FLY |
 f:RES_ELEC |
 F:ACTIVATE | IGNORE_ACID | IGNORE_ELEC | IGNORE_FIRE | IGNORE_COLD
@@ -3541,7 +3536,7 @@ G:[:w
 I:38:3:0
 W:50:0:200:40000
 A:50/8
-a:HARDCORE=BR_COLD
+a:BR_COLD
 P:30:2d4:-2:0:10
 F:RES_COLD | FLY |
 f:RES_COLD |
@@ -3554,7 +3549,7 @@ I:38:4:0
 W:60:0:200:50000
 A:60/8
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_FIRE
+a:BR_FIRE
 F:RES_FIRE | FLY |
 f:RES_FIRE |
 F:ACTIVATE | IGNORE_ACID | IGNORE_ELEC | IGNORE_FIRE | IGNORE_COLD
@@ -3566,7 +3561,7 @@ I:38:5:0
 W:50:0:200:40000
 A:50/8
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_POIS
+a:BR_POIS
 F:RES_POIS | FLY |
 f:RES_POIS |
 F:ACTIVATE | IGNORE_ACID | IGNORE_ELEC | IGNORE_FIRE | IGNORE_COLD
@@ -3578,7 +3573,7 @@ I:38:6:0
 W:90:0:200:150000
 A:90/32
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_MANY
+a:BR_MANY
 F:ATTR_MULTI
 F:RES_ACID | RES_ELEC | RES_FIRE | RES_COLD | RES_POIS | FLY |
 f:RES_ACID | RES_ELEC | RES_FIRE | RES_COLD | RES_POIS |
@@ -3591,7 +3586,7 @@ I:38:10:0
 W:70:0:200:70000
 A:70/16
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_LIGHT
+a:BR_LIGHT
 F:RES_LITE | RES_DARK | FLY |
 F:ACTIVATE | IGNORE_ACID | IGNORE_ELEC | IGNORE_FIRE | IGNORE_COLD
 D:A suit of armour made of dragon hide, glowing with a strange light, or is it darkness?
@@ -3602,7 +3597,7 @@ I:38:12:0
 W:80:0:200:80000
 A:80/16
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_SHARD
+a:BR_SHARD
 F:RES_SOUND | RES_SHARDS | FLY |
 F:ACTIVATE | IGNORE_ACID | IGNORE_ELEC | IGNORE_FIRE | IGNORE_COLD
 D:A piece of dragonhide cut and shaped so it can be worn as armour. The scales are very sharp,
@@ -3614,7 +3609,7 @@ I:38:14:0
 W:50:0:200:40000
 A:50/8
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_CONF
+a:BR_CONF
 F:RES_CONF | FLY |
 F:ACTIVATE | IGNORE_ACID | IGNORE_ELEC | IGNORE_FIRE | IGNORE_COLD
 D:A suit of armour made from dragon skin. Its brownish scales glitter in a dazzling light.
@@ -3625,7 +3620,7 @@ I:38:16:0
 W:60:0:200:50000
 A:60/8
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_SOUND
+a:BR_SOUND
 F:RES_SOUND | FLY |
 F:ACTIVATE | IGNORE_ACID | IGNORE_ELEC | IGNORE_FIRE | IGNORE_COLD
 D:A suit of golden-hued armour made of dragonhide. The rustle of its scales occasionally
@@ -3637,7 +3632,7 @@ I:38:18:0
 W:80:0:200:80000
 A:80/16
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_CHAOS
+a:BR_CHAOS
 F:ATTR_MULTI
 F:RES_CHAOS | RES_DISEN | FLY |
 f:RES_CHAOS |
@@ -3652,7 +3647,7 @@ I:38:20:0
 W:95:0:200:100000
 A:95/32
 P:30:2d4:-2:0:10
-a:HARDCORE=BR_BALANCE
+a:BR_BALANCE
 F:RES_CHAOS | RES_DISEN | RES_SOUND | RES_SHARDS | FLY |
 F:ACTIVATE | IGNORE_ACID | IGNORE_ELEC | IGNORE_FIRE | IGNORE_COLD
 D:A suit of armour made of the hide of a dead dragon. When wearing it, you feel like you
@@ -3664,7 +3659,7 @@ I:38:30:0
 W:100:0:250:350000
 A:100/64
 P:40:2d4:-3:0:15
-a:HARDCORE=BR_POWER
+a:BR_POWER
 F:ATTR_MULTI
 F:RES_ACID | RES_FIRE | RES_COLD | RES_ELEC | RES_POIS | FLY |
 F:RES_NETHER | RES_NEXUS | RES_CHAOS | RES_LITE | RES_DARK |
@@ -4782,13 +4777,6 @@ W:1:0:5:2
 A:1/1
 P:0:1d1:0:0:0
 
-N:565:Poison
-G:*:G
-I:4:1:5
-W:0:0:4:2
-A:0/1
-P:0:1d1:0:0:0
-
 # wand
 N:566:Nothing
 G:-:d
@@ -4821,23 +4809,9 @@ A:5/1
 P:0:1d1:0:0:0
 
 
-# Here comes the Essences (randomly interspersed with other stuff...)
-
-N:570:Explosion
-G:*:G
-I:4:2:50
-W:0:0:4:2
-A:0/1:20/1:40/1:60/1
-P:0:1d1:0:0:0
-
-N:571:Teleport
-G:*:G
-I:4:3:190
-W:0:0:4:2
-A:5/1:20/1:40/1:60/1
-P:0:1d1:0:0:0
-
 # Amulet of Nothing
+
+# FIXME: Could remove "of Nothing" (amulets, rings, rods)
 
 N:572:Nothing
 G:":d
@@ -4858,27 +4832,6 @@ T:71:2
 F:NORM_ART | FULL_NAME
 D:Quaffing this measure of living blood will imbue your body and soul
 D:with the power to escape death one time.
-
-N:574:Cold
-G:*:G
-I:4:4:200
-W:0:0:4:2
-A:5/1:20/1:40/1:60/1
-P:0:1d1:0:0:0
-
-N:575:Fire
-G:*:G
-I:4:5:200
-W:0:0:4:2
-A:5/1:20/1:40/1:60/1
-P:0:1d1:0:0:0
-
-N:576:Acid
-G:*:G
-I:4:6:200
-W:0:0:4:2
-A:6/1:20/1:40/1:60/1
-P:0:1d1:0:0:0
 
 # Mage staffs (for Sorcerers to wield.)
 
@@ -4901,34 +4854,11 @@ I:45:56:0
 W:50:0:2:3000
 A:50/1
 P:0:0d0:0:0:15
-a:HARDCORE=BA_ELEC_4
+a:BA_ELEC_4
 F:RES_ELEC | IGNORE_ELEC | ACTIVATE
 f:RES_ELEC |
 D:This sparkling circlet grants you protection, makes electricity less
 D:dangerous and even allows you to call forth a ball of lightning.
-
-# More essences
-
-N:579:Life
-G:*:G
-I:4:7:300
-W:0:0:4:2
-A:0/1:20/1:40/1:60/1
-P:0:1d1:0:0:0
-
-N:580:Confusion
-G:*:G
-I:4:8:100
-W:0:0:4:2
-A:0/1:20/1:40/1:60/1
-P:0:1d1:0:0:0
-
-N:581:Light
-G:*:G
-I:4:9:60
-W:0:0:4:2
-A:0/1:20/1:40/1:60/1
-P:0:1d1:0:0:0
 
 # The Ring of Flare -- see artifact list
 
@@ -4949,14 +4879,6 @@ P:0:1d1:0:0:0
 F:FOUNTAIN
 D:This magical brew will temporarily hide you from sight, and also attunes you
 D:to this state so that your eyes can still perceive your hidden form.
-
-N:584:Chaos
-G:*:G
-I:4:10:200
-W:20:0:4:2
-A:20/1
-P:0:1d1:0:0:0
-F:ATTR_MULTI
 
 # Potion of Corruption
 
@@ -4979,15 +4901,6 @@ A:50/1
 F:INVIS | HIDE_TYPE
 f:INVIS |
 D:This magical bauble will hide you from sight.
-
-### Just another essence, to confuse the edit file hackers ;) ###
-
-N:587:Time
-G:*:G
-I:4:11:600
-W:20:0:4:2
-A:20/1:40/1:60/1
-P:0:1d1:0:0:0
 
 ######### Here are the parchments ########
 
@@ -5153,15 +5066,6 @@ D:like a different creature. Otherwise, it just provides some
 D:extra protection.
 
 # XXX 619 -> 639
-
-# One more essence...
-
-N:640:Magic
-G:*:G
-I:4:12:700
-W:20:0:4:2
-A:30/1:50/1:80/1
-P:0:1d1:0:0:0
 
 # Here are the corpses
 
@@ -5602,15 +5506,6 @@ A:16/1
 P:0:1d1:0:0:0
 F:IGNORE_ACID
 
-# And, among the runes, one more essence...
-
-N:696:Extra Life
-G:*:G
-I:4:13:900
-W:50:0:4:2
-A:50/1:70/1:90/1
-P:0:1d1:0:0:0
-
 # Now, the rest of the runes...
 
 N:697:Undeath
@@ -6047,53 +5942,11 @@ G:":G
 I:40:17:0
 W:25:0:3:10000
 A:25/1
-a:HARDCORE=BA_POIS_4
+a:BA_POIS_4
 F:RES_POIS | DEX | ACTIVATE
 D:A petrified serpent's tongue, hung on a thin chain to be clasped around your neck. It makes you
 D:like unto snakes, able to wriggle out of tight corners, impervious to poisons and poisonous
 D:yourself.
-
-# Here comes the new Essences
-
-N:780:Darkness
-G:*:G
-I:4:14:20
-W:0:0:4:1
-A:0/1:20/1:40/1
-P:0:1d1:0:0:0
-D:It's a gem that eats all light that reaches it.  It's perfectly black.
-
-N:781:Knowledge
-G:*:G
-I:4:15:100
-W:0:0:4:1
-A:20/1:30/1:70/1
-P:0:1d1:0:0:0
-D:It's a blue gem with countless formulae scribbled on it.
-
-N:782:Force
-G:*:G
-I:4:16:180
-W:0:0:4:1
-A:10/1:40/1
-P:0:1d1:0:0:0
-D:It's a green gem that can barely contain the forces in it.
-
-N:783:Lightning
-G:*:G
-I:4:17:200
-W:0:0:4:1
-A:28/1
-P:0:1d1:0:0:0
-D:It's a white gem.  Inside you see lightning rage.
-
-N:784:Mana
-G:*:G
-I:4:18:400
-W:0:0:4:1
-A:45/2
-P:0:1d1:0:0:0
-D:It's an everchanging gem.  You feel the magic throbbing through it.
 
 # The Nine Rings for mortal men doomed to die! When a Nazgul is
 # destroyed, it drops a Ring of Power with random powers.
