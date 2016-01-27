@@ -1,3 +1,18 @@
+tome (2.4~0.git.2015.12.29-1) unstable; urgency=low
+
+  * New upstream git pull
+  * WARNING: This is a pre-release of a new version. The savefile format
+    has changed. YOUR OLD SAVES WILL NOT LOAD.
+  * This is a pretty major refresh. LUA has gone. The code has moved to
+    C++. There are probably unknown bugs.
+  * Bug fix: "Fails to execute gtk2 interface because of setguid", thanks
+    to falconbird. There is no GTK frontend anymore, so this is now moot.
+    (Closes: #750941).
+  * Updated the copyright to DEP-5, after rescanning the new soureces
+    using debmake -cc
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 27 Jan 2016 14:58:59 -0800
+
 tome (2.3.11-ah-3) unstable; urgency=low
 
   * Update standards version to 3.9.6. No changes needed

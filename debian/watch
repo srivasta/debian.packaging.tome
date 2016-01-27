@@ -1,0 +1,5 @@
+version=4
+
+opts="pgpmode=none filenamemangle=s%v?(\d[-a-z\d.]*)\.tar\.gz%tome-$1.tar.gz%" \
+             https://github.com/tome2/tome2/tags \
+             (?:.*?/)?v?(\d[-\d.a-z]*)\.tar\.gz debian uupdate

@@ -1,3 +1,16 @@
+tome (2.4~0.git.2015.12.29-1) unstable; urgency=low
+
+ New upstream git pull
+ .
+ WARNING: This is a pre-release of a new version. The savefile format
+ has changed. YOUR OLD SAVES WILL NOT LOAD.
+ .
+ This is a pretty major refresh. LUA has gone. The code has moved to
+ C++. There are probably unknown bugs. There are also other changes: No
+ more autoroller..
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 27 Jan 2016 13:25:44 -0800
+
 tome (2.3.11-ah-2) unstable; urgency=low
 
     T.o.M.E 2.3.10 (ah)
