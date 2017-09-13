@@ -37,11 +37,21 @@ PKG_STATLIB= $(TMPTOP)$(PREFIX)/lib/$(package)
 DPKG_ARCH := dpkg-architecture
 export DEB_HOST_MULTIARCH  := $(shell $(DPKG_ARCH) $(ha) -qDEB_HOST_MULTIARCH)
 
+DEB_HOST_ARCH := $(shell $(DPKG_ARCH) -qDEB_HOST_ARCH)
+CONFIGURE_ARGS :=
+ifneq (,$(filter amd64 arm64 armel armhf i386 powerpc ppc64 ppc64el x32 sparc sparc64,$(DEB_HOST_ARCH)))
+    # Upstream passes these unconditionally, but they're only available on
+    # certain architectures.
+    CONFIGURE_ARGS += \
+        -DCMAKE_C_FLAGS="-fsanitize=undefined -fsanitize=address" \
+        -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fsanitize=address"
+endif
+
 %:
 	dh $@
 
 override_dh_auto_configure:
-	dh_auto_configure -- -DSYSTEM_INSTALL:BOOL=true
+	dh_auto_configure -- -DSYSTEM_INSTALL:BOOL=true $(CONFIGURE_ARGS)
 
 override_dh_auto_build:
 	bash -n debian/tome.postinst

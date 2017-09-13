@@ -1,3 +1,27 @@
+tome (2.4~0.git.2015.12.29-1.2) unstable; urgency=medium
+
+  * Non-maintainer upload.
+
+  [ Colin Watson ]
+  * Only build with -fsanitize=undefined -fsanitize=address on architectures
+    that support these.
+
+  [ Bhavani Shankar ]
+  * Match variable boolean type in z-rand.cc to fix compilation on 
+    32 bit archs. Thanks to Andreas Beckmann from debian for the
+    report. Closes: #843984.
+
+ -- Matthias Klose <doko@debian.org>  Wed, 13 Sep 2017 22:25:47 +0200
+
+tome (2.4~0.git.2015.12.29-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Add "XS-Autobuild: yes" to have the buildds autobuild the package.
+    This is also to be able to build binNMUs on the buildds during transitions.
+    Closes: #750940
+
+ -- Mattia Rizzolo <mattia@debian.org>  Mon, 10 Oct 2016 14:25:57 +0000
+
 tome (2.4~0.git.2015.12.29-1) unstable; urgency=low
 
   * New upstream git pull
