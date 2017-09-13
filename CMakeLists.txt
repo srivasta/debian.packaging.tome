@@ -11,7 +11,7 @@ INCLUDE(FindPkgConfig)
 #
 # Basic common compiler flags.
 #
-SET(COMMON_COMPILER_FLAGS "-pipe -Wall -Wno-unused-value -fsanitize=undefined -fsanitize=address")
+SET(COMMON_COMPILER_FLAGS "-pipe -Wall -Wno-unused-value")
 
 #
 # GCC/G++ flags
@@ -143,7 +143,7 @@ endif(WIN32)
 # Set the path for loading the library bits.
 #
 IF(SYSTEM_INSTALL)
-  SET(DEFAULT_PATH "${CMAKE_INSTALL_PREFIX}/lib/tome")
+  SET(DEFAULT_PATH "/var/games/tome")
 ELSE()
   SET(DEFAULT_PATH "./lib")
 ENDIF()

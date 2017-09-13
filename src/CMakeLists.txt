@@ -156,5 +156,5 @@ TARGET_LINK_LIBRARIES(harness game squelch ${LIBS})
 
 # Installation
 INSTALL(TARGETS tome
-  RUNTIME DESTINATION bin
+  RUNTIME DESTINATION games
 )

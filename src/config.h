@@ -58,7 +58,7 @@
 /*
  * OPTION: Include "ncurses.h" instead of "curses.h" in "main-gcu.c"
  */
-/* #define USE_NCURSES */
+#define USE_NCURSES
 
 
 
@@ -92,7 +92,7 @@
  * that file.
  */
 #ifndef DEFAULT_PATH
-# define DEFAULT_PATH "./lib/"
+# define DEFAULT_PATH "/var/games/tome"
 #endif
 
 
@@ -105,7 +105,7 @@
 /*
  * OPTION: Person to bother if something goes wrong.
  */
-#define MAINTAINER      "darkgod@t-o-m-e.net"
+#define MAINTAINER      "tome@packages.debian.org"
 
 
 /*

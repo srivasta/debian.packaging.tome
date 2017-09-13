@@ -1,0 +1,313 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: tome2
+Source: https://github.com/tome2/tome2.git
+
+Files: *
+Copyright: 1989 Christopher J. Stuart]
+           1989 James E. Wilson, Christopher J. Stuart
+           1989 James E. Wilson, Robert A. Koeneke
+           1989,1997, 1999,2001 James E. Wilson
+           1989-1999 James E. Wilson, Robert A. Koeneke, Robert Ruehlmann
+           1991,1993 Microsoft Corporation. All rights reserved
+           1997 Ben Harrison
+           1997 Ben Harrison, and others
+           1997 Ben Harrison, and others
+           1997 Ekkehard Kraemer, and others
+           1997 Keith Randall, and others
+           1997 Peter Ammon
+           1997 Ron Anderson
+           1997 Skirmantas Kligys, and others
+           1997 Torbjorn Lindgren, and others
+           1997, 2000-2001 Robert Ruehlmann
+           1997,1989, 2001 Robert A. Koeneke]
+           1999,2001-2003 Dark God
+           1999-2001 Dark God
+           2001 Andrew Sidwell
+           2001 Gregory Velichansky (hmaon@bumba.net)
+           2001 James E. Wilson, Robert A. Koeneke, DarkGod
+           2001, 2002 Hansj�g Malthaner
+           2001-2003 DarkGod
+           2003 DarkGod.
+           2003-2004 Neil Stevens <neil@hakubi.us>
+           2004 Ethan Stump <estump@seas.upenn.edu>
+           2012 Bardur Arantsson
+License:   __UNKNOWN__
+ This software may be copied and distributed for educational, research,
+ and not for profit purposes provided that this copyright and statement
+ are included in all such copies.  Other copyrights may also apply.
+ .
+ All changes made by Ben Harrison, Robert Ruehlmann, and many other Angband
+ developers are also available under the GNU GENERAL PUBLIC LICENSE.
+ Note that this doesn't influence the current distribution, since parts of
+ the source are still only available under the old Moria/Angband license.
+ Until all parts of Angband are distributed under the GPL the only valid
+ license remains the original Moria/Angband license.
+ .
+ Umoria Version 5.2, patch level 1
+ .
+ Angband Version 2.0   Alex Cutler, Andy Astrand, Sean Marsh, Geoff Hill,
+ Charles Teague.
+ .
+ Angband Version 2.4   :  5/09/93
+ .
+ Angband Version 2.5   : 12/05/93 Charles Swiger.
+ .
+ Angband Version 2.6   :  9/04/94
+ .
+ Angband Version 2.7   :  1/1/95  Ben Harrison
+ .
+   Note that these copyright messages apply to an ancient version
+   of Angband, as in, from pre-2.4.frog-knows days, and thus the
+   reference to "5.0" is rather misleading...
+ .
+   UNIX ANGBAND Version 5.0
+ .
+  Original copyright message follows.
+ .
+   ANGBAND Version 4.8	COPYRIGHT (c) Robert Alan Koeneke
+ .
+  	 I lovingly dedicate this game to hackers and adventurers
+  	 everywhere...
+ .
+  	 Designer and Programmer:
+  		Robert Alan Koeneke
+  		University of Oklahoma
+ .
+  	 Assistant Programmer:
+  		Jimmey Wayne Todd
+  		University of Oklahoma
+ .
+  	 Assistant Programmer:
+  		Gary D. McAdoo
+  		University of Oklahoma
+ .
+  	 UNIX Port:
+  		James E. Wilson
+  		UC Berkeley
+  		wilson@ernie.Berkeley.EDU
+  		ucbvax!ucbernie!wilson
+ .
+  	 ANGBAND may be copied and modified freely as long as the above
+  	 credits are retained.	No one who-so-ever may sell or market
+  	 this software in any form without the expressed written consent
+  	 of the author Robert Alan Koeneke.
+ .
+  The Tome variant has been modified by Dark God <darkgod@t-o-m-e.net>,
+  and is available under the same terms as Angband.
+ .
+
+Files:     vendor/bandit/bandit/external/optionparser.h
+Copyright: 2012 Matthias S. Benkmann
+License:   __UNKNOWN__
+ The "Software" in the following 2 paragraphs refers to this file containing
+ the code to The Lean Mean C++ Option Parser.
+ The "Software" does NOT refer to any other files which you
+ may have received alongside this file (e.g. as part of a larger project that
+ incorporates The Lean Mean C++ Option Parser).
+ .
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software, to deal in the Software without restriction, including
+ without limitation the rights to use, copy, modify, merge, publish,
+ distribute, sublicense, and/or sell copies of the Software, and to permit
+ persons to whom the Software is furnished to do so, subject to the following
+ conditions:
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ NOTE: It is recommended that you read the processed HTML doxygen documentation
+ rather than this source. If you don't know doxygen, it's like javadoc for C++.
+ If you don't want to install doxygen you can find a copy of the processed
+ documentation at
+ .
+ http://optionparser.sourceforge.net/
+
+Files:     debian/tome.postinst
+           debian/tome.postrm
+           debian/tome.preinst
+           debian/tome.prerm
+Copyright: 2003-2016 Manoj Srivastava <srivasta@debian.org>
+License:   GPL-2.0+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ Version 2 can be found in `/usr/share/common-licenses/GPL-2'.
+
+Files:     vendor/bandit/cmake/cotire.cmake
+Copyright: 2012-2013 Sascha Kratky
+License:   MIT
+ Permission is hereby granted, free of charge, to any person
+ obtaining a copy of this software and associated documentation
+ files (the "Software"), to deal in the Software without
+ restriction, including without limitation the rights to use,
+ copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the
+ Software is furnished to do so, subject to the following
+ conditions:
+ .
+ The above copyright notice and this permission notice shall be
+ included in all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ OTHER DEALINGS IN THE SOFTWARE.
+
+
+Files:     src/main-sdl.c
+Copyright: 2003-2004 Neil Stevens <neil@hakubi.us>
+           2004 Ethan Stump <estump@seas.upenn.edu> //
+License:   __UNKNOWN__
+ // Permission is hereby granted, free of charge, to any person obtaining a copy
+ // of this software and associated documentation files (the "Software"), to deal
+ // in the Software without restriction, including without limitation the rights
+ // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ // copies of the Software, and to permit persons to whom the Software is
+ // furnished to do so, subject to the following conditions:
+ //
+ // The above copyright notice and this permission notice shall be included in
+ // all copies or substantial portions of the Software.
+ //
+ // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ // THE AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
+ // AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ //
+ // Except as contained in this notice, the name(s) of the author(s) shall not be
+ // used in advertising or otherwise to promote the sale, use or other dealings
+ // in this Software without prior written authorization from the author(s).
+
+Files:     vendor/bandit/bandit/assertion_frameworks/snowhouse/LICENSE_1_0.txt
+Copyright: __NO_COPYRIGHT__
+License:   __UNKNOWN__
+ Permission is hereby granted, free of charge, to any person or organization
+ obtaining a copy of the software and accompanying documentation covered by
+ this license (the "Software") to use, reproduce, display, distribute,
+ execute, and transmit the Software, and to prepare derivative works of the
+ Software, and to permit third-parties to whom the Software is furnished to
+ do so, all subject to the following:
+ .
+ The copyright notices in the Software and this entire statement, including
+ the above license grant, this restriction and the following disclaimer,
+ must be included in all copies of the Software, in whole or in part, and
+ all derivative works of the Software, unless such copies or derivative
+ works are solely in the form of machine-executable object code generated by
+ a source language processor.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
+ SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
+ FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
+ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ DEALINGS IN THE SOFTWARE.
+
+Files:     vendor/bandit/LICENSE.md
+Copyright: 2013 Joakim Karlsson
+License:   __UNKNOWN__
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in
+ all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+
+
+Files:     src/main-gtk2.c
+Copyright: 2000-2001 Robert Ruehlmann, Steven Fuerst, Uwe Siems, "pelpel", et al.
+License:   __UNKNOWN__
+ This software may be copied and distributed for educational, research,
+ and not for profit purposes provided that this copyright and statement
+ are included in all such copies.
+ .
+ .
+ .
+ Robert Ruehlmann wrote the original Gtk port. Since an initial work is
+ much harder than enhancements, his effort worth more credits than
+ others.
+ .
+ Steven Fuerst implemented colour-depth independent X server support,
+ graphics, resizing and big screen support for ZAngband as well as
+ fast image rescaling that is included here.
+ .
+ Uwe Siems wrote smooth tiles rescaling code (on by default).
+ Try this with 8x8 tiles. They *will* look different.
+ .
+ "pelpel" wrote another colour-depth independent X support
+ using GdkRGB, added several hooks and callbacks for various
+ reasons, wrote no-backing store mode (off by default),
+ added GtkItemFactory based menu system, introduced
+
+Files:     vendor/bandit/bandit/assertion_frameworks/snowhouse/example/container_spec.cpp
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/example/custom_matchers_test.cpp
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/example/exceptions_tests.cpp
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/assert.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/assertionexception.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/assertmacro.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/constraints.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/containsconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/endswithconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/equalsconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/equalscontainerconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/equalswithdeltaconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/expressions/andexpression.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/expressions/expression.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/expressions/expression_fwd.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/expressions/notexpression.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/expressions/orexpression.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/fulfillsconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/haslengthconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/isgreaterthanconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/isgreaterthanorequaltoconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/islessthanconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/islessthanorequaltoconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/constraints/startswithconstraint.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/exceptions.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/constraintadapter.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/constraintlist.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/expressionbuilder.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/fluent.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/andoperator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/collections/alloperator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/collections/atleastoperator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/collections/atmostoperator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/collections/collectionconstraintevaluator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/collections/collectionoperator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/collections/exactlyoperator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/collections/noneoperator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/constraintoperator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/invalidexpressionexception.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/notoperator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/fluent/operators/oroperator.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/stringize.h
+           vendor/bandit/bandit/assertion_frameworks/snowhouse/snowhouse/stringizers.h
+Copyright: 2010-2013 Joakim Karlsson & Kim Gräsman
+License:   BSL-1.0
+ Distributed under the Boost Software License, Version 1.0.
