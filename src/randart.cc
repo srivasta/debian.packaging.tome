@@ -7,77 +7,76 @@
  */
 
 #include "randart.hpp"
+
+#include "game.hpp"
 #include "mimic.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
 #include "object_type.hpp"
 #include "options.hpp"
 #include "player_type.hpp"
-#include "quark.hpp"
-#include "randart_gen_type.hpp"
-#include "randart_part_type.hpp"
 #include "spells2.hpp"
 #include "util.hpp"
 #include "variable.h"
 #include "variable.hpp"
 #include "z-rand.hpp"
 
-#include <memory>
-#include <vector>
-
 /* Chance of using syllables to form the name instead of the "template" files */
-#define TABLE_NAME      45
 #define A_CURSED        13
 #define WEIRD_LUCK      12
-#define ACTIVATION_CHANCE 3
 
 /*
  * Attempt to add a power to a randart
  */
-static bool_ grab_one_power(int *ra_idx, object_type *o_ptr, bool_ good, s16b *max_times)
+static bool_ grab_one_power(int *ra_idx, object_type const *o_ptr, std::vector<s16b> &max_times)
 {
+	auto const &ra_info = game->edit_data.ra_info;
+
+	assert(max_times.size() >= ra_info.size());
+
 	bool_ ret = FALSE;
-	u32b f1, f2, f3, f4, f5, esp;
 
 	std::vector<size_t> ok_ra;
 
 	/* Grab the ok randart */
-	for (size_t i = 0; i < max_ra_idx; i++)
+	for (size_t i = 0; i < ra_info.size(); i++)
 	{
-		randart_part_type *ra_ptr = &ra_info[i];
+		auto ra_ptr = &ra_info[i];
 		bool_ ok = FALSE;
 
 		/* Must have the correct fields */
-		for (size_t j = 0; j < 20; j++)
+		for (auto const &filter: ra_ptr->kind_filter)
 		{
-			if (ra_ptr->tval[j] == o_ptr->tval)
+			if ((filter.tval == o_ptr->tval) &&
+				(filter.min_sval <= o_ptr->sval) &&
+				(o_ptr->sval <= filter.max_sval))
 			{
-				if ((ra_ptr->min_sval[j] <= o_ptr->sval) && (ra_ptr->max_sval[j] >= o_ptr->sval)) ok = TRUE;
+				ok = TRUE;
+				break;
 			}
-
-			if (ok) break;
 		}
-		if ((0 < ra_ptr->max_pval) && (ra_ptr->max_pval < o_ptr->pval)) ok = FALSE;
+
+		if ((0 < ra_ptr->max_pval) && (ra_ptr->max_pval < o_ptr->pval))
+		{
+			ok = FALSE;
+		}
+
 		if (!ok)
 		{
 			/* Doesnt count as a try*/
 			continue;
 		}
 
-		/* Good should be good, bad should be bad */
-		if (good && (ra_ptr->value <= 0)) continue;
-		if ((!good) && (ra_ptr->value > 0)) continue;
+		/* Skip bad powers */
+		if (ra_ptr->value <= 0) continue;
 
+		/* Already chosen the maximum number of times? */
 		if (max_times[i] >= ra_ptr->max) continue;
 
 		/* Must NOT have the antagonic flags */
-		object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-		if (f1 & ra_ptr->aflags1) continue;
-		if (f2 & ra_ptr->aflags2) continue;
-		if (f3 & ra_ptr->aflags3) continue;
-		if (f4 & ra_ptr->aflags4) continue;
-		if (f5 & ra_ptr->aflags5) continue;
-		if (esp & ra_ptr->aesp) continue;
+		auto const flags = object_flags(o_ptr);
+		if (flags & ra_ptr->aflags) continue;
 
 		/* ok */
 		ok_ra.push_back(i);
@@ -86,8 +85,8 @@ static bool_ grab_one_power(int *ra_idx, object_type *o_ptr, bool_ good, s16b *m
 	/* Now test them a few times */
 	for (size_t count = 0; count < ok_ra.size() * 10; count++)
 	{
-		size_t i = ok_ra[rand_int(ok_ra.size())];
-		randart_part_type *ra_ptr = &ra_info[i];
+		size_t i = *uniform_element(ok_ra);
+		auto ra_ptr = &ra_info[i];
 
 		/* XXX XXX Enforce minimum player level (loosely) */
 		if (ra_ptr->level > p_ptr->lev)
@@ -121,24 +120,6 @@ static bool_ grab_one_power(int *ra_idx, object_type *o_ptr, bool_ good, s16b *m
 	return (ret);
 }
 
-void give_activation_power (object_type * o_ptr)
-{
-	o_ptr->xtra2 = 0;
-	o_ptr->art_flags3 &= ~TR3_ACTIVATE;
-	o_ptr->timeout = 0;
-}
-
-
-int get_activation_power()
-{
-	object_type *o_ptr, forge;
-
-	o_ptr = &forge;
-
-	give_activation_power(o_ptr);
-
-	return o_ptr->xtra2;
-}
 
 #define MIN_NAME_LEN 5
 #define MAX_NAME_LEN 9
@@ -193,7 +174,7 @@ void build_prob(cptr learn)
  * set.  Relies on European vowels (a, e, i, o, u).  The generated name should
  * be copied/used before calling this function again.
  */
-static char *make_word(void)
+static char *make_word()
 {
 	static char word_buf[90];
 	int r, totalfreq;
@@ -264,11 +245,13 @@ void get_random_name(char * return_name)
 
 bool_ create_artifact(object_type *o_ptr, bool_ a_scroll, bool_ get_name)
 {
+	auto const &ra_gen = game->edit_data.ra_gen;
+	auto const &ra_info = game->edit_data.ra_info;
+
 	char new_name[80];
-	int powers = 0, i;
+	int powers = 0;
 	s32b total_flags, total_power = 0;
 	bool_ a_cursed = FALSE;
-	u32b f1, f2, f3, f4, f5, esp;
 	s16b pval = 0;
 	bool_ limit_blows = FALSE;
 
@@ -276,52 +259,46 @@ bool_ create_artifact(object_type *o_ptr, bool_ a_scroll, bool_ get_name)
 
 	if ((!a_scroll) && (randint(A_CURSED) == 1)) a_cursed = TRUE;
 
-	i = 0;
-	while (ra_gen[i].chance)
+	for (auto const &g: ra_gen)
 	{
-		powers += damroll(ra_gen[i].dd, ra_gen[i].ds) + ra_gen[i].plus;
-		i++;
+		powers += damroll(g.dd, g.ds) + g.plus;
 	}
 
 	if ((!a_cursed) && (randint(30) == 1)) powers *= 2;
 
 	if (a_cursed) powers /= 2;
 
-	std::unique_ptr<s16b[]> max_times(new s16b[max_ra_idx]);
-	for (int i = 0; i < max_ra_idx; i++) {
-		max_times[i] = 0;
-	}
+	std::vector<s16b> max_times(ra_info.size(), 0);
 
 	/* Main loop */
 	while (powers)
 	{
-		int ra_idx;
-		randart_part_type *ra_ptr;
-
 		powers--;
 
-		if (!grab_one_power(&ra_idx, o_ptr, TRUE, max_times.get())) continue;
+		int ra_idx;
+		if (!grab_one_power(&ra_idx, o_ptr, max_times))
+		{
+			continue;
+		}
 
-		ra_ptr = &ra_info[ra_idx];
+		auto ra_ptr = &ra_info[ra_idx];
 
-		if (wizard) msg_format("Adding randart power: %d", ra_idx);
+		if (wizard)
+		{
+			msg_format("Adding randart power: %d", ra_idx);
+		}
 
 		total_power += ra_ptr->value;
 
-		o_ptr->art_flags1 |= ra_ptr->flags1;
-		o_ptr->art_flags2 |= ra_ptr->flags2;
-		o_ptr->art_flags3 |= ra_ptr->flags3;
-		o_ptr->art_flags4 |= ra_ptr->flags4;
-		o_ptr->art_flags5 |= ra_ptr->flags5;
-		o_ptr->art_esp |= ra_ptr->esp;
+		o_ptr->art_flags |= ra_ptr->flags;
 
 		add_random_ego_flag(o_ptr, ra_ptr->fego, &limit_blows);
 
 		/* get flags */
-		object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+		auto const flags = object_flags(o_ptr);
 
 		/* Hack -- acquire "cursed" flag */
-		if (f3 & TR3_CURSED) o_ptr->ident |= (IDENT_CURSED);
+		if (flags & TR_CURSED) o_ptr->ident |= (IDENT_CURSED);
 
 		/* Hack -- obtain bonuses */
 		if (ra_ptr->max_to_h > 0) o_ptr->to_h += randint(ra_ptr->max_to_h);
@@ -339,22 +316,25 @@ bool_ create_artifact(object_type *o_ptr, bool_ a_scroll, bool_ get_name)
 	if (pval < 0) o_ptr->pval = randint( -pval);
 
 	/* No insane number of blows */
-	if (limit_blows && (o_ptr->art_flags1 & TR1_BLOWS))
+	if (limit_blows && (o_ptr->art_flags & TR_BLOWS))
 	{
 		if (o_ptr->pval > 2) o_ptr->pval = randint(2);
 	}
 
 	/* Just to be sure */
-	o_ptr->art_flags3 |= ( TR3_IGNORE_ACID | TR3_IGNORE_ELEC |
-	                       TR3_IGNORE_FIRE | TR3_IGNORE_COLD);
+	o_ptr->art_flags |=
+		TR_IGNORE_ACID |
+		TR_IGNORE_ELEC |
+		TR_IGNORE_FIRE |
+		TR_IGNORE_COLD;
 
 	total_flags = flag_cost(o_ptr, o_ptr->pval);
-	if (cheat_peek) msg_format("%ld", total_flags);
+	if (options->cheat_peek)
+	{
+		msg_format("%ld", total_flags);
+	}
 
 	if (a_cursed) curse_artifact(o_ptr);
-
-	/* Extract the flags */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
 
 	if (get_name)
 	{
@@ -378,7 +358,7 @@ bool_ create_artifact(object_type *o_ptr, bool_ a_scroll, bool_ get_name)
 			}
 			else
 				/* Default name = of 'player name' */
-				sprintf(new_name, "of '%s'", player_name);
+				sprintf(new_name, "of '%s'", game->player_name.c_str());
 		}
 		else
 		{
@@ -387,11 +367,14 @@ bool_ create_artifact(object_type *o_ptr, bool_ a_scroll, bool_ get_name)
 	}
 
 	/* Save the inscription */
-	o_ptr->art_name = quark_add(new_name);
+	o_ptr->artifact_name = new_name;
 	o_ptr->name2 = o_ptr->name2b = 0;
 
 	/* Window stuff */
 	p_ptr->window |= (PW_INVEN | PW_EQUIP);
+
+	/* Extract the flags */
+	auto const flags = object_flags(o_ptr);
 
 	/* HACKS for ToME */
 	if (o_ptr->tval == TV_CLOAK && o_ptr->sval == SV_MIMIC_CLOAK)
@@ -399,7 +382,7 @@ bool_ create_artifact(object_type *o_ptr, bool_ a_scroll, bool_ get_name)
 		s32b mimic = find_random_mimic_shape(127, TRUE);
 		o_ptr->pval2 = mimic;
 	}
-	else if (f5 & TR5_SPELL_CONTAIN)
+	else if (flags & TR_SPELL_CONTAIN)
 	{
 		o_ptr->pval2 = -1;
 	}
@@ -408,7 +391,7 @@ bool_ create_artifact(object_type *o_ptr, bool_ a_scroll, bool_ get_name)
 }
 
 
-bool_ artifact_scroll(void)
+bool_ artifact_scroll()
 {
 	bool_ okay = FALSE;
 
@@ -466,7 +449,7 @@ bool_ artifact_scroll(void)
 	if (!okay)
 	{
 		/* Flush */
-		if (flush_failure) flush();
+		flush_on_failure();
 
 		/* Message */
 		msg_print("The enchantment failed.");

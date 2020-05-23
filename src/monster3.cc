@@ -10,10 +10,14 @@
 
 #include "cave_type.hpp"
 #include "cmd2.hpp"
+#include "cmd5.hpp"
+#include "game.hpp"
 #include "gods.hpp"
 #include "melee2.hpp"
 #include "monster2.hpp"
 #include "monster_race.hpp"
+#include "monster_race_flag.hpp"
+#include "monster_spell_flag.hpp"
 #include "monster_type.hpp"
 #include "object2.hpp"
 #include "player_type.hpp"
@@ -57,12 +61,16 @@ int is_friend(monster_type *m_ptr)
 /* Should they attack each others */
 bool_ is_enemy(monster_type *m_ptr, monster_type *t_ptr)
 {
-	monster_race *r_ptr = &r_info[m_ptr->r_idx], *rt_ptr = &r_info[t_ptr->r_idx];
+	auto const &r_info = game->edit_data.r_info;
+
+	auto r_ptr = &r_info[m_ptr->r_idx];
+	auto rt_ptr = &r_info[t_ptr->r_idx];
+
 	int s1 = is_friend(m_ptr), s2 = is_friend(t_ptr);
 
 	/* Monsters hates breeders */
-	if ((m_ptr->status != MSTATUS_NEUTRAL) && (rt_ptr->flags4 & RF4_MULTIPLY) && (num_repro > MAX_REPRO * 2 / 3) && (r_ptr->d_char != rt_ptr->d_char)) return TRUE;
-	if ((t_ptr->status != MSTATUS_NEUTRAL) && (r_ptr->flags4 & RF4_MULTIPLY) && (num_repro > MAX_REPRO * 2 / 3) && (r_ptr->d_char != rt_ptr->d_char)) return TRUE;
+	if ((m_ptr->status != MSTATUS_NEUTRAL) && (rt_ptr->spells & SF_MULTIPLY) && (num_repro > MAX_REPRO * 2 / 3) && (r_ptr->d_char != rt_ptr->d_char)) return TRUE;
+	if ((t_ptr->status != MSTATUS_NEUTRAL) && (r_ptr->spells & SF_MULTIPLY) && (num_repro > MAX_REPRO * 2 / 3) && (r_ptr->d_char != rt_ptr->d_char)) return TRUE;
 
 	/* No special conditions, lets test normal flags */
 	if (s1 && s2 && (s1 == -s2)) return TRUE;
@@ -80,7 +88,7 @@ bool_ change_side(monster_type *m_ptr)
 	{
 	case MSTATUS_FRIEND:
 		m_ptr->status = MSTATUS_ENEMY;
-		if ((r_ptr->flags3 & RF3_ANIMAL) && (!(r_ptr->flags3 & RF3_EVIL)))
+		if ((r_ptr->flags & RF_ANIMAL) && (!(r_ptr->flags & RF_EVIL)))
 			inc_piety(GOD_YAVANNA, -m_ptr->level * 4);
 		break;
 	case MSTATUS_NEUTRAL_P:
@@ -91,7 +99,7 @@ bool_ change_side(monster_type *m_ptr)
 		break;
 	case MSTATUS_PET:
 		m_ptr->status = MSTATUS_ENEMY;
-		if ((r_ptr->flags3 & RF3_ANIMAL) && (!(r_ptr->flags3 & RF3_EVIL)))
+		if ((r_ptr->flags & RF_ANIMAL) && (!(r_ptr->flags & RF_EVIL)))
 			inc_piety(GOD_YAVANNA, -m_ptr->level * 4);
 		break;
 	case MSTATUS_COMPANION:
@@ -106,7 +114,6 @@ bool_ change_side(monster_type *m_ptr)
 bool_ ai_multiply(int m_idx)
 {
 	monster_type *m_ptr = &m_list[m_idx];
-	monster_race *r_ptr = &r_info[m_ptr->r_idx];
 	int k, y, x, oy = m_ptr->fy, ox = m_ptr->fx;
 	bool_ is_frien = (is_friend(m_ptr) > 0);
 
@@ -134,12 +141,6 @@ bool_ ai_multiply(int m_idx)
 		/* Try to multiply */
 		if (multiply_monster(m_idx, (is_frien), FALSE))
 		{
-			/* Take note if visible */
-			if (m_ptr->ml)
-			{
-				r_ptr->r_flags4 |= (RF4_MULTIPLY);
-			}
-
 			/* Multiplying takes energy */
 			return TRUE;
 		}
@@ -150,11 +151,13 @@ bool_ ai_multiply(int m_idx)
 /* Possessor incarnates */
 bool_ ai_possessor(int m_idx, int o_idx)
 {
+	auto &r_info = game->edit_data.r_info;
+
 	object_type *o_ptr = &o_list[o_idx];
 	monster_type *m_ptr = &m_list[m_idx];
 	int r_idx = m_ptr->r_idx, r2_idx = o_ptr->pval2;
 	int i;
-	monster_race *r_ptr = &r_info[r2_idx];
+	auto r_ptr = &r_info[r2_idx];
 	char m_name[80], m_name2[80];
 
 	monster_desc(m_name, m_ptr, 0x00);
@@ -180,7 +183,7 @@ bool_ ai_possessor(int m_idx, int o_idx)
 	m_ptr->csleep = 0;
 
 	/* Assign maximal hitpoints */
-	if (r_ptr->flags1 & (RF1_FORCE_MAXHP))
+	if (r_ptr->flags & RF_FORCE_MAXHP)
 	{
 		m_ptr->maxhp = maxroll(r_ptr->hdice, r_ptr->hside);
 	}
@@ -211,10 +214,10 @@ bool_ ai_possessor(int m_idx, int o_idx)
 	m_ptr->energy = 0;
 
 	/* Hack -- Count the number of "reproducers" */
-	if (r_ptr->flags4 & (RF4_MULTIPLY)) num_repro++;
+	if (r_ptr->spells & SF_MULTIPLY) num_repro++;
 
 	/* Hack -- Notice new multi-hued monsters */
-	if (r_ptr->flags1 & (RF1_ATTR_MULTI)) shimmer_monsters = TRUE;
+	if (r_ptr->flags & RF_ATTR_MULTI) shimmer_monsters = TRUE;
 
 	/* Hack -- Count the monsters on the level */
 	r_ptr->cur_num++;
@@ -230,9 +233,11 @@ bool_ ai_possessor(int m_idx, int o_idx)
 
 void ai_deincarnate(int m_idx)
 {
+	auto &r_info = game->edit_data.r_info;
+
 	monster_type *m_ptr = &m_list[m_idx];
 	int r2_idx = m_ptr->possessor, r_idx = m_ptr->r_idx;
-	monster_race *r_ptr = &r_info[r2_idx];
+	auto r_ptr = &r_info[r2_idx];
 	int i;
 	char m_name[80];
 
@@ -255,7 +260,7 @@ void ai_deincarnate(int m_idx)
 	m_ptr->csleep = 0;
 
 	/* Assign maximal hitpoints */
-	if (r_ptr->flags1 & (RF1_FORCE_MAXHP))
+	if (r_ptr->flags & RF_FORCE_MAXHP)
 	{
 		m_ptr->maxhp = maxroll(r_ptr->hdice, r_ptr->hside);
 	}
@@ -286,10 +291,10 @@ void ai_deincarnate(int m_idx)
 	m_ptr->energy = 0;
 
 	/* Hack -- Count the number of "reproducers" */
-	if (r_ptr->flags4 & (RF4_MULTIPLY)) num_repro++;
+	if (r_ptr->spells & SF_MULTIPLY) num_repro++;
 
 	/* Hack -- Notice new multi-hued monsters */
-	if (r_ptr->flags1 & (RF1_ATTR_MULTI)) shimmer_monsters = TRUE;
+	if (r_ptr->flags & RF_ATTR_MULTI) shimmer_monsters = TRUE;
 
 	/* Hack -- Count the monsters on the level */
 	r_ptr->cur_num++;
@@ -302,7 +307,7 @@ void ai_deincarnate(int m_idx)
 }
 
 /* Returns if a new companion is allowed */
-bool_ can_create_companion(void)
+bool_ can_create_companion()
 {
 	int i, mcnt = 0;
 
@@ -323,7 +328,7 @@ bool_ can_create_companion(void)
 
 
 /* Player controlled monsters */
-bool_ do_control_walk(void)
+bool_ do_control_walk()
 {
 	/* Get a "repeated" direction */
 	if (p_ptr->control)
@@ -344,18 +349,18 @@ bool_ do_control_walk(void)
 		return FALSE;
 }
 
-bool_ do_control_inven(void)
+bool_ do_control_inven()
 {
 	if (!p_ptr->control) return FALSE;
 	screen_save();
 	prt("Carried items", 0, 0);
-	(void) show_monster_inven(p_ptr->control);
+	show_monster_inven(p_ptr->control);
 	inkey();
 	screen_load();
 	return TRUE;
 }
 
-bool_ do_control_pickup(void)
+bool_ do_control_pickup()
 {
 	if (!p_ptr->control) return FALSE;
 
@@ -406,7 +411,7 @@ bool_ do_control_pickup(void)
 	return TRUE;
 }
 
-bool_ do_control_drop(void)
+bool_ do_control_drop()
 {
 	monster_type *m_ptr = &m_list[p_ptr->control];
 
@@ -415,16 +420,16 @@ bool_ do_control_drop(void)
 	return TRUE;
 }
 
-bool_ do_control_magic(void)
+bool_ do_control_magic()
 {
-	int power = -1;
-	int num = 0, i;
-	int powers[96];
+	auto const &r_info = game->edit_data.r_info;
+
+	int i;
 	bool_ flag, redraw;
 	int ask;
 	char choice;
 	char out_val[160];
-	monster_race *r_ptr = &r_info[m_list[p_ptr->control].r_idx];
+	auto r_ptr = &r_info[m_list[p_ptr->control].r_idx];
 	int label;
 
 	if (!p_ptr->control) return FALSE;
@@ -437,36 +442,11 @@ bool_ do_control_magic(void)
 		return TRUE;
 	}
 
-	/* List the monster powers -- RF4_* */
-	for (i = 0; i < 32; i++)
-	{
-		if (r_ptr->flags4 & BIT(i))
-		{
-			if (!monster_powers[i].power) continue;
-			powers[num++] = i;
-		}
-	}
+	/* Extract available monster powers */
+	auto powers = extract_monster_powers(r_ptr, true);
+	int const num = powers.size(); // Avoid signed/unsigned warnings
 
-	/* List the monster powers -- RF5_* */
-	for (i = 0; i < 32; i++)
-	{
-		if (r_ptr->flags5 & BIT(i))
-		{
-			if (!monster_powers[i + 32].power) continue;
-			powers[num++] = i + 32;
-		}
-	}
-
-	/* List the monster powers -- RF6_* */
-	for (i = 0; i < 32; i++)
-	{
-		if (r_ptr->flags6 & BIT(i))
-		{
-			if (!monster_powers[i + 64].power) continue;
-			powers[num++] = i + 64;
-		}
-	}
-
+	/* Are any powers available? */
 	if (!num)
 	{
 		msg_print("You have no powers you can use.");
@@ -475,6 +455,7 @@ bool_ do_control_magic(void)
 
 	/* Nothing chosen yet */
 	flag = FALSE;
+	monster_power const *power = nullptr;
 
 	/* No redraw yet */
 	redraw = FALSE;
@@ -513,7 +494,7 @@ bool_ do_control_magic(void)
 
 				while (ctr < num)
 				{
-					monster_power *mp_ptr = &monster_powers[powers[ctr]];
+					monster_power const *mp_ptr = powers[ctr];
 
 					label = (ctr < 26) ? I2A(ctr) : I2D(ctr - 26);
 
@@ -597,7 +578,7 @@ bool_ do_control_magic(void)
 			char tmp_val[160];
 
 			/* Prompt */
-			strnfmt(tmp_val, 78, "Use %s? ", monster_powers[power].name);
+			strnfmt(tmp_val, 78, "Use %s? ", power->name);
 
 			/* Belay that order */
 			if (!get_check(tmp_val)) continue;
@@ -618,7 +599,7 @@ bool_ do_control_magic(void)
 	if (flag)
 	{
 		energy_use = 100;
-		monst_spell_monst_spell = power + 96;
+		monst_spell_monst_spell = power->monster_spell_index;
 	}
 	return TRUE;
 }

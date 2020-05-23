@@ -10,26 +10,30 @@
 #include "artifact_type.hpp"
 #include "cave_type.hpp"
 #include "corrupt.hpp"
+#include "dungeon_flag.hpp"
 #include "dungeon_info_type.hpp"
 #include "feature_type.hpp"
 #include "files.hpp"
+#include "game.hpp"
 #include "hooks.hpp"
 #include "init1.hpp"
 #include "levels.hpp"
 #include "messages.hpp"
 #include "monster2.hpp"
 #include "monster_race.hpp"
+#include "monster_race_flag.hpp"
 #include "monster_type.hpp"
 #include "notes.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
 #include "object_kind.hpp"
+#include "options.hpp"
 #include "player_type.hpp"
 #include "skills.hpp"
 #include "squeltch.hpp"
 #include "tables.hpp"
 #include "town_type.hpp"
-#include "trap_type.hpp"
 #include "util.hpp"
 #include "util.h"
 #include "variable.h"
@@ -37,11 +41,13 @@
 #include "xtra1.hpp"
 #include "z-rand.hpp"
 
+#include <algorithm>
 #include <cassert>
+#include <fmt/format.h>
 #include <memory>
+#include <numeric>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 /*
  * Hack -- redraw the screen
@@ -54,7 +60,7 @@
  * selecting various things, such as graphics mode, so it must call
  * the "TERM_XTRA_REACT" hook before redrawing the windows.
  */
-void do_cmd_redraw(void)
+void do_cmd_redraw()
 {
 	int j;
 
@@ -125,7 +131,7 @@ void do_cmd_redraw(void)
 /*
  * Hack -- change name
  */
-void do_cmd_change_name(void)
+void do_cmd_change_name()
 {
 	char	c;
 
@@ -143,8 +149,8 @@ void do_cmd_change_name(void)
 	/* Forever */
 	while (1)
 	{
-		/* keep mode below 7 */
-		mode = (mode + 6) % 6;
+		/* keep mode below 5 */
+		mode = (mode + 5) % 5;
 
 		/* Display the player */
 		display_player(mode);
@@ -174,7 +180,7 @@ void do_cmd_change_name(void)
 		/* File dump */
 		else if (c == 'f')
 		{
-			strnfmt(tmp, 160, "%s.txt", player_name);
+			strnfmt(tmp, 160, "%s.txt", game->player_name.c_str());
 			if (get_string("Filename(you can post it to http://angband.oook.cz/): ", tmp, 80))
 			{
 				if (tmp[0] && (tmp[0] != ' '))
@@ -199,11 +205,11 @@ void do_cmd_change_name(void)
 			/* Change tactic */
 			if (c == 't')
 			{
-				(void)do_cmd_change_tactic( -1);
+				do_cmd_change_tactic( -1);
 			}
 			else if (c == 'T')
 			{
-				(void)do_cmd_change_tactic(1);
+				do_cmd_change_tactic(1);
 			}
 
 			/* Change movement */
@@ -247,12 +253,16 @@ void do_cmd_change_name(void)
 /*
  * Recall the most recent message
  */
-void do_cmd_message_one(void)
+void do_cmd_message_one()
 {
-	cptr msg = format("> %s", message_str(0));
+	auto const &messages = game->messages;
+
+	auto message = messages.at(0);
+
+	cptr msg = format("> %s", message.text_with_count().c_str());
 
 	/* Recall one message XXX XXX XXX */
-	display_message(0, 0, strlen(msg), message_color(0), msg);
+	display_message(0, 0, strlen(msg), message.color, msg);
 }
 
 
@@ -274,30 +284,21 @@ void do_cmd_message_one(void)
  *
  * Now taking advantages of big-screen. -pav-
  */
-void do_cmd_messages(void)
+void do_cmd_messages()
 {
-	int i, j, k, n;
-	u32b q;
-	int wid, hgt;
+	auto const &messages = game->messages;
 
-	char shower[80];
-	char finder[80];
-
-	/* Wipe finder */
-	strcpy(finder, "");
-
-	/* Wipe shower */
-	strcpy(shower, "");
-
+	/* String to highlight */
+	std::string shower;
 
 	/* Total messages */
-	n = message_num();
+	const int n = messages.size();
 
 	/* Start on first message */
-	i = 0;
+	int i = 0;
 
 	/* Start at leftmost edge */
-	q = 0;
+	u32b q = 0;
 
 	/* Enter "icky" mode */
 	character_icky = TRUE;
@@ -312,35 +313,38 @@ void do_cmd_messages(void)
 		Term_clear();
 
 		/* Retrieve current screen size */
+		int wid;
+		int hgt;
 		Term_get_size(&wid, &hgt);
 
 		/* Dump up to 20 (or more in bigscreen) lines of messages */
+		int j;
 		for (j = 0; (j < (hgt - 4)) && (i + j < n); j++)
 		{
-			cptr msg = message_str(i + j);
-			byte color = message_color(i + j);
+			auto message = messages.at(i + j);
+			auto text = message.text_with_count();
+			auto color = message.color;
 
 			/* Apply horizontal scroll */
-			msg = (strlen(msg) >= q) ? (msg + q) : "";
+			text = (text.size() >= q) ? text.substr(q) : "";
 
 			/* Dump the messages, bottom to top */
-			display_message(0, (hgt - 3) - j, strlen(msg), color, msg);
+			display_message(0, (hgt - 3) - j, text.size(), color, text.c_str());
 
 			/* Hilite "shower" */
 			if (shower[0])
 			{
-				cptr str = msg;
-
+				std::size_t pos = 0;
 				/* Display matches */
-				while ((str = strstr(str, shower)) != NULL)
+				while ((pos = text.find(shower, pos)) != std::string::npos)
 				{
-					int len = strlen(shower);
+					std::size_t len = shower.size();
 
 					/* Display the match */
-					Term_putstr(str - msg, (hgt - 3) - j, len, TERM_YELLOW, shower);
+					Term_putstr(pos, (hgt - 3) - j, len, TERM_YELLOW, shower.c_str());
 
 					/* Advance */
-					str += len;
+					pos += len;
 				}
 			}
 		}
@@ -353,7 +357,7 @@ void do_cmd_messages(void)
 		prt("[Press 'p' for older, 'n' for newer, ..., or ESCAPE]", hgt - 1, 0);
 
 		/* Get a command */
-		k = inkey();
+		const auto k = inkey();
 
 		/* Exit on Escape */
 		if (k == ESCAPE) break;
@@ -388,7 +392,10 @@ void do_cmd_messages(void)
 			prt("Show: ", hgt - 1, 0);
 
 			/* Get a "shower" string, or continue */
-			if (!askfor_aux(shower, 80)) continue;
+			if (!askfor_aux(&shower, 80))
+			{
+				continue;
+			}
 
 			/* Okay */
 			continue;
@@ -403,18 +410,22 @@ void do_cmd_messages(void)
 			prt("Find: ", hgt - 1, 0);
 
 			/* Get a "finder" string, or continue */
-			if (!askfor_aux(finder, 80)) continue;
+			auto finder = shower;
+			if (!askfor_aux(&finder, 80))
+			{
+				continue;
+			}
 
 			/* Show it */
-			strcpy(shower, finder);
+			shower = finder;
 
 			/* Scan messages */
 			for (z = i + 1; z < n; z++)
 			{
-				cptr msg = message_str(z);
+				auto message = messages.at(z);
 
 				/* Search for it */
-				if (strstr(msg, finder))
+				if (message.text_with_count().find(finder) != std::string::npos)
 				{
 					/* New location */
 					i = z;
@@ -494,7 +505,7 @@ namespace {
 /**
  * Interact with given vector of options.
  */
-static void interact_with_options(std::vector<option_type *> const &options, char const *info, interaction_mode_t interaction_mode)
+static void interact_with_options(std::vector<option_type> const &options, char const *info, interaction_mode_t interaction_mode)
 {
 	size_t n = options.size();
 
@@ -522,9 +533,9 @@ static void interact_with_options(std::vector<option_type *> const &options, cha
 
 			/* Display the option text */
 			strnfmt(buf, 80, "%-48s: %s  (%s)",
-				options[i]->o_desc,
-				(*options[i]->o_var ? "yes" : "no "),
-				options[i]->o_text);
+			        options[i].o_desc,
+			        (*options[i].o_var) ? "yes" : "no ",
+			        options[i].o_text);
 			c_prt(a, buf, i + 2, 0);
 		}
 
@@ -580,7 +591,7 @@ static void interact_with_options(std::vector<option_type *> const &options, cha
 				{
 					break;
 				}
-				*(options[k]->o_var) = TRUE;
+				*(options[k].o_var) = TRUE;
 				k = (k + 1) % n;
 				break;
 			}
@@ -594,7 +605,7 @@ static void interact_with_options(std::vector<option_type *> const &options, cha
 					break;
 				}
 
-				*(options[k]->o_var) = FALSE;
+				*(options[k].o_var) = FALSE;
 				k = (k + 1) % n;
 				break;
 			}
@@ -614,55 +625,25 @@ static void interact_with_options(std::vector<option_type *> const &options, cha
 
 
 /*
- * Cheating options
- */
-static option_type cheat_info[6] =
-{
-	{ &cheat_peek, FALSE, 0, 0, "cheat_peek", "Peek into object creation" },
-	{ &cheat_hear, FALSE, 0, 1, "cheat_hear", "Peek into monster creation" },
-	{ &cheat_room, FALSE, 0, 2, "cheat_room", "Peek into dungeon creation" },
-	{ &cheat_xtra, FALSE, 0, 3, "cheat_xtra", "Peek into something else" },
-	{ &cheat_know, FALSE, 0, 4, "cheat_know", "Know complete monster info" },
-	{ &cheat_live, FALSE, 0, 5, "cheat_live", "Allow player to avoid death" }
-};
-
-/*
  * Interact with some options for cheating
  */
 static void do_cmd_options_cheat(cptr info)
 {
-	// Calculate number of cheat options
-	size_t n = std::distance(std::begin(cheat_info), std::end(cheat_info));
-
-	// Build the vector of options we're going to interact with
-	std::vector<option_type *> options;
-	options.reserve(n);
-	for (auto &option : cheat_info)
-	{
-		options.push_back(&option);
-	}
-
 	// Interact
-	interact_with_options(options, info, interaction_mode_t::READ_WRITE);
+	interact_with_options(options->cheat_options, info, interaction_mode_t::READ_WRITE);
 
 	// If user toggled any of the options to TRUE, then we add those cheats
 	// to the player's "noscore" flags. Note that it doesn't matter what the
 	// previous value was -- we don't "unset" noscore flags anyway.
-	for (auto &option: options)
+	for (auto const &option: options->cheat_options)
 	{
-		if (*option->o_var)
+		if (*option.o_var)
 		{
-			noscore |= (option->o_page * 256 + option->o_bit);
+			noscore |= (option.o_page * 256 + option.o_bit);
 		}
 	}
 }
 
-
-static option_type autosave_info[2] =
-{
-	{ &autosave_l, FALSE, 0, 6, "autosave_l", "Autosave when entering new levels" },
-	{ &autosave_t, FALSE, 0, 7, "autosave_t", "Timed autosave" },
-};
 
 s16b toggle_frequency(s16b current)
 {
@@ -687,7 +668,9 @@ static void do_cmd_options_autosave(cptr info)
 {
 	char ch;
 
-	int i, k = 0, n = 2;
+	int i, k = 0;
+
+	int n = options->autosave_options.size();
 
 	int dir;
 
@@ -714,15 +697,18 @@ static void do_cmd_options_autosave(cptr info)
 			/* Color current option */
 			if (i == k) a = TERM_L_BLUE;
 
+			/* Get the option */
+			auto const option = &options->autosave_options[i];
+
 			/* Display the option text */
 			strnfmt(buf, 80, "%-48s: %s  (%s)",
-			        autosave_info[i].o_desc,
-			        (*autosave_info[i].o_var ? "yes" : "no "),
-			        autosave_info[i].o_text);
+			        option->o_desc,
+			        (*option->o_var) ? "yes" : "no ",
+			        option->o_text);
 			c_prt(a, buf, i + 2, 0);
 		}
 
-		prt(format("Timed autosave frequency: every %d turns", autosave_freq), 5, 0);
+		prt(format("Timed autosave frequency: every %d turns", options->autosave_freq), 5, 0);
 
 
 		/* Hilite current option */
@@ -768,8 +754,7 @@ static void do_cmd_options_autosave(cptr info)
 		case 'Y':
 		case '6':
 			{
-
-				(*autosave_info[k].o_var) = TRUE;
+			        (*options->autosave_options[k].o_var) = TRUE;
 				k = (k + 1) % n;
 
 				break;
@@ -779,7 +764,7 @@ static void do_cmd_options_autosave(cptr info)
 		case 'N':
 		case '4':
 			{
-				(*autosave_info[k].o_var) = FALSE;
+			        (*options->autosave_options[k].o_var) = FALSE;
 				k = (k + 1) % n;
 
 				break;
@@ -788,9 +773,9 @@ static void do_cmd_options_autosave(cptr info)
 		case 'f':
 		case 'F':
 			{
-				autosave_freq = toggle_frequency(autosave_freq);
-				prt(format("Timed autosave frequency: every %d turns",
-				           autosave_freq), 5, 0);
+			        options->autosave_freq = toggle_frequency(options->autosave_freq);
+				prt(fmt::format("Timed autosave frequency: every {} turns",
+				           options->autosave_freq), 5, 0);
 
 				break;
 			}
@@ -811,28 +796,29 @@ static void do_cmd_options_autosave(cptr info)
 void do_cmd_options_aux(int page, cptr info, bool_ read_only)
 {
 	// Scrape together all the options from the relevant page.
-	std::vector<option_type *> options;
-	options.reserve(64); // Seems a reasonable number; anything more would be unusable anyway
-	for (size_t i = 0; option_info[i].o_desc; i++)
-	{
-		if (option_info[i].o_page == page)
-		{
-			options.push_back(&option_info[i]);
-		}
-	}
+	std::vector<option_type> page_options;
+	page_options.reserve(options->standard_options.size());
+	std::copy_if(
+	        std::begin(options->standard_options),
+	        std::end(options->standard_options),
+	        std::back_inserter(page_options),
+	        [=](option_type const &option) -> bool {
+		        return (option.o_page == page);
+	        }
+	);
 
 	// Interact with the options
 	interaction_mode_t interaction_mode = read_only
 		? interaction_mode_t::READ_ONLY
 		: interaction_mode_t::READ_WRITE;
-	interact_with_options(options, info, interaction_mode);
+	interact_with_options(page_options, info, interaction_mode);
 }
 
 
 /*
  * Modify the "window" options
  */
-static void do_cmd_options_win(void)
+static void do_cmd_options_win()
 {
 	int i, j, d;
 
@@ -848,7 +834,7 @@ static void do_cmd_options_win(void)
 
 
 	/* Memorize old flags */
-	for (j = 0; j < 8; j++)
+	for (j = 0; j < ANGBAND_TERM_MAX; j++)
 	{
 		/* Acquire current flags */
 		old_flag[j] = window_flag[j];
@@ -865,7 +851,7 @@ static void do_cmd_options_win(void)
 		prt("Window Flags (<dir>, t, y, n, ESC) ", 0, 0);
 
 		/* Display the windows */
-		for (j = 0; j < 8; j++)
+		for (j = 0; j < ANGBAND_TERM_MAX; j++)
 		{
 			byte a = TERM_WHITE;
 
@@ -895,7 +881,7 @@ static void do_cmd_options_win(void)
 			Term_putstr(0, i + 5, -1, a, str);
 
 			/* Display the windows */
-			for (j = 0; j < 8; j++)
+			for (j = 0; j < ANGBAND_TERM_MAX; j++)
 			{
 				byte a = TERM_WHITE;
 
@@ -932,7 +918,7 @@ static void do_cmd_options_win(void)
 		case 't':
 			{
 				/* Clear windows */
-				for (j = 0; j < 8; j++)
+				for (j = 0; j < ANGBAND_TERM_MAX; j++)
 				{
 					window_flag[j] &= ~(1L << y);
 				}
@@ -982,7 +968,7 @@ static void do_cmd_options_win(void)
 	}
 
 	/* Notice changes */
-	for (j = 0; j < 8; j++)
+	for (j = 0; j < ANGBAND_TERM_MAX; j++)
 	{
 		term *old = Term;
 
@@ -1037,25 +1023,25 @@ static errr option_dump(cptr fname)
 	fprintf(fff, "# Automatic option dump\n\n");
 
 	/* Dump options (skip cheat, adult, score) */
-	for (i = 0; option_info[i].o_var != NULL; i++)
+	for (auto const &option: options->standard_options)
 	{
 		/* Require a real option */
-		if (!option_info[i].o_text) continue;
+		if (!option.o_text) continue;
 
 		/* No birth options */
-		if (option_info[i].o_page == 6) continue;
+		if (option.o_page == 6) continue;
 
 		/* Comment */
-		fprintf(fff, "# Option '%s'\n", option_info[i].o_desc);
+		fprintf(fff, "# Option '%s'\n", option.o_desc);
 
 		/* Dump the option */
-		if ((*option_info[i].o_var))
+		if (*option.o_var)
 		{
-			fprintf(fff, "Y:%s\n", option_info[i].o_text);
+			fprintf(fff, "Y:%s\n", option.o_text);
 		}
 		else
 		{
-			fprintf(fff, "X:%s\n", option_info[i].o_text);
+			fprintf(fff, "X:%s\n", option.o_text);
 		}
 
 		/* Skip a line */
@@ -1111,9 +1097,6 @@ static errr option_dump(cptr fname)
  */
 static void do_cmd_pref_file_hack(int row)
 {
-	char ftmp[80];
-
-
 	/* Prompt */
 	prt("Command: Load a user pref file", row, 0);
 
@@ -1121,21 +1104,24 @@ static void do_cmd_pref_file_hack(int row)
 	prt("File: ", row + 2, 0);
 
 	/* Default filename */
-	strnfmt(ftmp, 80, "%s.prf", player_base);
+	std::string ftmp = fmt::format("{}.prf", game->player_base);
 
 	/* Ask for a file (or cancel) */
-	if (!askfor_aux(ftmp, 80)) return;
+	if (!askfor_aux(&ftmp, 80))
+	{
+		return;
+	}
 
 	/* Process the given filename */
-	if (process_pref_file(ftmp))
+	if (process_pref_file(ftmp.c_str()))
 	{
 		/* Mention failure */
-		msg_format("Failed to load '%s'!", ftmp);
+		msg_format("Failed to load '%s'!", ftmp.c_str());
 	}
 	else
 	{
 		/* Mention success */
-		msg_format("Loaded '%s'.", ftmp);
+		msg_format("Loaded '%s'.", ftmp.c_str());
 	}
 }
 
@@ -1146,7 +1132,7 @@ static void do_cmd_pref_file_hack(int row)
  * The user must use the "Ctrl-R" command to "adapt" to changes
  * in any options which control "visual" aspects of the game.
  */
-void do_cmd_options(void)
+void do_cmd_options()
 {
 	int k;
 
@@ -1216,8 +1202,6 @@ void do_cmd_options(void)
 		case 'u':
 		case 'U':
 			{
-				char ftmp[80];
-
 				/* Prompt */
 				prt("Command: Append options to a file", 21, 0);
 
@@ -1225,13 +1209,13 @@ void do_cmd_options(void)
 				prt("File: ", 21, 0);
 
 				/* Default filename */
-				strnfmt(ftmp, 80, "%s.prf", player_base);
+				auto ftmp = fmt::format("{}.prf", game->player_base);
 
 				/* Ask for a file */
-				if (!askfor_aux(ftmp, 80)) continue;
+				if (!askfor_aux(&ftmp, 80)) continue;
 
 				/* Dump the options */
-				if (option_dump(ftmp))
+				if (option_dump(ftmp.c_str()))
 				{
 					/* Failure */
 					msg_print("Failed!");
@@ -1340,14 +1324,26 @@ void do_cmd_options(void)
 				/* Get a new value */
 				while (1)
 				{
-					int msec = delay_factor * delay_factor * delay_factor;
-					prt(format("Current base delay factor: %d (%d msec)",
-					           delay_factor, msec), 22, 0);
+					auto const msec = options->delay_factor_ms();
+
+					prt(fmt::format("Current base delay factor: {:d} ({:d} msec)",
+					           options->delay_factor, msec), 22, 0);
 					prt("Delay Factor (0-9 or ESC to accept): ", 23, 0);
+
 					k = inkey();
-					if (k == ESCAPE) break;
-					if (isdigit(k)) delay_factor = D2I(k);
-					else bell();
+					if (k == ESCAPE)
+					{
+						break;
+					}
+
+					if (isdigit(k))
+					{
+						options->delay_factor = D2I(k);
+					}
+					else
+					{
+						bell();
+					}
 				}
 
 				break;
@@ -1363,13 +1359,24 @@ void do_cmd_options(void)
 				/* Get a new value */
 				while (1)
 				{
-					prt(format("Current hitpoint warning: %d0%%",
-					           hitpoint_warn), 22, 0);
+					prt(fmt::format("Current hitpoint warning: {:d}0%",
+					           options->hitpoint_warn), 22, 0);
 					prt("Hitpoint Warning (0-9 or ESC to accept): ", 20, 0);
+
 					k = inkey();
-					if (k == ESCAPE) break;
-					if (isdigit(k)) hitpoint_warn = D2I(k);
-					else bell();
+					if (k == ESCAPE)
+					{
+						break;
+					}
+
+					if (isdigit(k))
+					{
+						options->hitpoint_warn = D2I(k);
+					}
+					else
+					{
+						bell();
+					}
 				}
 
 				break;
@@ -1401,7 +1408,7 @@ void do_cmd_options(void)
  *
  * XXX XXX XXX Allow absolute file names?
  */
-void do_cmd_pref(void)
+void do_cmd_pref()
 {
 	char buf[80];
 
@@ -1413,7 +1420,7 @@ void do_cmd_pref(void)
 	if (!get_string("Pref: ", buf, 80)) return;
 
 	/* Process that pref command */
-	(void)process_pref_file_aux(buf);
+	process_pref_file_aux(buf);
 }
 
 
@@ -1642,19 +1649,10 @@ static errr keymap_dump(cptr fname)
  *
  * Could use some helpful instructions on this page.  XXX XXX XXX
  */
-void do_cmd_macros(void)
+void do_cmd_macros()
 {
-	int i;
-
-	char tmp[1024];
-
-	char buf[1024];
-
-	int mode;
-
-
 	/* Keymap mode */
-	mode = get_keymap_mode();
+	int mode = get_keymap_mode();
 
 
 	/* Enter "icky" mode */
@@ -1667,6 +1665,8 @@ void do_cmd_macros(void)
 	/* Process requests until done */
 	while (1)
 	{
+		char buf[1024];
+
 		/* Clear screen */
 		Term_clear();
 
@@ -1700,7 +1700,7 @@ void do_cmd_macros(void)
 		prt("Command: ", 16, 0);
 
 		/* Get a command */
-		i = inkey();
+		int i = inkey();
 
 		/* Leave */
 		if (i == ESCAPE) break;
@@ -1715,13 +1715,16 @@ void do_cmd_macros(void)
 			prt("File: ", 18, 0);
 
 			/* Default filename */
-			strnfmt(tmp, 1024, "%s.prf", player_name);
+			auto tmp = fmt::format("{}.prf", game->player_name);
 
 			/* Ask for a file */
-			if (!askfor_aux(tmp, 80)) continue;
+			if (!askfor_aux(&tmp, 80))
+			{
+				continue;
+			}
 
 			/* Process the given filename */
-			if (0 != process_pref_file(tmp))
+			if (0 != process_pref_file(tmp.c_str()))
 			{
 				/* Prompt */
 				msg_print("Could not load file!");
@@ -1738,13 +1741,16 @@ void do_cmd_macros(void)
 			prt("File: ", 18, 0);
 
 			/* Default filename */
-			strnfmt(tmp, 1024, "%s.prf", player_name);
+			auto tmp = fmt::format("{}.prf", game->player_name);
 
 			/* Ask for a file */
-			if (!askfor_aux(tmp, 80)) continue;
+			if (!askfor_aux(&tmp, 80))
+			{
+				continue;
+			}
 
 			/* Dump the macros */
-			(void)macro_dump(tmp);
+			macro_dump(tmp.c_str());
 
 			/* Prompt */
 			msg_print("Appended macros.");
@@ -1794,6 +1800,8 @@ void do_cmd_macros(void)
 		/* Create a macro */
 		else if (i == '4')
 		{
+			char tmp[1024];
+
 			/* Prompt */
 			prt("Command: Create a macro", 16, 0);
 
@@ -1855,13 +1863,16 @@ void do_cmd_macros(void)
 			prt("File: ", 18, 0);
 
 			/* Default filename */
-			strnfmt(tmp, 1024, "%s.prf", player_name);
+			auto tmp = fmt::format("{}.prf", game->player_name);
 
 			/* Ask for a file */
-			if (!askfor_aux(tmp, 80)) continue;
+			if (!askfor_aux(&tmp, 80))
+			{
+				continue;
+			}
 
 			/* Dump the macros */
-			(void)keymap_dump(tmp);
+			keymap_dump(tmp.c_str());
 
 			/* Prompt */
 			msg_print("Appended keymaps.");
@@ -1911,6 +1922,8 @@ void do_cmd_macros(void)
 		/* Create a keymap */
 		else if (i == '8')
 		{
+			char tmp[1024];
+
 			/* Prompt */
 			prt("Command: Create a keymap", 16, 0);
 
@@ -1967,6 +1980,8 @@ void do_cmd_macros(void)
 		/* Enter a new action */
 		else if (i == '0')
 		{
+			char tmp[1024];
+
 			/* Prompt */
 			prt("Command: Enter a new action", 16, 0);
 
@@ -2005,8 +2020,12 @@ void do_cmd_macros(void)
 /*
  * Interact with "visuals"
  */
-void do_cmd_visuals(void)
+void do_cmd_visuals()
 {
+	auto &r_info = game->edit_data.r_info;
+	auto &f_info = game->edit_data.f_info;
+	auto &k_info = game->edit_data.k_info;
+
 	int i;
 
 	FILE *fff;
@@ -2069,7 +2088,7 @@ void do_cmd_visuals(void)
 			if (!askfor_aux(tmp, 70)) continue;
 
 			/* Process the given filename */
-			(void)process_pref_file(tmp);
+			process_pref_file(tmp);
 		}
 
 		/* Dump monster attr/chars */
@@ -2101,9 +2120,9 @@ void do_cmd_visuals(void)
 			fprintf(fff, "# Monster attr/char definitions\n\n");
 
 			/* Dump monsters */
-			for (i = 0; i < max_r_idx; i++)
+			for (std::size_t i = 0; i < r_info.size(); i++)
 			{
-				monster_race *r_ptr = &r_info[i];
+				auto r_ptr = &r_info[i];
 
 				/* Skip non-entries */
 				if (!r_ptr->name) continue;
@@ -2112,7 +2131,7 @@ void do_cmd_visuals(void)
 				fprintf(fff, "# %s\n", r_ptr->name);
 
 				/* Dump the monster attr/char info */
-				fprintf(fff, "R:%d:0x%02X:0x%02X\n\n", i,
+				fprintf(fff, "R:%zu:0x%02X:0x%02X\n\n", i,
 				        static_cast<unsigned int>(r_ptr->x_attr),
 					static_cast<unsigned int>(r_ptr->x_char));
 			}
@@ -2156,9 +2175,9 @@ void do_cmd_visuals(void)
 			fprintf(fff, "# Object attr/char definitions\n\n");
 
 			/* Dump objects */
-			for (i = 0; i < max_k_idx; i++)
+			for (std::size_t k = 0; k < k_info.size(); k++)
 			{
-				object_kind *k_ptr = &k_info[i];
+				object_kind *k_ptr = &k_info[k];
 
 				/* Skip non-entries */
 				if (!k_ptr->name) continue;
@@ -2167,7 +2186,7 @@ void do_cmd_visuals(void)
 				fprintf(fff, "# %s\n", k_ptr->name);
 
 				/* Dump the object attr/char info */
-				fprintf(fff, "K:%d:0x%02X:0x%02X\n\n", i,
+				fprintf(fff, "K:%zu:0x%02X:0x%02X\n\n", k,
 				        (byte)(k_ptr->x_attr), (byte)(k_ptr->x_char));
 			}
 
@@ -2210,9 +2229,9 @@ void do_cmd_visuals(void)
 			fprintf(fff, "# Feature attr/char definitions\n\n");
 
 			/* Dump features */
-			for (i = 0; i < max_f_idx; i++)
+			for (std::size_t f_idx = 0; f_idx < f_info.size(); f_idx++)
 			{
-				feature_type *f_ptr = &f_info[i];
+				auto f_ptr = &f_info[f_idx];
 
 				/* Skip non-entries */
 				if (!f_ptr->name) continue;
@@ -2221,7 +2240,7 @@ void do_cmd_visuals(void)
 				fprintf(fff, "# %s\n", f_ptr->name);
 
 				/* Dump the feature attr/char info */
-				fprintf(fff, "F:%d:0x%02X:0x%02X\n\n", i,
+				fprintf(fff, "F:%zu:0x%02X:0x%02X\n\n", f_idx,
 				        (byte)(f_ptr->x_attr), (byte)(f_ptr->x_char));
 			}
 
@@ -2246,7 +2265,7 @@ void do_cmd_visuals(void)
 			/* Hack -- query until done */
 			while (1)
 			{
-				monster_race *r_ptr = &r_info[r];
+				auto r_ptr = &r_info[r];
 
 				byte da = (r_ptr->d_attr);
 				char dc = (r_ptr->d_char);
@@ -2281,8 +2300,8 @@ void do_cmd_visuals(void)
 				if (i == ESCAPE) break;
 
 				/* Analyze */
-				if (i == 'n') r = (r + max_r_idx + 1) % max_r_idx;
-				if (i == 'N') r = (r + max_r_idx - 1) % max_r_idx;
+				if (i == 'n') r = (r + r_info.size() + 1) % r_info.size();
+				if (i == 'N') r = (r + r_info.size() - 1) % r_info.size();
 				if (i == 'a') r_ptr->x_attr = (ca + 1);
 				if (i == 'A') r_ptr->x_attr = (ca - 1);
 				if (i == 'c') r_ptr->x_char = (cc + 1);
@@ -2336,8 +2355,8 @@ void do_cmd_visuals(void)
 				if (i == ESCAPE) break;
 
 				/* Analyze */
-				if (i == 'n') k = (k + max_k_idx + 1) % max_k_idx;
-				if (i == 'N') k = (k + max_k_idx - 1) % max_k_idx;
+				if (i == 'n') k = (k + k_info.size() + 1) % k_info.size();
+				if (i == 'N') k = (k + k_info.size() - 1) % k_info.size();
 				if (i == 'a') k_info[k].x_attr = (ca + 1);
 				if (i == 'A') k_info[k].x_attr = (ca - 1);
 				if (i == 'c') k_info[k].x_char = (cc + 1);
@@ -2356,7 +2375,7 @@ void do_cmd_visuals(void)
 			/* Hack -- query until done */
 			while (1)
 			{
-				feature_type *f_ptr = &f_info[f];
+				auto f_ptr = &f_info[f];
 
 				byte da = f_ptr->d_attr;
 				char dc = f_ptr->d_char;
@@ -2391,8 +2410,8 @@ void do_cmd_visuals(void)
 				if (i == ESCAPE) break;
 
 				/* Analyze */
-				if (i == 'n') f = (f + max_f_idx + 1) % max_f_idx;
-				if (i == 'N') f = (f + max_f_idx - 1) % max_f_idx;
+				if (i == 'n') f = (f + f_info.size() + 1) % f_info.size();
+				if (i == 'N') f = (f + f_info.size() - 1) % f_info.size();
 				if (i == 'a') f_info[f].x_attr = (ca + 1);
 				if (i == 'A') f_info[f].x_attr = (ca - 1);
 				if (i == 'c') f_info[f].x_char = (cc + 1);
@@ -2437,7 +2456,7 @@ void do_cmd_visuals(void)
 /*
  * Interact with "colors"
  */
-void do_cmd_colors(void)
+void do_cmd_colors()
 {
 	int i;
 
@@ -2494,7 +2513,7 @@ void do_cmd_colors(void)
 			if (!askfor_aux(tmp, 70)) continue;
 
 			/* Process the given filename */
-			(void)process_pref_file(tmp);
+			process_pref_file(tmp);
 
 			/* Mega-Hack -- react to changes */
 			Term_xtra(TERM_XTRA_REACT, 0);
@@ -2659,7 +2678,7 @@ void do_cmd_colors(void)
  * Take notes.  There are two ways this can happen, either in the message
  * recall or a file.
  */
-void do_cmd_note(void)
+void do_cmd_note()
 {
 	char buf[80];
 
@@ -2680,7 +2699,7 @@ void do_cmd_note(void)
 /*
  * Mention the current version
  */
-void do_cmd_version(void)
+void do_cmd_version()
 {
 	/* Silly message */
 	msg_format("You are playing %s made by %s (%s).",
@@ -2714,14 +2733,16 @@ static cptr do_cmd_feeling_text[11] =
  * Note that "feeling" is set to zero unless some time has passed.
  * Note that this is done when the level is GENERATED, not entered.
  */
-void do_cmd_feeling(void)
+void do_cmd_feeling()
 {
+	auto const &d_info = game->edit_data.d_info;
+
 	/* Verify the feeling */
 	if (feeling < 0) feeling = 0;
 	if (feeling > 10) feeling = 10;
 
 	/* Feeling of the fate */
-	if (fate_flag && !(dungeon_flags2 & DF2_SPECIAL) && !p_ptr->inside_quest)
+	if (fate_flag && !(dungeon_flags & DF_SPECIAL) && !p_ptr->inside_quest)
 	{
 		msg_print("You feel that you will meet your fate here.");
 	}
@@ -2733,11 +2754,11 @@ void do_cmd_feeling(void)
 	}
 
 	/* No useful feeling in special levels */
-	if (dungeon_flags2 & DF2_DESC)
+	if (dungeon_flags & DF_DESC)
 	{
 		char buf[1024];
 
-		if ((get_dungeon_save(buf)) || (generate_special_feeling) || (dungeon_flags2 & DF2_DESC_ALWAYS))
+		if (get_dungeon_save(buf) || game->generate_special_feeling || (dungeon_flags & DF_DESC_ALWAYS))
 		{
 			if (!get_level_desc(buf)) msg_print("Someone forgot to describe this level!");
 			else msg_print(buf);
@@ -2757,7 +2778,7 @@ void do_cmd_feeling(void)
 	{
 		/* This could be simplified with a correct p_ptr->town_num */
 		int i, town_level = 0;
-		dungeon_info_type *d_ptr = &d_info[dungeon_type];
+		auto d_ptr = &d_info[dungeon_type];
 
 		/* Is it a town level ? */
 		for (i = 0; i < TOWN_DUNGEON; i++)
@@ -2784,7 +2805,7 @@ static char hack[17] = "dwsorgbuDWvyRGBU";
 /*
  * Hack -- load a screen dump from a file
  */
-void do_cmd_load_screen(void)
+void do_cmd_load_screen()
 {
 	int i, y, x;
 
@@ -2872,7 +2893,7 @@ void do_cmd_load_screen(void)
 		for (x = 0; x < len; x++)
 		{
 			/* Get the attr/char */
-			(void)(Term_what(x, y, &a, &c));
+			(Term_what(x, y, &a, &c));
 
 			/* Look up the attr */
 			for (i = 0; i < 16; i++)
@@ -2908,7 +2929,7 @@ void do_cmd_load_screen(void)
 /*
  * Hack -- save a screen dump to a file
  */
-void do_cmd_save_screen(void)
+void do_cmd_save_screen()
 {
 	int y, x;
 	int wid, hgt;
@@ -2948,7 +2969,7 @@ void do_cmd_save_screen(void)
 		for (x = 0; x < wid; x++)
 		{
 			/* Get the attr/char */
-			(void)(Term_what(x, y, &a, &c));
+			(Term_what(x, y, &a, &c));
 
 			/* Dump it */
 			buf[x] = c;
@@ -2972,7 +2993,7 @@ void do_cmd_save_screen(void)
 		for (x = 0; x < wid; x++)
 		{
 			/* Get the attr/char */
-			(void)(Term_what(x, y, &a, &c));
+			(Term_what(x, y, &a, &c));
 
 			/* Dump it */
 			buf[x] = hack[a & 0x0F];
@@ -3009,30 +3030,20 @@ void do_cmd_save_screen(void)
 /*
  * Check the status of "artifacts"
  */
-void do_cmd_knowledge_artifacts(void)
+void do_cmd_knowledge_artifacts()
 {
-	int i, k, z, x, y;
+	auto const &k_info = game->edit_data.k_info;
+	auto const &a_info = game->edit_data.a_info;
 
-	FILE *fff;
-
-	char file_name[1024];
+	int i, z, x, y;
 
 	char base_name[80];
 
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
-
 	/* Scan the artifacts */
-	std::unique_ptr<bool_[]> okay(new bool_[max_a_idx]);
-	for (k = 0; k < max_a_idx; k++)
+	std::vector<bool_> okay(a_info.size(), FALSE);
+	for (std::size_t k = 0; k < a_info.size(); k++)
 	{
-		artifact_type *a_ptr = &a_info[k];
-
-		/* Default */
-		okay[k] = FALSE;
+		auto a_ptr = &a_info[k];
 
 		/* Skip "empty" artifacts */
 		if (!a_ptr->name) continue;
@@ -3044,16 +3055,13 @@ void do_cmd_knowledge_artifacts(void)
 		okay[k] = TRUE;
 	}
 
-	std::unique_ptr<bool_[]> okayk(new bool_[max_k_idx]);
-	for (k = 0; k < max_k_idx; k++)
+	std::vector<bool_> okayk(k_info.size(), FALSE);
+	for (std::size_t k = 0; k < k_info.size(); k++)
 	{
-		object_kind *k_ptr = &k_info[k];
-
-		/* Default */
-		okayk[k] = FALSE;
+		auto k_ptr = &k_info[k];
 
 		/* Skip "empty" artifacts */
-		if (!(k_ptr->flags3 & TR3_NORM_ART)) continue;
+		if (!(k_ptr->flags & TR_NORM_ART)) continue;
 
 		/* Skip "uncreated" artifacts */
 		if (!k_ptr->artifact) continue;
@@ -3085,7 +3093,7 @@ void do_cmd_knowledge_artifacts(void)
 				if (object_known_p(o_ptr)) continue;
 
 				/* Note the artifact */
-				if (k_info[o_ptr->k_idx].flags3 & TR3_NORM_ART)
+				if (k_info[o_ptr->k_idx].flags & TR_NORM_ART)
 				{
 					okayk[o_ptr->k_idx] = FALSE;
 				}
@@ -3118,7 +3126,7 @@ void do_cmd_knowledge_artifacts(void)
 			if (object_known_p(o_ptr)) continue;
 
 			/* Note the artifact */
-			if (k_info[o_ptr->k_idx].flags3 & TR3_NORM_ART)
+			if (k_info[o_ptr->k_idx].flags & TR_NORM_ART)
 			{
 				okayk[o_ptr->k_idx] = FALSE;
 			}
@@ -3147,7 +3155,7 @@ void do_cmd_knowledge_artifacts(void)
 		if (object_known_p(o_ptr)) continue;
 
 		/* Note the artifact */
-		if (k_info[o_ptr->k_idx].flags3 & TR3_NORM_ART)
+		if (k_info[o_ptr->k_idx].flags & TR_NORM_ART)
 		{
 			okayk[o_ptr->k_idx] = FALSE;
 		}
@@ -3157,10 +3165,13 @@ void do_cmd_knowledge_artifacts(void)
 		}
 	}
 
+	/* Output buffer */
+	fmt::MemoryWriter w;
+
 	/* Scan the artifacts */
-	for (k = 0; k < max_a_idx; k++)
+	for (std::size_t k = 0; k < a_info.size(); k++)
 	{
-		artifact_type *a_ptr = &a_info[k];
+		auto a_ptr = &a_info[k];
 
 		/* List "dead" ones */
 		if (!okay[k]) continue;
@@ -3176,7 +3187,6 @@ void do_cmd_knowledge_artifacts(void)
 		{
 			object_type forge;
 			object_type *q_ptr;
-			u32b f1, f2, f3, f4, f5, esp;
 
 			/* Get local object */
 			q_ptr = &forge;
@@ -3188,19 +3198,21 @@ void do_cmd_knowledge_artifacts(void)
 			q_ptr->name1 = k;
 
 			/* Spell in it ? no ! */
-			object_flags(q_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-			if (f5 & TR5_SPELL_CONTAIN)
+			auto const flags = object_flags(q_ptr);
+			if (flags & TR_SPELL_CONTAIN)
+			{
 				q_ptr->pval2 = -1;
+			}
 
 			/* Describe the artifact */
 			object_desc_store(base_name, q_ptr, FALSE, 0);
 		}
 
 		/* Hack -- Build the artifact name */
-		fprintf(fff, "     The %s\n", base_name);
+		w.write("     The {}\n", base_name);
 	}
 
-	for (k = 0; k < max_k_idx; k++)
+	for (std::size_t k = 0; k < k_info.size(); k++)
 	{
 		/* List "dead" ones */
 		if (!okayk[k]) continue;
@@ -3225,68 +3237,18 @@ void do_cmd_knowledge_artifacts(void)
 		}
 
 		/* Hack -- Build the artifact name */
-		fprintf(fff, "     The %s\n", base_name);
+		w.write("     The {}\n", base_name);
 	}
 
-	/* Close the file */
-	my_fclose(fff);
-
-	/* Display the file contents */
-	show_file(file_name, "Artifacts Seen", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
+	/* Display */
+	show_string(w.c_str(), "Artifacts Seen");
 }
 
 
-/*
- * Check the status of traps
- */
-void do_cmd_knowledge_traps(void)
+static int monster_get_race_level(int r_idx)
 {
-	int k;
+	auto const &r_info = game->edit_data.r_info;
 
-	FILE *fff;
-
-	trap_type *t_ptr;
-
-	char file_name[1024];
-
-
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
-
-	/* Scan the traps */
-	for (k = 0; k < max_t_idx; k++)
-	{
-		/* Get the trap */
-		t_ptr = &t_info[k];
-
-		/* Skip "empty" traps */
-		if (!t_ptr->name) continue;
-
-		/* Skip unidentified traps */
-		if (!t_ptr->ident) continue;
-
-		/* Hack -- Build the trap name */
-		fprintf(fff, "     %s\n", t_ptr->name);
-	}
-
-	/* Close the file */
-	my_fclose(fff);
-
-	/* Display the file contents */
-	show_file(file_name, "Traps known", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
-}
-
-
-static int monster_get_race_level(int r_idx) {
 	/* Hack -- Morgoth is always last */
 	if (r_idx == 862) {
 		return 20000;
@@ -3295,40 +3257,23 @@ static int monster_get_race_level(int r_idx) {
 	return r_info[r_idx].level;
 }
 
-static bool compare_monster_level(int r_idx1, int r_idx2) {
-	return monster_get_race_level(r_idx1) < monster_get_race_level(r_idx2);
-}
-
 /*
  * Display known uniques
- *
- * Note that the player ghosts are ignored.  XXX XXX XXX
  */
-static void do_cmd_knowledge_uniques(void)
+static void do_cmd_knowledge_uniques()
 {
-	int k;
-
-	FILE *fff;
-
-	char file_name[1024];
-
-
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
+	auto const &r_info = game->edit_data.r_info;
 
 	// Extract the unique race indexes.
-	std::vector<int> unique_r_idxs;
-	for (k = 1; k < max_r_idx; k++)
+	std::vector<std::size_t> unique_r_idxs;
+	for (std::size_t k = 1; k < r_info.size(); k++)
 	{
-		monster_race *r_ptr = &r_info[k];
+		auto r_ptr = &r_info[k];
 
 		/* Only print Uniques */
-		if (r_ptr->flags1 & (RF1_UNIQUE) &&
-		    !(r_ptr->flags7 & RF7_PET) &&
-		    !(r_ptr->flags7 & RF7_NEUTRAL))
+		if ((r_ptr->flags & RF_UNIQUE) &&
+		    !(r_ptr->flags & RF_PET) &&
+		    !(r_ptr->flags & RF_NEUTRAL))
 		{
 			unique_r_idxs.push_back(k);
 		}
@@ -3337,48 +3282,41 @@ static void do_cmd_knowledge_uniques(void)
 	// Sort races by level.
 	std::sort(std::begin(unique_r_idxs),
 		  std::end(unique_r_idxs),
-		  compare_monster_level);
+		  [](auto r_idx1, auto r_idx2) -> bool {
+			  return monster_get_race_level(r_idx1) < monster_get_race_level(r_idx2);
+		  });
 
-	/* Scan the monster races */
-	for (int r_idx : unique_r_idxs)
+	// Scan the monster races
+	fmt::MemoryWriter w;
+	for (std::size_t r_idx : unique_r_idxs)
 	{
-		monster_race *r_ptr = &r_info[r_idx];
+		auto r_ptr = &r_info[r_idx];
 
 		/* Only print Uniques */
-		if (r_ptr->flags1 & (RF1_UNIQUE))
+		if (r_ptr->flags & RF_UNIQUE)
 		{
 			bool_ dead = (r_ptr->max_num == 0);
 
-			/* Only display "known" uniques */
-			if (dead || cheat_know || r_ptr->r_sights)
+			/* Print a message */
+			if (dead)
 			{
-				/* Print a message */
-				if (dead)
-				{
-					fprintf(fff, "[[[[[%c%c] [[[[[R%-68s is dead]\n",
-						conv_color[r_ptr->d_attr],
-						r_ptr->d_char,
-						r_ptr->name);
-				}
-				else
-				{
-					fprintf(fff, "[[[[[%c%c] [[[[[w%-68s is alive]\n",
-						conv_color[r_ptr->d_attr],
-						r_ptr->d_char,
-						r_ptr->name);
-				}
+				w.write("[[[[[{}{}] [[[[[R{:<68} is dead]\n",
+					static_cast<char>(conv_color[r_ptr->d_attr]),
+					static_cast<char>(r_ptr->d_char),
+					r_ptr->name);
+			}
+			else
+			{
+				w.write("[[[[[{}{}] [[[[[w{:<68} is alive]\n",
+					static_cast<char>(conv_color[r_ptr->d_attr]),
+					static_cast<char>(r_ptr->d_char),
+					r_ptr->name);
 			}
 		}
 	}
 
-	/* Close the file */
-	my_fclose(fff);
-
-	/* Display the file contents */
-	show_file(file_name, "Known Uniques", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
+	// Display
+	show_string(w.c_str(), "Known Uniques");
 }
 
 
@@ -3438,29 +3376,29 @@ static void plural_aux(char *name)
 	}
 
 	/* Broken plurals are, well, broken */
-	else if (name[name_len - 1] == 'y')
+	else if (name_len >= 1 && name[name_len - 1] == 'y')
 	{
 		strcpy(&name[name_len - 1], "ies");
 	}
-	else if (streq(&name[name_len - 4], "ouse"))
+	else if (name_len >= 4 && streq(&name[name_len - 4], "ouse"))
 	{
 		strcpy(&name[name_len - 4], "ice");
 	}
-	else if (streq(&name[name_len - 6], "kelman"))
+	else if (name_len >= 6 && streq(&name[name_len - 6], "kelman"))
 	{
 		strcpy(&name[name_len - 6], "kelmen");
 	}
-	else if (streq(&name[name_len - 2], "ex"))
+	else if (name_len >= 2 && streq(&name[name_len - 2], "ex"))
 	{
 		strcpy(&name[name_len - 2], "ices");
 	}
-	else if (streq(&name[name_len - 3], "olf"))
+	else if (name_len >= 3 && streq(&name[name_len - 3], "olf"))
 	{
 		strcpy(&name[name_len - 3], "olves");
 	}
 
 	/* Now begins sane cases */
-	else if ((streq(&name[name_len - 2], "ch")) || (name[name_len - 1] == 's'))
+	else if ((name_len >= 2 && streq(&name[name_len - 2], "ch")) || (name_len >= 1 && name[name_len - 1] == 's'))
 	{
 		strcpy(&name[name_len], "es");
 	}
@@ -3474,38 +3412,19 @@ static void plural_aux(char *name)
 /*
  * Display current pets
  */
-static void do_cmd_knowledge_pets(void)
+static void do_cmd_knowledge_pets()
 {
-	int i;
-
-	FILE *fff;
-
-	monster_type *m_ptr;
-
 	int t_friends = 0;
-
 	int t_levels = 0;
 
-	int show_upkeep = 0;
-
-	int upkeep_divider = 20;
-
-	char file_name[1024];
-
-
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
-
-	if (has_ability(AB_PERFECT_CASTING)) upkeep_divider = 15;
+	// Buffer
+	fmt::MemoryWriter w;
 
 	/* Process the monsters (backwards) */
-	for (i = m_max - 1; i >= 1; i--)
+	for (int i = m_max - 1; i >= 1; i--)
 	{
 		/* Access the monster */
-		m_ptr = &m_list[i];
+		monster_type *m_ptr = &m_list[i];
 
 		/* Ignore "dead" monsters */
 		if (!m_ptr->r_idx) continue;
@@ -3521,12 +3440,16 @@ static void do_cmd_knowledge_pets(void)
 			char pet_name[80];
 			monster_desc(pet_name, m_ptr, 0x88);
 
-			fprintf(fff, "%s%s (%s)\n",
-			        (r_ptr->flags1 & RF1_UNIQUE) ? "#####G" : "",
-			        pet_name,
-			        (m_ptr->status < MSTATUS_COMPANION) ? "pet" : "companion");
+			w.write("{}{} ({})\n",
+				(r_ptr->flags & RF_UNIQUE) ? "#####G" : "",
+				pet_name,
+				(m_ptr->status < MSTATUS_COMPANION) ? "pet" : "companion");
 		}
 	}
+
+	// Calculate upkeep
+	int show_upkeep = 0;
+	int upkeep_divider = p_ptr->has_ability(AB_PERFECT_CASTING) ? 15 : 20;
 
 	if (t_friends > 1 + (p_ptr->lev / (upkeep_divider)))
 	{
@@ -3536,104 +3459,78 @@ static void do_cmd_knowledge_pets(void)
 		else if (show_upkeep < 10) show_upkeep = 10;
 	}
 
+	// Summary
+	w.write("----------------------------------------------\n");
+	w.write("   Total: {} pet{}.\n", t_friends, (t_friends == 1 ? "" : "s"));
+	w.write("   Upkeep: {}% mana.\n", show_upkeep);
 
-	fprintf(fff, "----------------------------------------------\n");
-	fprintf(fff, "   Total: %d pet%s.\n", t_friends, (t_friends == 1 ? "" : "s"));
-	fprintf(fff, "   Upkeep: %d%% mana.\n", show_upkeep);
-
-
-	/* Close the file */
-	my_fclose(fff);
-
-	/* Display the file contents */
-	show_file(file_name, "Current Pets", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
+	// Display
+	show_string(w.c_str(), "Current Pets");
 }
 
 
 
 /*
  * Total kill count
- *
- * Note that the player ghosts are ignored.  XXX XXX XXX
  */
-static void do_cmd_knowledge_kill_count(void)
+static void do_cmd_knowledge_kill_count()
 {
-	int k;
-
-	FILE *fff;
-
-	char file_name[1024];
+	auto const &r_info = game->edit_data.r_info;
 
 	s32b Total = 0;
 
+	// Buffer
+	fmt::MemoryWriter w;
 
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
-
+	// Summary of monsters slain
 	{
-		/* Monsters slain */
-		int kk;
-
 		/* For all monsters */
-		for (kk = 1; kk < max_r_idx; kk++)
+		for (auto const &r_ref: r_info)
 		{
-			monster_race *r_ptr = &r_info[kk];
+			auto r_ptr = &r_ref;
 
-			if (r_ptr->flags1 & (RF1_UNIQUE))
+			if (r_ptr->flags & RF_UNIQUE)
 			{
-				bool_ dead = (r_ptr->max_num == 0);
-
-				if (dead)
+				if (r_ptr->max_num == 0)
 				{
 					Total++;
 				}
 			}
 			else
 			{
-				s16b This = r_ptr->r_pkills;
-
-				if (This > 0)
-				{
-					Total += This;
-				}
+				Total += std::max<s16b>(r_ptr->r_pkills, 0);
 			}
 		}
 
 		if (Total < 1)
 		{
-			fprintf(fff, "You have defeated no enemies yet.\n\n");
+			w.write("You have defeated no enemies yet.\n\n");
 		}
 		else if (Total == 1)
 		{
-			fprintf(fff, "You have defeated one enemy.\n\n");
+			w.write("You have defeated one enemy.\n\n");
 		}
 		else
 		{
-                  fprintf(fff, "You have defeated " FMTs32b " enemies.\n\n", Total);
+			w.write("You have defeated {} enemies.\n\n", Total);
 		}
 	}
 
 	Total = 0;
 
 	/* Scan the monster races */
-	for (k = 0; k < max_r_idx; k++)
+	for (auto const &r_ref: r_info)
 	{
-		monster_race *r_ptr = &r_info[k];
+		auto r_ptr = &r_ref;
 
-		if (r_ptr->flags1 & (RF1_UNIQUE))
+		if (r_ptr->flags & RF_UNIQUE)
 		{
 			bool_ dead = (r_ptr->max_num == 0);
 
 			if (dead)
 			{
 				/* Print a message */
-				fprintf(fff, "     %s\n", r_ptr->name);
+				w.write("     {}\n", r_ptr->name);
 				Total++;
 			}
 		}
@@ -3647,11 +3544,11 @@ static void do_cmd_knowledge_kill_count(void)
 				{
 					if (strstr(r_ptr->name, "coins"))
 					{
-						fprintf(fff, "     1 pile of %s\n", r_ptr->name);
+						w.write("     1 pile of {}\n", r_ptr->name);
 					}
 					else
 					{
-						fprintf(fff, "     1 %s\n", r_ptr->name);
+						w.write("     1 {}\n", r_ptr->name);
 					}
 				}
 				else
@@ -3659,7 +3556,7 @@ static void do_cmd_knowledge_kill_count(void)
 					char to_plural[80];
 					strcpy(to_plural, r_ptr->name);
 					plural_aux(to_plural);
-					fprintf(fff, "     %d %s\n", This, to_plural);
+					w.write("     {} {}\n", This, to_plural);
 				}
 
 				Total += This;
@@ -3667,147 +3564,100 @@ static void do_cmd_knowledge_kill_count(void)
 		}
 	}
 
-	fprintf(fff, "----------------------------------------------\n");
-	fprintf(fff, "   Total: " FMTs32b " creature%s killed.\n", Total, (Total == 1 ? "" : "s"));
-
-	/* Close the file */
-	my_fclose(fff);
+	w.write("----------------------------------------------\n");
+	w.write("   Total: {} creature{} killed.\n", Total, (Total == 1 ? "" : "s"));
 
 	/* Display the file contents */
-	show_file(file_name, "Kill Count", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
+	show_string(w.c_str(), "Kill Count");
 }
 
 
 /*
  * Display known objects
  */
-static void do_cmd_knowledge_objects(void)
+static void do_cmd_knowledge_objects()
 {
-	int k;
+	auto const &k_info = game->edit_data.k_info;
 
-	FILE *fff;
-
-	char o_name[80];
-
-	char file_name[1024];
-
-
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
+	fmt::MemoryWriter w;
 
 	/* Scan the object kinds */
-	for (k = 1; k < max_k_idx; k++)
+	for (std::size_t k = 1; k < k_info.size(); k++)
 	{
-		object_kind *k_ptr = &k_info[k];
+		auto k_ptr = &k_info[k];
 
 		/* Hack -- skip artifacts */
-		if (k_ptr->flags3 & (TR3_INSTA_ART)) continue;
+		if (k_ptr->flags & (TR_INSTA_ART)) continue;
 
 		/* List known flavored objects */
 		if (k_ptr->flavor && k_ptr->aware)
 		{
-			object_type *i_ptr;
 			object_type object_type_body;
 
 			/* Get local object */
-			i_ptr = &object_type_body;
+			object_type *i_ptr = &object_type_body;
 
 			/* Create fake object */
 			object_prep(i_ptr, k);
 
 			/* Describe the object */
+			char o_name[80];
 			object_desc_store(o_name, i_ptr, FALSE, 0);
 
 			/* Print a message */
-			fprintf(fff, "     %s\n", o_name);
+			w.write("     {}\n", o_name);
 		}
 	}
 
-	/* Close the file */
-	my_fclose(fff);
-
-	/* Display the file contents */
-	show_file(file_name, "Known Objects", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
+	// Display
+	show_string(w.c_str(), "Known Objects");
 }
 
 
 /*
  * List recall depths
  */
-static void do_cmd_knowledge_dungeons(void)
+static void do_cmd_knowledge_dungeons()
 {
-	int y;
-	char file_name[1024];
-	FILE *fff;
+	auto const &d_info = game->edit_data.d_info;
 
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
-
-	/* Oops */
-	if (fff == NULL) return;
+	fmt::MemoryWriter w;
 
 	/* Scan all dungeons */
-	for (y = 1; y < max_d_idx; y++)
+	for (std::size_t y = 1; y < d_info.size(); y++)
 	{
 		/* The dungeon has a valid recall depth set */
 		if (max_dlv[y])
 		{
 			/* Describe the recall depth */
-			fprintf(fff, "       %c%s: Level %d (%d')\n",
-			        (p_ptr->recall_dungeon == y) ? '*' : ' ',
+			w.write("       {}{}: Level {}\n",
+				(p_ptr->recall_dungeon == y) ? '*' : ' ',
 				d_info[y].name,
-			        max_dlv[y], 50 * (max_dlv[y]));
+				max_dlv[y]);
 		}
 	}
 
-	/* Close the file */
-	my_fclose(fff);
-
-	/* Display the file contents */
-	show_file(file_name, "Recall Depths", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
+	// Display
+	show_string(w.c_str(), "Recall Depths");
 }
 
 
 /*
  * List known towns
  */
-void do_cmd_knowledge_towns(void)
+void do_cmd_knowledge_towns()
 {
-	int i, j;
-	char file_name[1024];
-	FILE *fff;
+	auto const &d_info = game->edit_data.d_info;
 
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
-
-	/* Oops */
-	if (fff == NULL) return;
+	fmt::MemoryWriter w;
 
 	/* Scan all dungeons */
-	for (i = 0; i < max_d_idx; i++)
+	for (auto const &d_ref: d_info)
 	{
-		dungeon_info_type *d_ptr = &d_info[i];
+		auto d_ptr = &d_ref;
 
 		/* Scan all dungeon town slots */
-		for (j = 0; j < TOWN_DUNGEON; j++)
+		for (int j = 0; j < TOWN_DUNGEON; j++)
 		{
 			int town_idx = d_ptr->t_idx[j];
 
@@ -3818,127 +3668,51 @@ void do_cmd_knowledge_towns(void)
 			if (!(town_info[town_idx].flags & (TOWN_KNOWN))) continue;
 
 			/* Describe the dungeon town */
-			fprintf(fff, "        %s: Level %d (%d')\n",
+			w.write("        {}: Level {}\n",
 				d_ptr->name,
-			        d_ptr->t_level[j],
-			        50 * d_ptr->t_level[j]);
+				d_ptr->t_level[j]);
 		}
 	}
 
-	/* Close the file */
-	my_fclose(fff);
-
 	/* Display the file contents */
-	show_file(file_name, "Dungeon Towns", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
+	show_string(w.c_str(), "Dungeon Towns");
 }
 
 
 /*
  * List corruptions
  */
-static void do_cmd_knowledge_corruptions(void)
+static void do_cmd_knowledge_corruptions()
 {
-	FILE *fff;
-
-	char file_name[1024];
-
-
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
-
-	/* Dump the corruptions to file */
-	if (fff)
-	{
-		dump_corruptions(fff, TRUE, FALSE);
-	}
-
-	/* Close the file */
-	my_fclose(fff);
-
-	/* Display the file contents */
-	show_file(file_name, "Corruptions", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
-}
-
-
-/*
- * Helper function for do_cmd_knowledge_quests
- */
-static void insert_sort_quest(int *order, int *num, int q_idx)
-{
-	int i, j;
-
-	quest_type *q_ptr = &quest[q_idx];
-
-	int level = q_ptr->level;
-
-
-	/* Find the place */
-	for (i = 0; i < *num; i++)
-	{
-		quest_type *q2_ptr = &quest[order[i]];
-		int level2 = q2_ptr->level;
-
-		if (level < level2) break;
-	}
-
-	/* Move the remaining items */
-	for (j = *num - 1; j >= i; j--)
-	{
-		order[j + 1] = order[j];
-	}
-
-	/* Insert it */
-	order[i] = q_idx;
-	(*num)++;
+	show_string(dump_corruptions(true, false).c_str(), "Corruptions");
 }
 
 
 /*
  * Print quest status of all active quests
  */
-static void do_cmd_knowledge_quests(void)
+static void do_cmd_knowledge_quests()
 {
-	FILE *fff;
+	/* Figure out display order of quests */
+	int order[MAX_Q_IDX];
+	std::iota(order, order + MAX_Q_IDX, 0); // Start with order of definition
+	std::sort(order, order + MAX_Q_IDX, [](int qi, int qj) -> bool {
+		return (quest[qi].level < quest[qj].level);
+	});
 
-	char file_name[1024];
-
-	int order[MAX_Q_IDX] = { };
-
-	int num = 0;
-
-	int i, j, z;
-
-
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
-
-	for (i = 0; i < MAX_Q_IDX; i++)
+	/* Write */
+	fmt::MemoryWriter w;
+	for (int z = 0; z < MAX_Q_IDX; z++)
 	{
-		insert_sort_quest(order, &num, i);
-	}
-
-	for (z = 0; z < MAX_Q_IDX; z++)
-	{
-		i = order[z];
+		int const i = order[z];
 
 		/* Dynamic descriptions */
 		if (quest[i].gen_desc != NULL)
 		{
-			if (!quest[i].gen_desc(fff))
+			auto s = quest[i].gen_desc();
+			if (!s.empty())
 			{
-				continue;
+				w.write("{}\n\n", s);
 			}
 		}
 
@@ -3948,68 +3722,42 @@ static void do_cmd_knowledge_quests(void)
 			if (quest[i].status == QUEST_STATUS_TAKEN)
 			{
 				/* Print the quest info */
-				fprintf(fff, "#####y%s (Danger level: %d)\n",
+				w.write("#####y{} (Danger level: {})\n",
 				        quest[i].name, quest[i].level);
 
-				j = 0;
+				int j = 0;
 				while ((j < 10) && (quest[i].desc[j][0] != '\0'))
 				{
-					fprintf(fff, "%s\n", quest[i].desc[j++]);
+					w.write("{}\n", quest[i].desc[j++]);
 				}
-				fprintf(fff, "\n");
+				w.write("\n");
 			}
 			else if (quest[i].status == QUEST_STATUS_COMPLETED)
 			{
-				fprintf(fff , "#####G%s Completed - Unrewarded\n", quest[i].name);
-				fprintf(fff, "\n");
+				w.write("#####G{} Completed - Unrewarded\n", quest[i].name);
+				w.write("\n");
 			}
 		}
 	}
 
-	/* Close the file */
-	my_fclose(fff);
-
-	/* Display the file contents */
-	show_file(file_name, "Quest status", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
+	/* Display */
+	show_string(w.c_str(), "Quest status");
 }
 
 
 /*
  * Print fate status
  */
-static void do_cmd_knowledge_fates(void)
+static void do_cmd_knowledge_fates()
 {
-	FILE *fff;
-
-	char file_name[1024];
-
-
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
-
-	dump_fates(fff);
-
-	/* Close the file */
-	my_fclose(fff);
-
-	/* Display the file contents */
-	show_file(file_name, "Fate status", 0, 0);
-
-	/* Remove the file */
-	fd_kill(file_name);
+	show_string(dump_fates().c_str(), "Fate status");
 }
 
 
 /*
  * Print the note file
  */
-void do_cmd_knowledge_notes(void)
+void do_cmd_knowledge_notes()
 {
 	/* Spawn */
 	show_notes_file();
@@ -4022,7 +3770,7 @@ void do_cmd_knowledge_notes(void)
 /*
  * Interact with "knowledge"
  */
-void do_cmd_knowledge(void)
+void do_cmd_knowledge()
 {
 	int i;
 
@@ -4052,12 +3800,11 @@ void do_cmd_knowledge(void)
 		prt("(7) Display current pets", 10, 5);
 		prt("(8) Display current quests", 11, 5);
 		prt("(9) Display current fates", 12, 5);
-		prt("(0) Display known traps", 13, 5);
-		prt("(A) Display known dungeon towns", 14, 5);
-		prt("(B) Display notes", 15, 5);
+		prt("(0) Display known dungeon towns", 13, 5);
+		prt("(A) Display notes", 14, 5);
 
 		/* Prompt */
-		prt("Command: ", 17, 0);
+		prt("Command: ", 16, 0);
 
 		/* Prompt */
 		i = inkey();
@@ -4139,17 +3886,8 @@ void do_cmd_knowledge(void)
 				break;
 			}
 
-			/* Traps */
-		case '0':
-			{
-				do_cmd_knowledge_traps();
-
-				break;
-			}
-
 			/* Dungeon towns */
-		case 'A':
-		case 'a':
+		case '0':
 			{
 				do_cmd_knowledge_towns();
 
@@ -4157,8 +3895,8 @@ void do_cmd_knowledge(void)
 			}
 
 			/* Notes */
-		case 'B':
-		case 'b':
+		case 'A':
+		case 'a':
 			{
 				do_cmd_knowledge_notes();
 
@@ -4190,7 +3928,7 @@ void do_cmd_knowledge(void)
  * Check on the status of an active quest -KMW-
  * TODO: Spill out status when not a simple kill # monster.
  */
-void do_cmd_checkquest(void)
+void do_cmd_checkquest()
 {
 	/* Enter "icky" mode */
 	character_icky = TRUE;
@@ -4267,9 +4005,10 @@ void do_cmd_time()
 	strcpy(desc, "It is a strange time.");
 
 	/* Display day */
-	u32b days = bst(DAY, turn) + 1;
+	auto days = bst(DAY, turn) + 1;
+	auto days_str = get_day(days);
 	msg_format("This is the %s day of your adventure.",
-		   get_day(days));
+		   days_str.c_str());
 
 	/* Message */
 	msg_format("The time is %d:%02d %s.",

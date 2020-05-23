@@ -16,6 +16,7 @@
 #include "hook_move_in.hpp"
 #include "hooks.hpp"
 #include "object1.hpp"
+#include "object_flag.hpp"
 #include "options.hpp"
 #include "player_type.hpp"
 #include "skills.hpp"
@@ -23,26 +24,24 @@
 #include "variable.hpp"
 
 #define DESC_MAX 14
-#define TRIGGERED_HELP_MAX 18
+#define TRIGGERED_HELP_MAX 16
 
 #define HELP_VOID_JUMPGATE 0
 #define HELP_FOUNTAIN      1
 #define HELP_FOUND_OBJECT  2
 #define HELP_FOUND_ALTAR   3
 #define HELP_FOUND_STAIR   4
-#define HELP_GET_RUNE      5
-#define HELP_GET_ROD       6
-#define HELP_GET_ROD_TIP   7
-#define HELP_GET_TRAP_KIT  8
-#define HELP_GET_DEVICE    9
-#define HELP_WILDERNESS   10
-#define HELP_GAME_TOME    11
-#define HELP_GAME_THEME   12
-#define HELP_1ST_LEVEL    13
-#define HELP_20TH_LEVEL   14
-#define HELP_ID_SPELL_ITM 15
-#define HELP_MELEE_SKILLS 16
-#define HELP_MON_ASK_HELP 17
+#define HELP_GET_ROD       5
+#define HELP_GET_ROD_TIP   6
+#define HELP_GET_DEVICE    7
+#define HELP_WILDERNESS    8
+#define HELP_GAME_TOME     9
+#define HELP_GAME_THEME   10
+#define HELP_1ST_LEVEL    11
+#define HELP_20TH_LEVEL   12
+#define HELP_ID_SPELL_ITM 13
+#define HELP_MELEE_SKILLS 14
+#define HELP_MON_ASK_HELP 15
 
 /**
  * Game started?
@@ -179,7 +178,6 @@ context_help_type class_table[] =
 	{ "Priest(Manwe)",  "c_pr_man.txt",   0 },
 	{ "Ranger",         "c_ranger.txt",   0 },
 	{ "Rogue",          "c_rogue.txt",    0 },
-	{ "Runecrafter",    "c_runecr.txt",   0 },
 	{ "Sorceror",       "c_sorcer.txt",   0 },
 	{ "Summoner",       "c_summon.txt",   0 },
 	{ "Swordmaster",    "c_swordm.txt",   0 },
@@ -199,7 +197,6 @@ context_help_type class_table[] =
 	{ "Priest(Varda)",  "c_pr_varda.txt", 0 },
 	{ "Sniper",         "c_sniper.txt",   0 },
 	{ "Stonewright",    "c_stonewr.txt",  0 },
-	{ "Trapper",        "c_trapper.txt",  0 },
 	{ "Wainrider",      "c_wainrid.txt",  0 },
 	{ "War-mage",       "c_warmage.txt",  0 },
 	/* End of list */
@@ -268,7 +265,6 @@ context_help_type skill_table[] =
 	{ "Polearm-mastery",     "skills.txt",  7 },
 	{ "Possession",          "skills.txt", 45 },
 	{ "Prayer",              "skills.txt", 39 },
-	{ "Runecraft",           "skills.txt", 36 },
 	{ "Sling-mastery",       "skills.txt",  9 },
 	{ "Sneakiness",          "skills.txt", 14 },
 	{ "Spell-power",         "skills.txt", 22 },
@@ -301,7 +297,6 @@ context_help_type ability_table[] =
 	{ "Ammo creation",       "ability.txt",  7 },
 	{ "Touch of death",      "ability.txt",  8 },
 	{ "Far reaching attack", "ability.txt", 10 },
-	{ "Trapping",            "ability.txt", 11 },
 	{ "Undead Form",         "ability.txt", 12 },
 	{ NULL,                  NULL,           0 },
 };
@@ -335,12 +330,6 @@ static bool_ trigger_found_stairs(void *in, void *out) {
 	return (cave[p->y][p->x].feat == FEAT_MORE);
 }
 
-static bool_ trigger_get_rune(void *in, void *out) {
-	hook_get_in *g = (hook_get_in *) in;
-	return ((g->o_ptr->tval == TV_RUNE1) ||
-		(g->o_ptr->tval == TV_RUNE2));
-}
-
 static bool_ trigger_get_rod(void *in, void *out) {
 	hook_get_in *g = (hook_get_in *) in;
 	return (g->o_ptr->tval == TV_ROD_MAIN);
@@ -349,11 +338,6 @@ static bool_ trigger_get_rod(void *in, void *out) {
 static bool_ trigger_get_rod_tip(void *in, void *out) {
 	hook_get_in *g = (hook_get_in *) in;
 	return (g->o_ptr->tval == TV_ROD);
-}
-
-static bool_ trigger_get_trap_kit(void *in, void *out) {
-	hook_get_in *g = (hook_get_in *) in;
-	return (g->o_ptr->tval == TV_TRAPKIT);
 }
 
 static bool_ trigger_get_magic_device(void *in, void *out) {
@@ -389,9 +373,8 @@ static bool_ trigger_identify_spell_item(void *in_, void *out) {
 
 	if (in->mode == IDENT_FULL)
 	{
-		u32b f1, f2, f3, f4, f5, esp;
-		object_flags(in->o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-		if (f5 & TR5_SPELL_CONTAIN)
+		auto const f = object_flags(in->o_ptr);
+		if (f & TR_SPELL_CONTAIN)
 		{
 			return TRUE;
 		}
@@ -452,14 +435,6 @@ static triggered_help_type triggered_help[TRIGGERED_HELP_MAX] =
 	    "But be ready to fight what lies within, for it might not be too friendly.",
 	    NULL }
 	},
-	{ HELP_GET_RUNE,
-	  HOOK_GET,
-	  trigger_get_rune,
-	  { "Ah, a rune! Runes are used with the Runecraft skill to allow you to",
-	    "create spells on your own.",
-	    NULL
-	  }
-	},
 	{ HELP_GET_ROD,
 	  HOOK_GET,
 	  trigger_get_rod,
@@ -476,16 +451,6 @@ static triggered_help_type triggered_help[TRIGGERED_HELP_MAX] =
 	    "before you can use it. Once it has been attatched (use the 'z' key)",
 	    "you cannot unattach it! The rod tip will determine the effect of",
 	    "the rod. To use your rod, 'z'ap it once it has been assembled.",
-	    NULL
-	  }
-	},
-	{ HELP_GET_TRAP_KIT,
-	  HOOK_GET,
-	  trigger_get_trap_kit,
-	  { "Ooooh, a trapping kit. If you have ability in the trapping skill,",
-	    "you can lay this trap (via the 'm' key) to harm unsuspecting foes.",
-	    "You'll generally need either some ammo or magic device depending",
-	    "on the exact type of trap kit.",
 	    NULL
 	  }
 	},
@@ -593,33 +558,31 @@ static triggered_help_type triggered_help[TRIGGERED_HELP_MAX] =
 	}
 };
 
-static bool_ triggered_help_hook(void *data, void *in, void *out)
+static bool triggered_help_hook(void *data, void *in, void *out)
 {
 	triggered_help_type *triggered_help = (triggered_help_type *) data;
 	/* Not triggered before and trigger now? */
-	if ((option_ingame_help) &&
+	if (options->ingame_help &&
 	    (!p_ptr->help.activated[triggered_help->help_index]) &&
 	    triggered_help->trigger_func(in,out))
 	{
-		int i;
-
 		/* Triggered */
-		p_ptr->help.activated[triggered_help->help_index] = TRUE;
+		p_ptr->help.activated[triggered_help->help_index] = true;
 
 		/* Show the description */
-		for (i = 0; (i < DESC_MAX) && (triggered_help->desc[i] != NULL); i++)
+		for (std::size_t i = 0; (i < DESC_MAX) && (triggered_help->desc[i] != NULL); i++)
 		{
 			cmsg_print(TERM_YELLOW, triggered_help->desc[i]);
 		}
 	}
 	/* Don't stop processing */
-	return FALSE;
+	return false;
 }
 
-static bool_ hook_game_start(void *data, void *in, void *out)
+static bool hook_game_start(void *data, void *in, void *out)
 {
 	game_started = TRUE;
-	return FALSE;
+	return false;
 }
 
 static void setup_triggered_help_hook(int i)
@@ -674,7 +637,7 @@ static void show_context_help(context_help_type *context_help)
 
 	screen_save();
 
-	show_file(context_help->file_name, 0, -context_help->anchor, 0);
+	show_file(context_help->file_name, 0, -context_help->anchor);
 
 	screen_load();
 }
@@ -705,19 +668,19 @@ static context_help_type *find_context_help(context_help_type table[], cptr key)
 /*
  * Racial help
  */
-void help_race(cptr race)
+void help_race(std::string const &race)
 {
-	show_context_help(find_context_help(race_table, race));
+	show_context_help(find_context_help(race_table, race.c_str()));
 }
 
-void help_subrace(cptr subrace)
+void help_subrace(std::string const &subrace)
 {
-	show_context_help(find_context_help(subrace_table, subrace));
+	show_context_help(find_context_help(subrace_table, subrace.c_str()));
 }
 
-void help_class(cptr klass)
+void help_class(std::string const &klass)
 {
-	show_context_help(find_context_help(class_table, klass));
+	show_context_help(find_context_help(class_table, klass.c_str()));
 }
 
 void help_god(cptr god)
@@ -731,12 +694,12 @@ void help_god(cptr god)
 	}
 }
 
-void help_skill(cptr skill)
+void help_skill(const std::string &skill)
 {
-	show_context_help(find_context_help(skill_table, skill));
+	show_context_help(find_context_help(skill_table, skill.c_str()));
 }
 
-void help_ability(cptr ability)
+void help_ability(std::string const &ability)
 {
-	show_context_help(find_context_help(ability_table, ability));
+	show_context_help(find_context_help(ability_table, ability.c_str()));
 }

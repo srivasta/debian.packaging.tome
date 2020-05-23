@@ -1,11 +1,13 @@
 #include "h-basic.h"
 
-extern void gain_random_corruption();
-extern void dump_corruptions(FILE *OutFile, bool_ color, bool_ header);
-extern void lose_corruption();
-extern bool_ player_has_corruption(int corruption_idx);
-extern void player_gain_corruption(int corruption_idx);
-extern s16b get_corruption_power(int corruption_idx);
+#include <string>
+
+void gain_random_corruption();
+std::string dump_corruptions(bool color, bool header);
+void lose_corruption();
+bool_ player_has_corruption(int corruption_idx);
+void player_gain_corruption(int corruption_idx);
+s16b get_corruption_power(int corruption_idx);
 
 /*
  * Corruptions

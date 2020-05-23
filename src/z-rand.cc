@@ -4,329 +4,186 @@
 
 #include "z-rand.hpp"
 
+#include <assert.h>
+#include <cstdint>
+#include <limits>
+#include <random>
+#include <sstream>
+#include <type_traits>
 
+#include "pcg_random.hpp"
+#include "seed.hpp"
 
-
-/*
- * Angband 2.7.9 introduced a new (optimized) random number generator,
- * based loosely on the old "random.c" from Berkeley but with some major
- * optimizations and algorithm changes.  See below for more details.
- *
- * Code by myself (benh@phial.com) and Randy (randy@stat.tamu.edu).
- *
- * This code provides (1) a "decent" RNG, based on the "BSD-degree-63-RNG"
- * used in Angband 2.7.8, but rather optimized, and (2) a "simple" RNG,
- * based on the simple "LCRNG" currently used in Angband, but "corrected"
- * to give slightly better values.  Both of these are available in two
- * flavors, first, the simple "mod" flavor, which is fast, but slightly
- * biased at high values, and second, the simple "div" flavor, which is
- * less fast (and potentially non-terminating) but which is not biased
- * and is much less subject to low-bit-non-randomness problems.
- *
- * You can select your favorite flavor by proper definition of the
- * "rand_int()" macro in the "defines.h" file.
- *
- * Note that, in Angband 2.8.0, the "state" table will be saved in the
- * savefile, so a special "initialization" phase will be necessary.
- *
- * Note the use of the "simple" RNG, first you activate it via
- * "Rand_quick = TRUE" and "Rand_value = seed" and then it is used
- * automatically used instead of the "complex" RNG, and when you are
- * done, you de-activate it via "Rand_quick = FALSE" or choose a new
- * seed via "Rand_value = seed".
+/**
+ * Choice of RNG; we use the "statistically most powerful" (per the
+ * documentation) RNG. The "insecure" bit just means that the RNG
+ * is definitely known to *not* be cryptographically secure.
  */
+using rng_t = pcg64_once_insecure;
 
-
-/*
- * Random Number Generator -- Linear Congruent RNG
+/**
+ * Reseed the given RNG.
  */
-#define LCRNG(X)        ((X) * 1103515245 + 12345)
-
-
-
-/*
- * Use the "simple" LCRNG
- */
-bool_ Rand_quick = TRUE;
-
-
-/*
- * Current "value" of the "simple" RNG
- */
-u32b Rand_value;
-
-
-/*
- * Current "index" for the "complex" RNG
- */
-u16b Rand_place;
-
-/*
- * Current "state" table for the "complex" RNG
- */
-u32b Rand_state[RAND_DEG];
-
-
-
-/*
- * Initialize the "complex" RNG using a new seed
- */
-void Rand_state_init(u32b seed)
+static void reseed_rng(rng_t *rng, seed_t const &seed)
 {
-	int i, j;
+	assert(rng != nullptr);
+	// Create a seed_seq from the seed data.
+	std::uint32_t data[seed_t::n_uint32];
+	std::seed_seq seed_seq(
+	        std::begin(data),
+	        std::end(data)
+	);
+	// Seed the RNG.
+	rng->seed(seed_seq);
+}
 
-	/* Seed the table */
-	Rand_state[0] = seed;
+/**
+ * Allocate a new RNG and initialize with the given seed.
+ */
+static rng_t *new_seeded_rng(seed_t const &seed)
+{
+	rng_t *rng = new rng_t;
+	reseed_rng(rng, seed);
+	return rng;
+}
 
-	/* Propagate the seed */
-	for (i = 1; i < RAND_DEG; i++) Rand_state[i] = LCRNG(Rand_state[i - 1]);
+/**
+ * The "quick" RNG is used for fixed-seed applications.
+ */
+static rng_t *quick_rng()
+{
+	// Note that the "quick_rng" will always be seeded explicitly
+	// whenever it's used, so we don't need to do any seeding here.
+	static rng_t *instance = new rng_t();
+	return instance;
+}
 
-	/* Cycle the table ten times per degree */
-	for (i = 0; i < RAND_DEG * 10; i++)
-	{
-		/* Acquire the next index */
-		j = Rand_place + 1;
-		if (j == RAND_DEG) j = 0;
-
-		/* Update the table, extract an entry */
-		Rand_state[j] += Rand_state[Rand_place];
-
-		/* Advance the index */
-		Rand_place = j;
-	}
+/**
+ * The "complex" RNG is used when we really want non-deterministic
+ * random numbers.
+ */
+static rng_t *complex_rng()
+{
+	static rng_t *instance = new_seeded_rng(seed_t::system());
+	return instance;
 }
 
 
-/*
- * Extract a "random" number from 0 to m-1, via "modulus"
- *
- * Note that "m" should probably be less than 500000, or the
- * results may be rather biased towards low values.
+/**
+ * Current RNG.
  */
-s32b Rand_mod(s32b m)
+static rng_t *current_rng = nullptr;
+
+/**
+ * Get the current RNG.
+ */
+static rng_t *get_current_rng()
 {
-	int j;
-	u32b r;
-
-	/* Hack -- simple case */
-	if (m <= 1) return (0);
-
-	/* Use the "simple" RNG */
-	if (Rand_quick)
+	// Do we need to initialize?
+	if (current_rng == nullptr)
 	{
-		/* Cycle the generator */
-		r = (Rand_value = LCRNG(Rand_value));
-
-		/* Mutate a 28-bit "random" number */
-		r = (r >> 4) % m;
+		// We start with the complex RNG.
+		current_rng = complex_rng();
 	}
 
-	/* Use the "complex" RNG */
+	return current_rng;
+}
+
+void set_quick_rng(seed_t const &seed)
+{
+	reseed_rng(quick_rng(), seed);
+	current_rng = quick_rng();
+}
+
+void set_complex_rng()
+{
+	current_rng = complex_rng();
+}
+
+std::string get_complex_rng_state()
+{
+	std::stringstream s;
+	s << *complex_rng();
+	return s.str();
+}
+
+void set_complex_rng_state(std::string const &state)
+{
+	std::stringstream s(state);
+	s >> *complex_rng();
+}
+
+
+
+/*
+ * Stochastic rounding
+ */
+static double round_stochastic(double x)
+{
+	double n;
+	double f = std::modf(x, &n);
+
+	// Round up?
+	if (f > 0.5)
+	{
+		return n + 1;
+	}
+
+	// Round down?
+	if (f < 0.5)
+	{
+		return n - 1;
+	}
+
+	// Tie breaker is random; hence 'stochastic'.
+	std::uniform_int_distribution<int> distribution(0, 1);
+	if (distribution(*get_current_rng()) == 0)
+	{
+		return n - 1;
+	}
 	else
 	{
-		/* Acquire the next index */
-		j = Rand_place + 1;
-		if (j == RAND_DEG) j = 0;
-
-		/* Update the table, extract an entry */
-		r = (Rand_state[j] += Rand_state[Rand_place]);
-
-		/* Advance the index */
-		Rand_place = j;
-
-		/* Extract a "random" number */
-		r = (r >> 4) % m;
+		return n + 1;
 	}
-
-	/* Use the value */
-	return (r);
 }
-
-
-/*
- * Extract a "random" number from 0 to m-1, via "division"
- *
- * This method selects "random" 28-bit numbers, and then uses
- * division to drop those numbers into "m" different partitions,
- * plus a small non-partition to reduce bias, taking as the final
- * value the first "good" partition that a number falls into.
- *
- * This method has no bias, and is much less affected by patterns
- * in the "low" bits of the underlying RNG's.
- */
-static s32b Rand_div(s32b m)
-{
-	u32b r, n;
-
-	/* Hack -- simple case */
-	if (m <= 1) return (0);
-
-	/* Partition size */
-	n = (0x10000000 / m);
-
-	/* Use a simple RNG */
-	if (Rand_quick)
-	{
-		/* Wait for it */
-		while (1)
-		{
-			/* Cycle the generator */
-			r = (Rand_value = LCRNG(Rand_value));
-
-			/* Mutate a 28-bit "random" number */
-			r = ((r >> 4) & 0x0FFFFFFF) / n;
-
-			/* Done */
-			if (r < (u32b)m) break;
-		}
-	}
-
-	/* Use a complex RNG */
-	else
-	{
-		/* Wait for it */
-		while (1)
-		{
-			int j;
-
-			/* Acquire the next index */
-			j = Rand_place + 1;
-			if (j == RAND_DEG) j = 0;
-
-			/* Update the table, extract an entry */
-			r = (Rand_state[j] += Rand_state[Rand_place]);
-
-			/* Hack -- extract a 28-bit "random" number */
-			r = ((r >> 4) & 0x0FFFFFFF) / n;
-
-			/* Advance the index */
-			Rand_place = j;
-
-			/* Done */
-			if (r < (u32b)m) break;
-		}
-	}
-
-	/* Use the value */
-	return (r);
-}
-
-
-
-
-/*
- * The number of entries in the "randnor_table"
- */
-#define RANDNOR_NUM	256
-
-/*
- * The standard deviation of the "randnor_table"
- */
-#define RANDNOR_STD	64
-
-/*
- * The normal distribution table for the "randnor()" function (below)
- */
-static s16b randnor_table[RANDNOR_NUM] =
-{
-	206, 613, 1022, 1430, 1838, 2245, 2652, 3058,
-	3463, 3867, 4271, 4673, 5075, 5475, 5874, 6271,
-	6667, 7061, 7454, 7845, 8234, 8621, 9006, 9389,
-	9770, 10148, 10524, 10898, 11269, 11638, 12004, 12367,
-	12727, 13085, 13440, 13792, 14140, 14486, 14828, 15168,
-	15504, 15836, 16166, 16492, 16814, 17133, 17449, 17761,
-	18069, 18374, 18675, 18972, 19266, 19556, 19842, 20124,
-	20403, 20678, 20949, 21216, 21479, 21738, 21994, 22245,
-
-	22493, 22737, 22977, 23213, 23446, 23674, 23899, 24120,
-	24336, 24550, 24759, 24965, 25166, 25365, 25559, 25750,
-	25937, 26120, 26300, 26476, 26649, 26818, 26983, 27146,
-	27304, 27460, 27612, 27760, 27906, 28048, 28187, 28323,
-	28455, 28585, 28711, 28835, 28955, 29073, 29188, 29299,
-	29409, 29515, 29619, 29720, 29818, 29914, 30007, 30098,
-	30186, 30272, 30356, 30437, 30516, 30593, 30668, 30740,
-	30810, 30879, 30945, 31010, 31072, 31133, 31192, 31249,
-
-	31304, 31358, 31410, 31460, 31509, 31556, 31601, 31646,
-	31688, 31730, 31770, 31808, 31846, 31882, 31917, 31950,
-	31983, 32014, 32044, 32074, 32102, 32129, 32155, 32180,
-	32205, 32228, 32251, 32273, 32294, 32314, 32333, 32352,
-	32370, 32387, 32404, 32420, 32435, 32450, 32464, 32477,
-	32490, 32503, 32515, 32526, 32537, 32548, 32558, 32568,
-	32577, 32586, 32595, 32603, 32611, 32618, 32625, 32632,
-	32639, 32645, 32651, 32657, 32662, 32667, 32672, 32677,
-
-	32682, 32686, 32690, 32694, 32698, 32702, 32705, 32708,
-	32711, 32714, 32717, 32720, 32722, 32725, 32727, 32729,
-	32731, 32733, 32735, 32737, 32739, 32740, 32742, 32743,
-	32745, 32746, 32747, 32748, 32749, 32750, 32751, 32752,
-	32753, 32754, 32755, 32756, 32757, 32757, 32758, 32758,
-	32759, 32760, 32760, 32761, 32761, 32761, 32762, 32762,
-	32763, 32763, 32763, 32764, 32764, 32764, 32764, 32765,
-	32765, 32765, 32765, 32766, 32766, 32766, 32766, 32767,
-};
-
 
 
 /*
  * Generate a random integer number of NORMAL distribution
- *
- * The table above is used to generate a psuedo-normal distribution,
- * in a manner which is much faster than calling a transcendental
- * function to calculate a true normal distribution.
- *
- * Basically, entry 64*N in the table above represents the number of
- * times out of 32767 that a random variable with normal distribution
- * will fall within N standard deviations of the mean.  That is, about
- * 68 percent of the time for N=1 and 95 percent of the time for N=2.
- *
- * The table above contains a "faked" final entry which allows us to
- * pretend that all values in a normal distribution are strictly less
- * than four standard deviations away from the mean.  This results in
- * "conservative" distribution of approximately 1/32768 values.
- *
- * Note that the binary search takes up to 16 quick iterations.
  */
 s16b randnor(int mean, int stand)
 {
-	s16b tmp;
-	s16b offset;
+	// Get our own return type; we need it for limits and casting.
+	using retval_t = std::result_of<decltype(&randnor)(int, int)>::type;
 
-	s16b low = 0;
-	s16b high = RANDNOR_NUM;
-
-	/* Paranoia */
-	if (stand < 1) return (mean);
-
-	/* Roll for probability */
-	tmp = (s16b)rand_int(32768);
-
-	/* Binary Search */
-	while (low < high)
+	// Degenerate case
+	if (stand < 1)
 	{
-		int mid = (low + high) >> 1;
-
-		/* Move right if forced */
-		if (randnor_table[mid] < tmp)
-		{
-			low = mid + 1;
-		}
-
-		/* Move left otherwise */
-		else
-		{
-			high = mid;
-		}
+		return 0;
 	}
 
-	/* Convert the index into an offset */
-	offset = (long)stand * (long)low / RANDNOR_STD;
+	// Sample from normal distribution
+	std::normal_distribution<double> distribution(mean, stand);
+	double x = distribution(*get_current_rng());
 
-	/* One half should be negative */
-	if (rand_int(100) < 50) return (mean - offset);
+	// Stochastic rounding to avoid rounding bias
+	double rounded_x = round_stochastic(x);
 
-	/* One half should be positive */
-	return (mean + offset);
+	// Enforce limits of retval_t. Given that we're talking about a normal
+	// distribution, we're usually very unlikely to actually hit these (given
+	// reasonable values for 'mean' and 'stand' parameters), but in (very) rare
+	// cases it's needed to avoid undefined behavior due to the conversion
+	// we're going to do. This does introduce some (very minor) bias, but
+	// it's really unavoidable since retval_t cannot represent all possible
+	// values. We also assuming that a double can accurately represent all
+	// values in the range of retval_t.
+	double clipped_x = std::min(
+	        static_cast<double>(std::numeric_limits<retval_t>::max()),
+	        std::max(static_cast<double>(std::numeric_limits<retval_t>::min()),
+	                rounded_x));
+
+	// Done: We just need to convert to retval_t.
+	return static_cast<retval_t>(clipped_x);
 }
 
 
@@ -357,20 +214,41 @@ bool magik(s32b p) {
 
 s32b rand_int(s32b m)
 {
-	return Rand_div(m);
+	/* Degenerate case */
+	if (m < 1)
+	{
+		return 0;
+	}
+	/* Normal case */
+	std::uniform_int_distribution<s32b> distribution(0, m - 1);
+	return distribution(*get_current_rng());
 }
 
 s32b randint(s32b m)
 {
-	return rand_int(m) + 1;
+	/* Degenerate case */
+	if (m < 2)
+	{
+		return 1;
+	}
+	/* Normal case */
+	std::uniform_int_distribution<s32b> distribution(1, m);
+	return distribution(*get_current_rng());
 }
 
 s32b rand_range(s32b a, s32b b)
 {
-	return a + rand_int(1 + b - a);
+	/* Degenerate case */
+	if (b < a)
+	{
+		return a;
+	}
+	/* Normal case */
+	std::uniform_int_distribution<s32b> distribution(a, b);
+	return distribution(*get_current_rng());
 }
 
 s32b rand_spread(s32b a, s32b d)
 {
-	return a + rand_int(1 + d + d) - d;
+	return rand_range(a-d, a+d);
 }

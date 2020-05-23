@@ -43,8 +43,8 @@ ifneq (,$(filter amd64 arm64 armel armhf i386 powerpc ppc64 ppc64el x32 sparc sp
     # Upstream passes these unconditionally, but they're only available on
     # certain architectures.
     CONFIGURE_ARGS += \
-        -DCMAKE_C_FLAGS="-fsanitize=undefined -fsanitize=address" \
-        -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fsanitize=address"
+	-DCMAKE_C_FLAGS_DEBUG="${SANITIZER_FLAGS}" \
+	-DCMAKE_CXX_FLAGS_DEBUG="${SANITIZER_FLAGS}"
 endif
 
 %:
@@ -80,9 +80,9 @@ override_dh_install:
 override_dh_fixperms:
 	dh_fixperms
 	chgrp -R games       $(TMPTOP)/etc/$(package)/* $(PKG_STATLIB)/* $(PKG_LIBDIR) \
-                             $(TMPTOP)/usr/games/tome
+                             $(TMPTOP)/var/games/tome
 	chmod g+ws           $(PKG_LIBDIR)/data/
-	chmod g+s            $(TMPTOP)/usr/games/tome
+	chmod g+s            $(TMPTOP)/var/games/tome
 
 override_dh_clean:
 	dh_clean
@@ -91,6 +91,10 @@ override_dh_clean:
 	touch ./lib/info/delete.me
 	touch ./lib/save/delete.me
 	touch ./lib/user/delete.me
+	test ! -e ${SRCTOP}/CMakeCache.txt || rm -f ${SRCTOP}/CMakeCache.txt
+	test ! -e ${SRCTOP}/Ccmake_install.cmake || rm -f ${SRCTOP}/cmake_install.cmake
+	test ! -e ${SRCTOP}/mAKEFILE || rm -f ${SRCTOP}/mAKEFILE
+	test ! -d ${SRCTOP}/CMakeFiles || rm -f ${SRCTOP}/CMakeFiles/
 
 #Local variables:
 #mode: makefile

@@ -2,26 +2,27 @@
 
 #include "h-basic.h"
 
+#include <cstddef>
+
 /* Skill functions */
-extern void dump_skills(FILE *fff);
-extern s16b find_skill(cptr name);
-extern s16b find_skill_i(cptr name);
-extern s16b get_skill(int skill);
-extern s16b get_skill_scale(int skill, u32b scale);
-extern void do_cmd_skill(void);
-extern void do_cmd_activate_skill(void);
-extern cptr get_melee_name();
-extern s16b get_melee_skills(void);
-extern s16b get_melee_skill(void);
-extern bool_ forbid_gloves(void);
-extern bool_ forbid_non_blessed(void);
-extern void compute_skills(s32b *v, s32b *m, int i);
-extern void select_default_melee(void);
-extern void do_get_new_skill(void);
-extern void init_skill(s32b value, s32b mod, int i);
-extern s16b find_ability(cptr name);
-extern void dump_abilities(FILE *fff);
-extern void do_cmd_ability(void);
-extern bool_ has_ability(int ab);
-extern void apply_level_abilities(int level);
-extern void recalc_skills(bool_ init);
+void dump_skills(FILE *fff);
+s16b find_skill(cptr name);
+s16b find_skill_i(cptr name);
+s16b get_skill(int skill);
+s16b get_skill_scale(int skill, u32b scale);
+void do_cmd_skill();
+void do_cmd_activate_skill();
+cptr get_melee_name();
+s16b get_melee_skills();
+s16b get_melee_skill();
+bool_ forbid_gloves();
+bool_ forbid_non_blessed();
+void compute_skills(s32b *v, s32b *m, std::size_t i);
+void select_default_melee();
+void do_get_new_skill();
+void init_skill(s32b value, s32b mod, std::size_t i);
+s16b find_ability(cptr name);
+void dump_abilities(FILE *fff);
+void do_cmd_ability();
+void apply_level_abilities(int level);
+void recalc_skills(bool_ init);

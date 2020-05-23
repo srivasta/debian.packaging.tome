@@ -12,19 +12,21 @@
 #include "cave_type.hpp"
 #include "cli_comm.hpp"
 #include "files.hpp"
+#include "game.hpp"
 #include "gods.hpp"
 #include "hook_drop_in.hpp"
 #include "hook_wield_in.hpp"
 #include "hooks.hpp"
 #include "monster1.hpp"
 #include "monster_race.hpp"
+#include "monster_race_flag.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
 #include "object_kind.hpp"
 #include "object_type.hpp"
 #include "options.hpp"
 #include "player_type.hpp"
-#include "quark.hpp"
 #include "squeltch.hpp"
 #include "store.hpp"
 #include "store_type.hpp"
@@ -40,13 +42,14 @@
 
 #include <cassert>
 #include <algorithm>
+#include <fmt/format.h>
 #include <memory>
 #include <utility>
 
 /*
  * Display p_ptr->inventory
  */
-void do_cmd_inven(void)
+void do_cmd_inven()
 {
 	char out_val[160];
 
@@ -101,7 +104,7 @@ void do_cmd_inven(void)
 /*
  * Display equipment
  */
-void do_cmd_equip(void)
+void do_cmd_equip()
 {
 	char out_val[160];
 
@@ -159,28 +162,18 @@ void do_cmd_equip(void)
  */
 static bool item_tester_hook_wear(object_type const *o_ptr)
 {
-	u32b f1, f2, f3, f4, f5, esp;
 	int slot = wield_slot(o_ptr);
 
-
-	/* Extract the flags */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-
 	/* Only one ultimate at a time */
-	if (f4 & TR4_ULTIMATE)
+	if (object_flags(o_ptr) & TR_ULTIMATE)
 	{
-		int i;
-
-		for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+		for (int i = INVEN_WIELD; i < INVEN_TOTAL; i++)
 		{
 			object_type *q_ptr = &p_ptr->inventory[i];
 
-			/* Extract the flags */
-			object_flags(q_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-
 			if (!q_ptr->k_idx) continue;
 
-			if (f4 & TR4_ULTIMATE) return (FALSE);
+			if (object_flags(q_ptr) & TR_ULTIMATE) return (FALSE);
 		}
 	}
 
@@ -211,8 +204,10 @@ bool_ is_slot_ok(int slot)
 /*
  * Wield or wear a single item from the pack or floor
  */
-void do_cmd_wield(void)
+void do_cmd_wield()
 {
+	auto const &a_info = game->edit_data.a_info;
+
 	int item, slot, num = 1;
 
 	object_type forge;
@@ -224,9 +219,6 @@ void do_cmd_wield(void)
 	cptr act;
 
 	char o_name[80];
-
-	u32b f1, f2, f3, f4, f5, esp;
-
 
 	/* Get an item */
 	if (!get_item(&item,
@@ -258,7 +250,7 @@ void do_cmd_wield(void)
 		return;
 	}
 
-	if ((cursed_p(o_ptr)) && (wear_confirm)
+	if ((cursed_p(o_ptr)) && (options->wear_confirm)
 	                && (object_known_p(o_ptr) || (o_ptr->ident & (IDENT_SENSE))))
 	{
 		char dummy[512];
@@ -281,11 +273,11 @@ void do_cmd_wield(void)
 	}
 
 	/* Extract the flags */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+	auto const flags = object_flags(o_ptr);
 
 	/* Two handed weapons can't be wielded with a shield */
 	if ((is_slot_ok(slot - INVEN_WIELD + INVEN_ARM)) &&
-	                (f4 & TR4_MUST2H) &&
+			(flags & TR_MUST2H) &&
 	                (p_ptr->inventory[slot - INVEN_WIELD + INVEN_ARM].k_idx != 0))
 	{
 		object_desc(o_name, o_ptr, FALSE, 0);
@@ -298,10 +290,10 @@ void do_cmd_wield(void)
 		i_ptr = &p_ptr->inventory[slot - INVEN_ARM + INVEN_WIELD];
 
 		/* Extract the flags */
-		object_flags(i_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+		auto const i_flags = object_flags(i_ptr);
 
 		/* Prevent shield from being put on if wielding 2H */
-		if ((f4 & TR4_MUST2H) && (i_ptr->k_idx) &&
+		if ((i_flags & TR_MUST2H) && (i_ptr->k_idx) &&
 		                (p_ptr->body_parts[slot - INVEN_WIELD] == INVEN_ARM))
 		{
 			object_desc(o_name, o_ptr, FALSE, 0);
@@ -310,7 +302,7 @@ void do_cmd_wield(void)
 		}
 
 		if ((p_ptr->body_parts[slot - INVEN_WIELD] == INVEN_ARM) &&
-		                (f4 & TR4_COULD2H))
+		                (i_flags & TR_COULD2H))
 		{
 			if (!get_check("Are you sure you want to restrict your fighting? "))
 			{
@@ -319,13 +311,9 @@ void do_cmd_wield(void)
 		}
 	}
 
-
-	/* Extract the flags */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-
 	if ((is_slot_ok(slot - INVEN_WIELD + INVEN_ARM)) &&
 	                (p_ptr->inventory[slot - INVEN_WIELD + INVEN_ARM].k_idx != 0) &&
-	                (f4 & TR4_COULD2H))
+			(flags & TR_COULD2H))
 	{
 		if (!get_check("Are you sure you want to use this weapon with a shield?"))
 		{
@@ -359,7 +347,7 @@ void do_cmd_wield(void)
 		if (o_ptr->k_idx)
 		{
 			/* Take off existing item */
-			(void)inven_takeoff(slot, 255, FALSE);
+			inven_takeoff(slot, 255, FALSE);
 		}
 	}
 	else
@@ -369,7 +357,7 @@ void do_cmd_wield(void)
 			if (!object_similar(o_ptr, q_ptr))
 			{
 				/* Take off existing item */
-				(void)inven_takeoff(slot, 255, FALSE);
+				inven_takeoff(slot, 255, FALSE);
 			}
 			else
 			{
@@ -461,7 +449,7 @@ void do_cmd_wield(void)
 /*
  * Take off an item
  */
-void do_cmd_takeoff(void)
+void do_cmd_takeoff()
 {
 	/* Get an item */
 	int item;
@@ -491,7 +479,7 @@ void do_cmd_takeoff(void)
 	energy_use = 50;
 
 	/* Take off the item */
-	(void)inven_takeoff(item, 255, FALSE);
+	inven_takeoff(item, 255, FALSE);
 
 	/* Recalculate hitpoint */
 	p_ptr->update |= (PU_HP);
@@ -503,7 +491,7 @@ void do_cmd_takeoff(void)
 /*
  * Drop an item
  */
-void do_cmd_drop(void)
+void do_cmd_drop()
 {
 	/* Get an item */
 	int item;
@@ -517,8 +505,7 @@ void do_cmd_drop(void)
 
 	/* Get the item */
 	object_type *o_ptr = get_object(item);
-	u32b f1, f2, f3, f4, f5, esp;
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+	auto const flags = object_flags(o_ptr);
 
 	/* Can we drop */
 	struct hook_drop_in in = { item };
@@ -537,7 +524,7 @@ void do_cmd_drop(void)
 		}
 		else
 		{
-			if (f4 & TR4_CURSE_NO_DROP)
+			if (flags & TR_CURSE_NO_DROP)
 			{
 				/* Oops */
 				msg_print("Hmmm, you seem to be unable to drop it.");
@@ -570,8 +557,10 @@ void do_cmd_drop(void)
 /*
  * Destroy an item
  */
-void do_cmd_destroy(void)
+void do_cmd_destroy()
 {
+	auto const &k_info = game->edit_data.k_info;
+
 	int old_number;
 
 	bool_ force = FALSE;
@@ -626,10 +615,8 @@ void do_cmd_destroy(void)
 	/* Take no time, just like the automatizer */
 	energy_use = 0;
 
-	u32b f1, f2, f3, f4, f5, esp;
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-
-	if ((f4 & TR4_CURSE_NO_DROP) && cursed_p(o_ptr))
+	auto const flags = object_flags(o_ptr);
+	if ((flags & TR_CURSE_NO_DROP) && cursed_p(o_ptr))
 	{
 		/* Oops */
 		msg_print("Hmmm, you seem to be unable to destroy it.");
@@ -640,7 +627,7 @@ void do_cmd_destroy(void)
 
 
 	/* Artifacts cannot be destroyed */
-	if (artifact_p(o_ptr) || o_ptr->art_name)
+	if (artifact_p(o_ptr))
 	{
 		byte feel = SENSE_SPECIAL;
 
@@ -670,7 +657,6 @@ void do_cmd_destroy(void)
 
 	/* Message */
 	msg_format("You destroy %s.", o_name);
-	sound(SOUND_DESTITEM);
 
 	/* Create an automatizer rule */
 	if (automatizer_create)
@@ -689,8 +675,10 @@ void do_cmd_destroy(void)
 	}
 
 	/* Eru wont be happy */
-	if (f3 & TR3_BLESSED)
+	if (flags & TR_BLESSED)
+	{
 		inc_piety(GOD_ERU, -10 * k_info[o_ptr->k_idx].level);
+	}
 
 	/* Eliminate the item */
 	inc_stack_size(item, -amt);
@@ -700,7 +688,7 @@ void do_cmd_destroy(void)
 /*
  * Observe an item which has been *identify*-ed
  */
-void do_cmd_observe(void)
+void do_cmd_observe()
 {
 	/* Get an item */
 	int item;
@@ -732,7 +720,7 @@ void do_cmd_observe(void)
  * Remove the inscription from an object
  * XXX Mention item (when done)?
  */
-void do_cmd_uninscribe(void)
+void do_cmd_uninscribe()
 {
 	/* Get an item */
 	int item;
@@ -748,7 +736,7 @@ void do_cmd_uninscribe(void)
 	object_type *o_ptr = get_object(item);
 
 	/* Nothing to remove */
-	if (!o_ptr->note)
+	if (o_ptr->inscription.empty())
 	{
 		msg_print("That item had no inscription to remove.");
 		return;
@@ -758,7 +746,7 @@ void do_cmd_uninscribe(void)
 	msg_print("Inscription removed.");
 
 	/* Remove the incription */
-	o_ptr->note = 0;
+	o_ptr->inscription.clear();
 
 	/* Combine the pack */
 	p_ptr->notice |= (PN_COMBINE);
@@ -771,7 +759,7 @@ void do_cmd_uninscribe(void)
 /*
  * Inscribe an object with a comment
  */
-void do_cmd_inscribe(void)
+void do_cmd_inscribe()
 {
 	/* Get an item */
 	int item;
@@ -794,22 +782,15 @@ void do_cmd_inscribe(void)
 	msg_format("Inscribing %s.", o_name);
 	msg_print(NULL);
 
-	/* Start with nothing */
+	/* Start with old inscription */
 	char out_val[80];
-	strcpy(out_val, "");
-
-	/* Use old inscription */
-	if (o_ptr->note)
-	{
-		/* Start with the old inscription */
-		strcpy(out_val, quark_str(o_ptr->note));
-	}
+	strcpy(out_val, o_ptr->inscription.c_str());
 
 	/* Get a new inscription (possibly empty) */
 	if (get_string("Inscription: ", out_val, sizeof(out_val)))
 	{
 		/* Save the inscription */
-		o_ptr->note = quark_add(out_val);
+		o_ptr->inscription = out_val;
 
 		/* Combine the pack */
 		p_ptr->notice |= (PN_COMBINE);
@@ -839,7 +820,7 @@ static object_filter_t const &item_tester_refill_lantern()
 /*
  * Refill the players lamp (from the pack or floor)
  */
-static void do_cmd_refill_lamp(void)
+static void do_cmd_refill_lamp()
 {
 	/* Get an item */
 	int item;
@@ -902,7 +883,7 @@ static object_filter_t const &item_tester_refill_torch()
 /*
  * Refuel the players torch (from the pack or floor)
  */
-static void do_cmd_refill_torch(void)
+static void do_cmd_refill_torch()
 {
 	/* Get an item */
 	int item;
@@ -954,15 +935,10 @@ static void do_cmd_refill_torch(void)
 /*
  * Refill the players lamp, or restock his torches
  */
-void do_cmd_refill(void)
+void do_cmd_refill()
 {
-	object_type *o_ptr;
-
-	u32b f1, f2, f3, f4, f5, esp;
-
-
 	/* Get the light */
-	o_ptr = &p_ptr->inventory[INVEN_LITE];
+	auto o_ptr = &p_ptr->inventory[INVEN_LITE];
 
 	/* It is nothing */
 	if (o_ptr->tval != TV_LITE)
@@ -971,9 +947,9 @@ void do_cmd_refill(void)
 		return;
 	}
 
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+	auto const flags = object_flags(o_ptr);
 
-	if (f4 & TR4_FUEL_LITE)
+	if (flags & TR_FUEL_LITE)
 	{
 		/* It's a torch */
 		if (o_ptr->sval == SV_LITE_TORCH ||
@@ -1002,7 +978,7 @@ void do_cmd_refill(void)
 /*
  * Target command
  */
-void do_cmd_target(void)
+void do_cmd_target()
 {
 	/* Target set */
 	if (target_set(TARGET_KILL))
@@ -1022,7 +998,7 @@ void do_cmd_target(void)
 /*
  * Look command
  */
-void do_cmd_look(void)
+void do_cmd_look()
 {
 	/* Look around */
 	if (target_set(TARGET_LOOK))
@@ -1036,7 +1012,7 @@ void do_cmd_look(void)
 /*
  * Allow the player to examine other sectors on the map
  */
-void do_cmd_locate(void)
+void do_cmd_locate()
 {
 	int dir, y1, x1, y2, x2;
 	int panel_hgt, panel_wid;
@@ -1249,6 +1225,8 @@ static cptr ident_info[] =
  */
 static bool compare_monster_experience(int w1, int w2)
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	/* Extract experience */
 	s32b z1 = r_info[w1].mexp;
 	s32b z2 = r_info[w2].mexp;
@@ -1266,6 +1244,8 @@ static bool compare_monster_experience(int w1, int w2)
  */
 static bool compare_monster_level(int w1, int w2)
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	/* Extract levels */
 	byte z1 = r_info[w1].level;
 	byte z2 = r_info[w2].level;
@@ -1278,28 +1258,13 @@ static bool compare_monster_level(int w1, int w2)
 	return compare_monster_experience(w1, w2);
 }
 
-/**
- * Sort by total number of kills
- */
-static bool compare_total_kills(int w1, int w2)
-{
-	/* Extract total kills */
-	s16b z1 = r_info[w1].r_tkills;
-	s16b z2 = r_info[w2].r_tkills;
-
-	/* Compare total kills */
-	if (z1 < z2) return true;
-	if (z1 > z2) return false;
-
-	/* Punt to monster level. */
-	return compare_monster_level(w1, w2);
-}
-
 /*
  * Sort by player kills
  */
 static bool compare_player_kills(int w1, int w2)
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	/* Extract player kills */
 	s16b z1 = r_info[w1].r_pkills;
 	s16b z2 = r_info[w2].r_pkills;
@@ -1308,8 +1273,8 @@ static bool compare_player_kills(int w1, int w2)
 	if (z1 < z2) return true;
 	if (z1 > z2) return false;
 
-	/* Punt to total number of kills. */
-	return compare_total_kills(w1, w2);
+	/* Punt to monster level. */
+	return compare_monster_level(w1, w2);
 }
 
 
@@ -1318,7 +1283,9 @@ static bool compare_player_kills(int w1, int w2)
  */
 static void roff_top(int r_idx)
 {
-	monster_race *r_ptr = &r_info[r_idx];
+	auto const &r_info = game->edit_data.r_info;
+
+	auto r_ptr = &r_info[r_idx];
 
 	byte a1, a2;
 
@@ -1341,7 +1308,7 @@ static void roff_top(int r_idx)
 	Term_gotoxy(0, 0);
 
 	/* A title (use "The" for non-uniques) */
-	if (!(r_ptr->flags1 & (RF1_UNIQUE)))
+	if (!(r_ptr->flags & RF_UNIQUE))
 	{
 		Term_addstr( -1, TERM_WHITE, "The ");
 	}
@@ -1374,9 +1341,9 @@ static void roff_top(int r_idx)
  *
  * Note that the player ghosts are ignored. XXX XXX XXX
  */
-void do_cmd_query_symbol(void)
+void do_cmd_query_symbol()
 {
-	int i, r_idx;
+	auto const &r_info = game->edit_data.r_info;
 
 	char sym, query;
 
@@ -1404,6 +1371,7 @@ void do_cmd_query_symbol(void)
 	                "or (Ctrl-A, Ctrl-U, Ctrl-N, Ctrl-M):", &sym)) return;
 
 	/* Find that character info, and describe it */
+	std::size_t i;
 	for (i = 0; ident_info[i]; ++i)
 	{
 		if (sym == ident_info[i][0]) break;
@@ -1445,19 +1413,16 @@ void do_cmd_query_symbol(void)
 	prt(buf, 0, 0);
 
 	/* Collect matching monsters */
-	std::vector<u16b> who;
-	for (i = 1; i < max_r_idx; i++)
+	std::vector<std::size_t> who;
+	for (std::size_t i = 1; i < r_info.size(); i++)
 	{
-		monster_race *r_ptr = &r_info[i];
-
-		/* Nothing to recall */
-		if (!cheat_know && !r_ptr->r_sights) continue;
+		auto r_ptr = &r_info[i];
 
 		/* Require non-unique monsters if needed */
-		if (norm && (r_ptr->flags1 & (RF1_UNIQUE))) continue;
+		if (norm && (r_ptr->flags & RF_UNIQUE)) continue;
 
 		/* Require unique monsters if needed */
-		if (uniq && !(r_ptr->flags1 & (RF1_UNIQUE))) continue;
+		if (uniq && !(r_ptr->flags & RF_UNIQUE)) continue;
 
 		/* Require monsters with the name requested if needed */
 		if (name)
@@ -1529,7 +1494,7 @@ void do_cmd_query_symbol(void)
 	while (1)
 	{
 		/* Extract a race */
-		r_idx = who[i];
+		auto r_idx = who[i];
 
 		/* Hack -- Auto-recall */
 		monster_race_track(r_idx, 0);
@@ -1554,7 +1519,7 @@ void do_cmd_query_symbol(void)
 				Term_save();
 
 				/* Recall on screen */
-				screen_roff(who[i], 0, 0);
+				screen_roff(who[i], 0);
 
 				/* Hack -- Complete the prompt (again) */
 				Term_addstr( -1, TERM_WHITE, " [(r)ecall, ESC]");
@@ -1608,206 +1573,6 @@ void do_cmd_query_symbol(void)
 
 
 /*
- *  research_mon
- *  -KMW-
- */
-bool_ research_mon()
-{
-	int i, r_idx;
-
-	char sym, query;
-
-	char buf[128];
-
-
-	s16b oldkills;
-
-	byte oldwake;
-
-	bool_ oldcheat;
-
-
-	bool_ all = FALSE;
-
-	bool_ uniq = FALSE;
-
-	bool_ norm = FALSE;
-
-	bool_ notpicked;
-
-
-	bool_ recall = FALSE;
-
-	monster_race *r2_ptr;
-
-	/* Hack -- Remember "cheat_know" flag */
-	oldcheat = cheat_know;
-
-
-	/* Get a character, or abort */
-	if (!get_com("Enter character of monster: ", &sym)) return (TRUE);
-
-	/* Find that character info, and describe it */
-	for (i = 0; ident_info[i]; ++i)
-	{
-		if (sym == ident_info[i][0]) break;
-	}
-
-	if (ident_info[i])
-	{
-		strnfmt(buf, 128, "%c - %s.", sym, ident_info[i] + 2);
-	}
-	else
-	{
-		strnfmt(buf, 128, "%c - %s.", sym, "Unknown Symbol");
-	}
-
-	/* Display the result */
-	prt(buf, 16, 10);
-
-
-	/* Collect matching monsters */
-	std::vector<u16b> who;
-	for (i = 1; i < max_r_idx; i++)
-	{
-		monster_race *r_ptr = &r_info[i];
-
-		/* Hack -- Force "cheat_know" */
-		cheat_know = TRUE;
-
-		/* Nothing to recall */
-		if (!cheat_know && !r_ptr->r_sights) continue;
-
-		/* Require non-unique monsters if needed */
-		if (norm && (r_ptr->flags1 & (RF1_UNIQUE))) continue;
-
-		/* Require unique monsters if needed */
-		if (uniq && !(r_ptr->flags1 & (RF1_UNIQUE))) continue;
-
-		/* Collect "appropriate" monsters */
-		if (all || (r_ptr->d_char == sym)) {
-			who.push_back(i);
-		}
-	}
-
-	/* Nothing to recall */
-	if (who.empty())
-	{
-		/* Restore the "cheat_know" flag */
-		cheat_know = oldcheat;
-
-		return (TRUE);
-	}
-
-
-	query = 'y';
-
-	/* Sort by level */
-	std::sort(std::begin(who), std::end(who), compare_monster_level);
-
-
-	/* Start at the end */
-	i = who.size() - 1;
-
-	notpicked = TRUE;
-
-	/* Scan the monster memory */
-	while (notpicked)
-	{
-		/* Extract a race */
-		r_idx = who[i];
-
-		/* Hack -- Auto-recall */
-		monster_race_track(r_idx, 0);
-
-		/* Hack -- Handle stuff */
-		handle_stuff();
-
-		/* Hack -- Begin the prompt */
-		roff_top(r_idx);
-
-		/* Hack -- Complete the prompt */
-		Term_addstr( -1, TERM_WHITE, " [(r)ecall, ESC, space to continue]");
-
-		/* Interact */
-		while (1)
-		{
-			/* Recall */
-			if (recall)
-			{
-				/* Save the screen */
-				character_icky = TRUE;
-				Term_save();
-
-				/* Recall on screen */
-				r2_ptr = &r_info[r_idx];
-
-				oldkills = r2_ptr->r_tkills;
-				oldwake = r2_ptr->r_wake;
-				screen_roff(who[i], 0, 1);
-				r2_ptr->r_tkills = oldkills;
-				r2_ptr->r_wake = oldwake;
-				r2_ptr->r_sights = 1;
-				cheat_know = oldcheat;
-				notpicked = FALSE;
-				break;
-
-			}
-
-			/* Command */
-			query = inkey();
-
-			/* Unrecall */
-			if (recall)
-			{
-				/* Restore */
-				Term_load();
-				character_icky = FALSE;
-			}
-
-			/* Normal commands */
-			if (query != 'r') break;
-
-			/* Toggle recall */
-			recall = !recall;
-		}
-
-		/* Stop scanning */
-		if (query == ESCAPE) break;
-
-		/* Move to "prev" monster */
-		if (query == '-')
-		{
-			i++;
-			assert(i >= 0);
-			if (static_cast<size_t>(i) == who.size())
-			{
-				i = 0;
-			}
-		}
-
-		/* Move to "next" monster */
-		else
-		{
-			if (i-- == 0)
-			{
-				i = who.size() - 1;
-			}
-		}
-	}
-
-
-	/* Re-display the identity */
-	/* prt(buf, 5, 5);*/
-
-	/* Restore the "cheat_know" flag */
-	cheat_know = oldcheat;
-
-	return (notpicked);
-}
-
-
-/*
  * Try to "sense" the grid's mana
  */
 bool_ do_cmd_sense_grid_mana()
@@ -1836,9 +1601,8 @@ bool_ do_cmd_sense_grid_mana()
 	/* Roll for usage */
 	if ((chance < USE_DEVICE) || (randint(chance) < USE_DEVICE))
 	{
-		if (flush_failure) flush();
+		flush_on_failure();
 		msg_print("You failed to sense the grid's mana.");
-		sound(SOUND_FAIL);
 		return FALSE;
 	}
 
@@ -1976,7 +1740,7 @@ static bool_ get_string_cli(cptr prompt, char *buf, int len)
  *
  * See defines.h for a list of the codes used.
  */
-void do_cmd_cli(void)
+void do_cmd_cli()
 {
 	char buff[80];
 
@@ -2009,32 +1773,22 @@ void do_cmd_cli(void)
  */
 void do_cmd_cli_help()
 {
-	int i, j;
-
-	FILE *fff;
-
-	char file_name[1024];
-
-
-	/* Temporary file */
-	if (path_temp(file_name, 1024)) return;
-
-	/* Open a new file */
-	fff = my_fopen(file_name, "w");
-
-	for (i = 0, j = -1; i < cli_total; i++)
+	fmt::MemoryWriter w;
+	for (int i = 0, j = -1; i < cli_total; i++)
 	{
-		if (j < i - 1) fprintf(fff, "/");
-		fprintf(fff, "[[[[[G%s]", cli_info[i].comm);
+		if (j < i - 1)
+		{
+			w << "/";
+		}
+
+		w.write("[[[[[G{}]", cli_info[i].comm);
+
 		if (cli_info[i].descrip != cli_info[i + 1].descrip)
 		{
-			fprintf(fff, "   %s\n", cli_info[i].descrip);
+			w.write("   {}\n", cli_info[i].descrip);
 			j = i;
 		}
 	}
-
-	/* Close the file */
-	my_fclose(fff);
 
 	/* Enter "icky" mode */
 	character_icky = TRUE;
@@ -2043,16 +1797,13 @@ void do_cmd_cli_help()
 	Term_save();
 
 	/* Display the file contents */
-	show_file(file_name, "Command line help", 0, 0);
+	show_string(w.c_str(), "Command line help");
 
 	/* Restore the screen */
 	Term_load();
 
 	/* Leave "icky" mode */
 	character_icky = FALSE;
-
-	/* Remove the file */
-	fd_kill(file_name);
 }
 
 

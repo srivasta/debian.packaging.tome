@@ -12,6 +12,6 @@ constexpr int HELP_MAX = 64;
  */
 struct help_info
 {
-	bool_ enabled;              /* ingame help enabled */
-	bool_ activated[HELP_MAX];  /* help item #i activated? */
+	bool enabled = false;                  /* ingame help enabled */
+	bool activated[HELP_MAX] = { false };  /* help item #i activated? */
 };

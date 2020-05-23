@@ -1,7 +1,10 @@
 #include "corrupt.hpp"
 
+#include "game.hpp"
 #include "init1.hpp"
+#include "object_flag.hpp"
 #include "player_race.hpp"
+#include "player_race_flag.hpp"
 #include "player_race_mod.hpp"
 #include "player_type.hpp"
 #include "stats.hpp"
@@ -12,6 +15,7 @@
 #include "z-rand.hpp"
 
 #include <cassert>
+#include <fmt/format.h>
 
 /**
  * Corruptions
@@ -38,45 +42,40 @@ struct corruption_type
 
 static void subrace_add_power(player_race_mod *rmp_ptr, int power)
 {
-	int i;
-
-	for (i=0; i<4; i++)
-	{
-		if (rmp_ptr->powers[i] == -1)
-		{
-			rmp_ptr->powers[i] = power;
-			return;
-		}
-	}
+	rmp_ptr->ps.powers.push_back(power);
 }
 
 static void player_gain_vampire_teeth()
 {
+	auto &race_mod_info = game->edit_data.race_mod_info;
+
 	player_race_mod *rmp_ptr = NULL;
 
 	switch_subrace(SUBRACE_SAVE, TRUE);
 
 	rmp_ptr = &race_mod_info[SUBRACE_SAVE];
 	subrace_add_power(rmp_ptr, PWR_VAMPIRISM);
-	rmp_ptr->flags1 = rmp_ptr->flags1
-		| PR1_VAMPIRE
-		| PR1_UNDEAD
-		| PR1_NO_SUBRACE_CHANGE;
+	rmp_ptr->flags = rmp_ptr->flags
+		| PR_VAMPIRE
+		| PR_UNDEAD
+		| PR_NO_SUBRACE_CHANGE;
 }
 
 static void player_gain_vampire_strength()
 {
-	player_race_mod *rmp_ptr = &race_mod_info[SUBRACE_SAVE];
-	/* Apply the bonuses/penalities */
-	rmp_ptr->r_mhp = rmp_ptr->r_mhp + 1;
-	rmp_ptr->r_exp = rmp_ptr->r_exp + 100;
+	auto &race_mod_info = game->edit_data.race_mod_info;
 
-	rmp_ptr->r_adj[A_STR] = rmp_ptr->r_adj[A_STR] + 3;
-	rmp_ptr->r_adj[A_INT] = rmp_ptr->r_adj[A_INT] + 2;
-	rmp_ptr->r_adj[A_WIS] = rmp_ptr->r_adj[A_WIS] - 3;
-	rmp_ptr->r_adj[A_DEX] = rmp_ptr->r_adj[A_DEX] - 2;
-	rmp_ptr->r_adj[A_CON] = rmp_ptr->r_adj[A_CON] + 1;
-	rmp_ptr->r_adj[A_CHR] = rmp_ptr->r_adj[A_CHR] - 4;
+	player_race_mod *rmp_ptr = &race_mod_info[SUBRACE_SAVE];
+
+	rmp_ptr->ps.mhp += +1;
+	rmp_ptr->ps.exp += +100;
+
+	rmp_ptr->ps.adj[A_STR] += +3;
+	rmp_ptr->ps.adj[A_INT] += +2;
+	rmp_ptr->ps.adj[A_WIS] += -3;
+	rmp_ptr->ps.adj[A_DEX] += -2;
+	rmp_ptr->ps.adj[A_CON] += +1;
+	rmp_ptr->ps.adj[A_CHR] += -4;
 
 	/* be reborn! */
 	do_rebirth();
@@ -85,33 +84,29 @@ static void player_gain_vampire_strength()
 
 static void player_gain_vampire()
 {
+	auto &race_mod_info = game->edit_data.race_mod_info;
+
 	player_race_mod *rmp_ptr = &race_mod_info[SUBRACE_SAVE];
 
-	/* Be a Vampire and be proud of it */
-	cptr title = rmp_ptr->title;
-	if (streq(title, "Vampire"))
+	if (rmp_ptr->title == "Vampire")
 	{
-		title = "Vampire";
 		rmp_ptr->place = FALSE;
-		set_subrace_title(rmp_ptr, title);
 	}
 	else
 	{
-		char buf[512];
-		sprintf(buf, "Vampire %s", title);
-		set_subrace_title(rmp_ptr, buf);
+		rmp_ptr->title = fmt::format("Vampire {}", rmp_ptr->title);
 	}
 
 	/* Bonus/and .. not bonus :) */
-	rmp_ptr->flags1 = rmp_ptr->flags1 | PR1_HURT_LITE;
-	rmp_ptr->oflags2[2] = rmp_ptr->oflags2[2]
-		| TR2_RES_POIS
-		| TR2_RES_NETHER
-		| TR2_RES_COLD
-		| TR2_RES_DARK
-		| TR2_HOLD_LIFE;
-	rmp_ptr->oflags3[2] = rmp_ptr->oflags3[2]
-		| TR3_LITE1;
+	rmp_ptr->flags |= PR_HURT_LITE;
+	rmp_ptr->lflags[1].oflags |=
+	        ( TR_RES_POIS
+	        | TR_RES_NETHER
+	        | TR_RES_COLD
+	        | TR_RES_DARK
+	        | TR_HOLD_LIFE
+	        | TR_LITE1
+	        );
 }
 
 /**
@@ -706,7 +701,7 @@ static bool_ player_can_gain_corruption(int corruption_idx)
 	if (corruption_idx == CORRUPT_TROLL_BLOOD)
 	{
 		/* Ok trolls should not get this one. never. */
-		if (streq(rp_ptr->title, "Troll"))
+		if (rp_ptr->title == "Troll")
 		{
 			allowed = FALSE;
 		}
@@ -716,7 +711,7 @@ static bool_ player_can_gain_corruption(int corruption_idx)
 
 	if (game_module_idx == MODULE_THEME)
 	{
-		if (streq(rp_ptr->title, "Maia"))
+		if (rp_ptr->title == "Maia")
 		{
 			/* We use a whitelist of corruptions for Maiar */
 			bool_ allow = FALSE;
@@ -764,7 +759,7 @@ static bool_ player_allow_corruption(int corruption_idx)
 	/* Vampire teeth is special */
 	if (corruption_idx == CORRUPT_VAMPIRE_TEETH)
 	{
-		if (race_flags1_p(PR1_NO_SUBRACE_CHANGE))
+		if (race_flags_p(PR_NO_SUBRACE_CHANGE))
 		{
 			return TRUE;
 		}
@@ -944,20 +939,18 @@ void lose_corruption()
 /*
  * Dump the corruption list
  */
-void dump_corruptions(FILE *fff, bool_ color, bool_ header)
+std::string dump_corruptions(bool color, bool header)
 {
-	int i;
+	fmt::MemoryWriter w;
 
-	assert(fff != NULL);
-
-	for (i = 0; i < CORRUPTIONS_MAX; i++)
+	for (int i = 0; i < CORRUPTIONS_MAX; i++)
 	{
-		corruption_type *c_ptr = &corruptions[i];
+		corruption_type const *c_ptr = &corruptions[i];
 
 		if (header)
 		{
-			fprintf(fff, "\n Corruption list:\n");
-			header = FALSE;
+			w.write("\nCorruption list:\n\n");
+			header = false;
 		}
 
 		if (p_ptr->corruptions[i])
@@ -966,16 +959,18 @@ void dump_corruptions(FILE *fff, bool_ color, bool_ header)
 
 			if (color)
 			{
-				fprintf(fff, "#####%c%s:\n", conv_color[c], c_ptr->name);
+				w.write("#####{}{}:\n", static_cast<char>(conv_color[c]), c_ptr->name);
 			}
 			else
 			{
-				fprintf(fff, "%s:\n", c_ptr->name);
+				w.write("{}:\n", c_ptr->name);
 			}
 
-			fprintf(fff, "%s\n", c_ptr->desc);
+			w.write("{}\n\n", c_ptr->desc);
 		}
 	}
+
+	return w.str();
 }
 
 /*

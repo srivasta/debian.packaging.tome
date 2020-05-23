@@ -7,6 +7,7 @@
  */
 #include "gods.hpp"
 
+#include "game.hpp"
 #include "player_type.hpp"
 #include "skills.hpp"
 #include "skill_type.hpp"
@@ -79,6 +80,8 @@ static bool_ may_follow_god(int god)
  */
 void follow_god(int god, bool_ silent)
 {
+	auto &s_info = game->s_info;
+
 	/* Poor unbelievers, i'm so mean ... BOUHAHAHA */
 	if (get_skill(SKILL_ANTIMAGIC))
 	{
@@ -97,8 +100,11 @@ void follow_god(int god, bool_ silent)
 		/* Melkor offer Udun magic */
 		if (p_ptr->pgod == GOD_MELKOR)
 		{
-			s_info[SKILL_UDUN].hidden = FALSE;
-			if (!silent) msg_print("You feel the dark powers of Melkor in you.  You can now use the Udun skill.");
+			s_info[SKILL_UDUN].hidden = false;
+			if (!silent)
+			{
+				msg_print("You feel the dark powers of Melkor in you.  You can now use the Udun skill.");
+			}
 		}
 	}
 }
@@ -159,7 +165,6 @@ int wisdom_scale(int max)
  */
 deity_type *god_at(byte god_idx)
 {
-	assert(god_idx >= 0);
 	assert(god_idx < MAX_GODS);
 
 	if (god_idx == 0)

@@ -93,10 +93,9 @@
  */
 
 #include "loadsave.h"
+#include "main.h"
 #include "util.h"
 #include "variable.h"
-
-#ifdef USE_X11
 
 #ifndef __MAKEDEPEND__
 #include <X11/Xlib.h>
@@ -556,7 +555,7 @@ int Term_queue_space(void)
  *
  * NB: The keys added here will be interpreted by any macros or keymaps.
  */
-errr type_string(char *str, uint len)
+static errr type_string(char *str, uint len)
 {
 	char *s;
 
@@ -1741,8 +1740,6 @@ error:
 	XSendEvent(DPY, rq->requestor, FALSE, NoEventMask, &event);
 }
 
-extern errr type_string(char *str, uint len);
-
 /*
  * Add the contents of the PRIMARY buffer to the input queue.
  *
@@ -2584,5 +2581,13 @@ errr init_x11(int argc, char *argv[])
 	return (0);
 }
 
-#endif /* USE_X11 */
-
+int main(int argc, char *argv[])
+{
+	return main_real(
+		argc,
+		argv,
+		"x11",
+		init_x11,
+		"  -- -n#             Number of terms to use\n"
+		"  -- -d<name>        Display to use\n");
+}

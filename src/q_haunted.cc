@@ -2,14 +2,16 @@
 
 #include "cave.hpp"
 #include "cave_type.hpp"
+#include "dungeon_flag.hpp"
+#include "feature_flag.hpp"
 #include "feature_type.hpp"
+#include "game.hpp"
 #include "hook_quest_finish_in.hpp"
 #include "hooks.hpp"
 #include "init1.hpp"
 #include "monster2.hpp"
 #include "monster_type.hpp"
 #include "player_type.hpp"
-#include "traps.hpp"
 #include "tables.hpp"
 #include "util.hpp"
 #include "variable.hpp"
@@ -17,13 +19,18 @@
 
 #define cquest (quest[QUEST_HAUNTED])
 
-static bool_ quest_haunted_gen_hook(void *, void *, void *)
+static bool quest_haunted_gen_hook(void *, void *, void *)
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	int x, y, i, m_idx;
 	int xstart = 2;
 	int ystart = 2;
 
-	if (p_ptr->inside_quest != QUEST_HAUNTED) return FALSE;
+	if (p_ptr->inside_quest != QUEST_HAUNTED)
+	{
+		return false;
+	}
 
 	/* Just in case we didnt talk the the mayor */
 	if (cquest.status == QUEST_STATUS_UNTAKEN)
@@ -48,16 +55,15 @@ static bool_ quest_haunted_gen_hook(void *, void *, void *)
 
 	init_flags = INIT_CREATE_DUNGEON;
 	process_dungeon_file("haunted.map", &ystart, &xstart, cur_hgt, cur_wid, TRUE, FALSE);
-	dungeon_flags2 |= DF2_NO_GENO;
+	dungeon_flags |= DF_NO_GENO;
 
 	/* Place some ghosts */
 	for (i = 12; i > 0; )
 	{
-		int flags;
 		y = rand_int(21) + 3;
 		x = rand_int(31) + 3;
-		flags = f_info[cave[y][x].feat].flags1;
-		if (!(flags & FF1_PERMANENT) && (flags & FF1_FLOOR))
+		auto const flags = f_info[cave[y][x].feat].flags;
+		if (!(flags & FF_PERMANENT) && (flags & FF_FLOOR))
 		{
 			m_idx = place_monster_one(y, x, 477, 0, FALSE, MSTATUS_ENEMY);
 			if (m_idx) m_list[m_idx].mflag |= MFLAG_QUEST;
@@ -68,11 +74,10 @@ static bool_ quest_haunted_gen_hook(void *, void *, void *)
 	/* Place some random monsters to haunt us */
 	for (i = damroll(4, 4); i > 0; )
 	{
-		int flags;
 		y = rand_int(21) + 3;
 		x = rand_int(31) + 3;
-		flags = f_info[cave[y][x].feat].flags1;
-		if (!(flags & FF1_PERMANENT) && (flags & FF1_FLOOR))
+		auto const flags = f_info[cave[y][x].feat].flags;
+		if (!(flags & FF_PERMANENT) && (flags & FF_FLOOR))
 		{
 			int monsters[22] = { 65, 100, 124, 125, 133, 231, 273, 327, 365, 416, 418,
 			                     507, 508, 533, 534, 553, 554, 555, 577, 607, 622, 665};
@@ -83,30 +88,19 @@ static bool_ quest_haunted_gen_hook(void *, void *, void *)
 		}
 	}
 
-	/* Place some random traps */
-	for (i = 10 + damroll(4, 4); i > 0; )
-	{
-		int flags;
-		y = rand_int(21) + 3;
-		x = rand_int(31) + 3;
-		flags = f_info[cave[y][x].feat].flags1;
-		if (!(flags & FF1_PERMANENT) && (flags & FF1_FLOOR))
-		{
-			--i;
-			place_trap(y, x);
-		}
-	}
-
 	process_hooks_restart = TRUE;
 
-	return TRUE;
+	return true;
 }
 
-static bool_ quest_haunted_death_hook(void *, void *, void *)
+static bool quest_haunted_death_hook(void *, void *, void *)
 {
 	int i, mcnt = 0;
 
-	if (p_ptr->inside_quest != QUEST_HAUNTED) return FALSE;
+	if (p_ptr->inside_quest != QUEST_HAUNTED)
+	{
+		return false;
+	}
 
 	/* Process the monsters (backwards) */
 	for (i = m_max - 1; i >= 1; i--)
@@ -115,9 +109,15 @@ static bool_ quest_haunted_death_hook(void *, void *, void *)
 		monster_type *m_ptr = &m_list[i];
 
 		/* Ignore "dead" monsters */
-		if (!m_ptr->r_idx) continue;
+		if (!m_ptr->r_idx)
+		{
+			continue;
+		}
 
-		if (m_ptr->status <= MSTATUS_ENEMY) mcnt++;
+		if (m_ptr->status <= MSTATUS_ENEMY)
+		{
+			mcnt++;
+		}
 	}
 
 	/* Nobody left ? */
@@ -130,17 +130,21 @@ static bool_ quest_haunted_death_hook(void *, void *, void *)
 		process_hooks_restart = TRUE;
 
 		cmsg_print(TERM_YELLOW, "Minas Anor is safer now.");
-		return (FALSE);
+		return false;
 	}
-	return FALSE;
+
+	return false;
 }
 
-static bool_ quest_haunted_finish_hook(void *, void *in_, void *)
+static bool quest_haunted_finish_hook(void *, void *in_, void *)
 {
 	struct hook_quest_finish_in *in = static_cast<struct hook_quest_finish_in *>(in_);
 	s32b q_idx = in->q_idx;
 
-	if (q_idx != QUEST_HAUNTED) return FALSE;
+	if (q_idx != QUEST_HAUNTED)
+	{
+		return false;
+	}
 
 	c_put_str(TERM_YELLOW, "Thank you for saving us!", 8, 0);
 	c_put_str(TERM_YELLOW, "You can use the building as your house as a reward.", 9, 0);
@@ -148,10 +152,10 @@ static bool_ quest_haunted_finish_hook(void *, void *in_, void *)
 	/* Continue the plot */
 	*(quest[q_idx].plot) = QUEST_BETWEEN;
 
-	return TRUE;
+	return true;
 }
 
-bool_ quest_haunted_init_hook(int q_idx)
+void quest_haunted_init_hook()
 {
 	if ((cquest.status >= QUEST_STATUS_UNTAKEN) && (cquest.status < QUEST_STATUS_FINISHED))
 	{
@@ -159,5 +163,4 @@ bool_ quest_haunted_init_hook(int q_idx)
 		add_hook_new(HOOK_QUEST_FINISH,  quest_haunted_finish_hook, "haunted_finish",        NULL);
 		add_hook_new(HOOK_GEN_QUEST,     quest_haunted_gen_hook,    "haunted_geb",           NULL);
 	}
-	return (FALSE);
 }

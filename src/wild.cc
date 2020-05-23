@@ -10,7 +10,9 @@
 
 #include "cave.hpp"
 #include "cave_type.hpp"
+#include "feature_flag.hpp"
 #include "feature_type.hpp"
+#include "game.hpp"
 #include "hook_wild_gen_in.hpp"
 #include "hooks.hpp"
 #include "init1.hpp"
@@ -20,6 +22,7 @@
 #include "options.hpp"
 #include "player_type.hpp"
 #include "store_info_type.hpp"
+#include "store_flag.hpp"
 #include "tables.hpp"
 #include "town_type.hpp"
 #include "util.hpp"
@@ -28,6 +31,7 @@
 #include "wilderness_type_info.hpp"
 #include "z-rand.hpp"
 
+#include <algorithm>
 #include <memory>
 
 
@@ -152,13 +156,19 @@ static void plasma_recursive(int x1, int y1, int x2, int y2,
  */
 static int generate_area(int y, int x, bool_ border, bool_ corner)
 {
+	auto const &wilderness = game->wilderness;
+	auto const &wf_info = game->edit_data.wf_info;
+
 	int road, entrance;
 	int x1, y1;
 	int hack_floor = 0;
 
 	/* Number of the town (if any) */
-	p_ptr->town_num = wf_info[wild_map[y][x].feat].entrance;
-	if (!p_ptr->town_num) p_ptr->town_num = wild_map[y][x].entrance;
+	p_ptr->town_num = wf_info[wilderness(x, y).feat].entrance;
+	if (!p_ptr->town_num)
+	{
+		p_ptr->town_num = wilderness(x, y).entrance;
+	}
 
 	{
 		int roughness = 1;  /* The roughness of the level. */
@@ -170,25 +180,23 @@ static int generate_area(int y, int x, bool_ border, bool_ corner)
 		if (!p_ptr->oldpy) p_ptr->oldpy = MAX_HGT / 2;
 
 		/* Initialize the terrain array */
-		ym = ((y - 1) < 0) ? 0 : (y - 1);
-		xm = ((x - 1) < 0) ? 0 : (x - 1);
-		yp = ((y + 1) >= max_wild_y) ? (max_wild_y - 1) : (y + 1);
-		xp = ((x + 1) >= max_wild_x) ? (max_wild_x - 1) : (x + 1);
-		terrain[0][0] = wild_map[ym][xm].feat;
-		terrain[0][1] = wild_map[ym][x].feat;
-		terrain[0][2] = wild_map[ym][xp].feat;
-		terrain[1][0] = wild_map[y][xm].feat;
-		terrain[1][1] = wild_map[y][x].feat;
-		terrain[1][2] = wild_map[y][xp].feat;
-		terrain[2][0] = wild_map[yp][xm].feat;
-		terrain[2][1] = wild_map[yp][x].feat;
-		terrain[2][2] = wild_map[yp][xp].feat;
+		ym = std::max<int>(y - 1, 0);
+		xm = std::max<int>(x - 1, 0);
+		yp = std::min<int>(y + 1, static_cast<int>(wilderness.height()) - 1);
+		xp = std::min<int>(x + 1, static_cast<int>(wilderness.width()) - 1);
 
-		/* Hack -- Use the "simple" RNG */
-		Rand_quick = TRUE;
+		terrain[0][0] = wilderness(xm, ym).feat;
+		terrain[0][1] = wilderness(x , ym).feat;
+		terrain[0][2] = wilderness(xp, ym).feat;
+		terrain[1][0] = wilderness(xm, y ).feat;
+		terrain[1][1] = wilderness(x , y ).feat;
+		terrain[1][2] = wilderness(xp, y ).feat;
+		terrain[2][0] = wilderness(xm, yp).feat;
+		terrain[2][1] = wilderness(x , yp).feat;
+		terrain[2][2] = wilderness(xp, yp).feat;
 
 		/* Hack -- Induce consistant town layout */
-		Rand_value = wild_map[y][x].seed;
+		set_quick_rng(wilderness(x, y).seed);
 
 		/* Create level background */
 		for (y1 = 0; y1 < MAX_HGT; y1++)
@@ -215,9 +223,6 @@ static int generate_area(int y, int x, bool_ border, bool_ corner)
 			plasma_recursive(1, 1, MAX_WID - 2, MAX_HGT - 2, MAX_WILD_TERRAIN - 1, roughness);
 		}
 
-		/* Use the complex RNG */
-		Rand_quick = FALSE;
-
 		for (y1 = 1; y1 < MAX_HGT - 1; y1++)
 		{
 			for (x1 = 1; x1 < MAX_WID - 1; x1++)
@@ -227,6 +232,8 @@ static int generate_area(int y, int x, bool_ border, bool_ corner)
 			}
 		}
 
+		/* Change back to "complex" RNG */
+		set_complex_rng();
 	}
 
 	/* Should we create a town ? */
@@ -252,7 +259,7 @@ static int generate_area(int y, int x, bool_ border, bool_ corner)
 		 * Place roads in the wilderness
 		 * ToDo: make the road a bit more interresting
 		 */
-		road = wf_info[wild_map[y][x].feat].road;
+		road = wf_info[wilderness(x, y).feat].road;
 
 		if (road & ROAD_NORTH)
 		{
@@ -295,14 +302,11 @@ static int generate_area(int y, int x, bool_ border, bool_ corner)
 		}
 	}
 
-	/* Hack -- Use the "simple" RNG */
-	Rand_quick = TRUE;
-
 	/* Hack -- Induce consistant town layout */
-	Rand_value = wild_map[y][x].seed;
+	set_quick_rng(wilderness(x, y).seed);
 
-	entrance = wf_info[wild_map[y][x].feat].entrance;
-	if (!entrance) entrance = wild_map[y][x].entrance;
+	entrance = wf_info[wilderness(x, y).feat].entrance;
+	if (!entrance) entrance = wilderness(x, y).entrance;
 
 	/* Create the dungeon if requested on the map */
 	if (entrance >= 1000)
@@ -318,7 +322,7 @@ static int generate_area(int y, int x, bool_ border, bool_ corner)
 	}
 
 	/* Use the complex RNG */
-	Rand_quick = FALSE;
+	set_complex_rng();
 
 	/* MEGA HACK -- set at least one floor grid */
 	for (y1 = 1; y1 < cur_hgt - 1; y1++)
@@ -337,11 +341,10 @@ static int generate_area(int y, int x, bool_ border, bool_ corner)
 		hack_floor = 1;
 	}
 
-	/* Set the monster generation level to the wilderness level */
-	monster_level = wf_info[wild_map[y][x].feat].level;
-
-	/* Set the object generation level to the wilderness level */
-	object_level = wf_info[wild_map[y][x].feat].level;
+	/* Set the monster/object generation level to the wilderness level */
+	auto const &wf = wf_info[wilderness(x, y).feat];
+	monster_level = wf.level;
+	object_level = wf.level;
 
 	return hack_floor;
 }
@@ -373,6 +376,8 @@ namespace {
  */
 void wilderness_gen()
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	int i, y, x, hack_floor;
 	bool_ daytime;
 	int xstart = 0;
@@ -514,15 +519,18 @@ void wilderness_gen()
 			if (daytime)
 			{
 				/* Assume lit */
-				c_ptr->info |= (CAVE_GLOW);
+				c_ptr->info |= CAVE_GLOW;
 
 				/* Hack -- Memorize lit grids if allowed */
-				if (view_perma_grids) c_ptr->info |= (CAVE_MARK);
+				if (options->view_perma_grids)
+				{
+					c_ptr->info |= CAVE_MARK;
+				}
 			}
 			else
 			{
 				/* Darken "boring" features */
-				if (!(f_info[c_ptr->feat].flags1 & FF1_REMEMBER))
+				if (!(f_info[c_ptr->feat].flags & FF_REMEMBER))
 				{
 					/* Forget the grid */
 					c_ptr->info &= ~(CAVE_GLOW | CAVE_MARK);
@@ -546,7 +554,7 @@ void wilderness_gen()
 		for (i = 0; i < lim; i++)
 		{
 			/* Make a resident */
-			(void)alloc_monster((generate_encounter == TRUE) ? 0 : 3, (generate_encounter == TRUE) ? FALSE : TRUE);
+			alloc_monster((generate_encounter == TRUE) ? 0 : 3, (generate_encounter == TRUE) ? FALSE : TRUE);
 		}
 
 		if (generate_encounter) ambush_flag = TRUE;
@@ -572,14 +580,16 @@ void wilderness_gen()
  */
 void wilderness_gen_small()
 {
-	int i, j, entrance;
+	auto const &wilderness = game->wilderness;
+	auto const &wf_info = game->edit_data.wf_info;
+
 	int xstart = 0;
 	int ystart = 0;
 
 	/* To prevent stupid things */
-	for (i = 0; i < MAX_WID; i++)
+	for (int i = 0; i < MAX_WID; i++)
 	{
-		for (j = 0; j < MAX_HGT; j++)
+		for (int j = 0; j < MAX_HGT; j++)
 		{
 			cave_set_feat(j, i, FEAT_EKKAIA);
 		}
@@ -589,31 +599,35 @@ void wilderness_gen_small()
 	process_dungeon_file("w_info.txt", &ystart, &xstart, cur_hgt, cur_wid, TRUE, FALSE);
 
 	/* Fill the map */
-	for (i = 0; i < max_wild_x; i++)
+	for (std::size_t x = 0; x < wilderness.width(); x++)
 	{
-		for (j = 0; j < max_wild_y; j++)
+		for (std::size_t y = 0; y < wilderness.height(); y++)
 		{
-			entrance = wf_info[wild_map[j][i].feat].entrance;
-			if (!entrance) entrance = wild_map[j][i].entrance;
+			auto const &wm = wilderness(x, y);
 
-			if (wild_map[j][i].entrance)
+			int entrance = wf_info[wm.feat].entrance;
+			if (!entrance) entrance = wm.entrance;
+
+			if (wm.entrance)
 			{
-				cave_set_feat(j, i, FEAT_MORE);
+				cave_set_feat(y, x, FEAT_MORE);
 			}
 			else
 			{
-				cave_set_feat(j, i, wf_info[wild_map[j][i].feat].feat);
+				cave_set_feat(y, x, wf_info[wm.feat].feat);
 			}
 
-			if ((cave[j][i].feat == FEAT_MORE) && (entrance >= 1000))
+			auto &cv = cave[y][x];
+
+			if ((cv.feat == FEAT_MORE) && (entrance >= 1000))
 			{
-				cave[j][i].special = entrance - 1000;
+				cv.special = entrance - 1000;
 			}
 
 			/* Show it if we know it */
-			if (wild_map[j][i].known)
+			if (wm.known)
 			{
-				cave[j][i].info |= (CAVE_GLOW | CAVE_MARK);
+				cv.info |= (CAVE_GLOW | CAVE_MARK);
 			}
 		}
 	}
@@ -623,7 +637,7 @@ void wilderness_gen_small()
 	p_ptr->py = p_ptr->wilderness_y;
 
 	/* Set rewarded quests to finished */
-	for (i = 0; i < MAX_Q_IDX; i++)
+	for (int i = 0; i < MAX_Q_IDX; i++)
 	{
 		if (quest[i].status == QUEST_STATUS_REWARDED)
 		{
@@ -638,26 +652,30 @@ void wilderness_gen_small()
 /* Show a small radius of wilderness around the player */
 void reveal_wilderness_around_player(int y, int x, int h, int w)
 {
-	int i, j;
+	auto &wilderness = game->wilderness;
 
 	/* Circle or square ? */
 	if (h == 0)
 	{
-		for (i = x - w; i < x + w; i++)
+		for (int i = x - w; i < x + w; i++)
 		{
-			for (j = y - w; j < y + w; j++)
+			for (int j = y - w; j < y + w; j++)
 			{
 				/* Bound checking */
 				if (!in_bounds(j, i)) continue;
 
 				/* Severe bound checking */
-				if ((i < 0) || (i >= max_wild_x) || (j < 0) || (j >= max_wild_y)) continue;
+				if ((i < 0) || (static_cast<size_t>(i) >= wilderness.width()) ||
+				    (j < 0) || (static_cast<size_t>(j) >= wilderness.height()))
+				{
+					continue;
+				}
 
 				/* We want a radius, not a "squarus" :) */
 				if (distance(y, x, j, i) >= w) continue;
 
 				/* New we know here */
-				wild_map[j][i].known = TRUE;
+				wilderness(i, j).known = TRUE;
 
 				/* Only if we are in overview */
 				if (p_ptr->wild_mode)
@@ -672,15 +690,15 @@ void reveal_wilderness_around_player(int y, int x, int h, int w)
 	}
 	else
 	{
-		for (i = x; i < x + w; i++)
+		for (int i = x; i < x + w; i++)
 		{
-			for (j = y; j < y + h; j++)
+			for (int j = y; j < y + h; j++)
 			{
 				/* Bound checking */
 				if (!in_bounds(j, i)) continue;
 
 				/* New we know here */
-				wild_map[j][i].known = TRUE;
+				wilderness(i, j).known = TRUE;
 
 				/* Only if we are in overview */
 				if (p_ptr->wild_mode)
@@ -876,38 +894,58 @@ static void build_store_hidden(int n, int yy, int xx)
 }
 
 /* Return a list of stores */
-static int get_shops(int *rooms)
+static std::vector<std::size_t> get_shops()
 {
-	int i, n, num = 0;
+	auto const &st_info = game->edit_data.st_info;
 
-	for (n = 0; n < max_st_idx; n++)
-	{
-		rooms[n] = 0;
-	}
+	std::vector<std::size_t> rooms;
 
-	for (n = 0; n < max_st_idx; n++)
+	for (std::size_t n = 0; n < st_info.size(); n++)
 	{
 		int chance = 50;
 
-		if (st_info[n].flags1 & SF1_COMMON) chance += 30;
-		if (st_info[n].flags1 & SF1_RARE) chance -= 20;
-		if (st_info[n].flags1 & SF1_VERY_RARE) chance -= 30;
+		if (st_info[n].flags & STF_COMMON)
+		{
+			chance += 30;
+		}
 
-		if (!magik(chance)) continue;
+		if (st_info[n].flags & STF_RARE)
+		{
+			chance -= 20;
+		}
 
-		for (i = 0; i < num; ++i)
+		if (st_info[n].flags & STF_VERY_RARE)
+		{
+			chance -= 30;
+		}
+
+		if (!magik(chance))
+		{
+			continue;
+		}
+
+		for (std::size_t i = 0; i < rooms.size(); ++i)
+		{
 			if (rooms[i] == n)
+			{
 				continue;
+			}
+		}
 
-		if (st_info[n].flags1 & SF1_RANDOM) rooms[num++] = n;
+		if (st_info[n].flags & STF_RANDOM)
+		{
+			rooms.push_back(n);
+		}
 	}
 
-	return num;
+	return rooms;
 }
 
 /* Generate town borders */
 static void set_border(int y, int x)
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	cave_type *c_ptr;
 
 	/* Paranoia */
@@ -915,7 +953,7 @@ static void set_border(int y, int x)
 
 	/* Was a floor */
 	if (cave_floor_bold(y, x) ||
-	                (f_info[cave[y][x].feat].flags1 & FF1_DOOR))
+	                (f_info[cave[y][x].feat].flags & FF_DOOR))
 	{
 		cave_set_feat(y, x, FEAT_DOOR_HEAD);
 	}
@@ -937,7 +975,7 @@ static void set_border(int y, int x)
 }
 
 
-static void town_borders(int t_idx, int qy, int qx)
+static void town_borders(int qy, int qx)
 {
 	int y, x;
 
@@ -968,10 +1006,11 @@ static void town_borders(int t_idx, int qy, int qx)
 
 static bool_ create_townpeople_hook(int r_idx)
 {
-	monster_race *r_ptr = &r_info[r_idx];
+	auto const &r_info = game->edit_data.r_info;
 
-	if (r_ptr->d_char == 't') return TRUE;
-	else return FALSE;
+	auto r_ptr = &r_info[r_idx];
+
+	return (r_ptr->d_char == 't');
 }
 
 
@@ -982,9 +1021,9 @@ static bool_ create_townpeople_hook(int r_idx)
  * layout, including the size and shape of the buildings, the
  * locations of the doorways, and the location of the stairs.
  */
-static void town_gen_hack(int t_idx, int qy, int qx)
+static void town_gen_hack(int qy, int qx)
 {
-	int y, x, floor, num = 0;
+	int y, x, floor;
 	bool_ (*old_get_mon_num_hook)(int r_idx);
 
 	/* Do we use dungeon floor or normal one */
@@ -1003,8 +1042,7 @@ static void town_gen_hack(int t_idx, int qy, int qx)
 	}
 
 	/* Prepare an Array of "remaining stores", and count them */
-	std::unique_ptr<int[]> rooms(new int[max_st_idx]);
-	num = get_shops(rooms.get());
+	auto rooms = get_shops();
 
 	/* Place two rows of stores */
 	for (y = 0; y < 2; y++)
@@ -1012,16 +1050,20 @@ static void town_gen_hack(int t_idx, int qy, int qx)
 		/* Place four stores per row */
 		for (x = 0; x < 4; x++)
 		{
-			if(--num > -1)
+			if (!rooms.empty())
 			{
+				/* Extract store */
+				auto room = rooms.back();
+				rooms.pop_back();
+
 				/* Build that store at the proper location */
-				build_store(qy, qx, rooms[num], y, x);
+				build_store(qy, qx, room, y, x);
 			}
 		}
 	}
 
 	/* Generates the town's borders */
-	if (magik(TOWN_NORMAL_FLOOR)) town_borders(t_idx, qy, qx);
+	if (magik(TOWN_NORMAL_FLOOR)) town_borders(qy, qx);
 
 
 	/* Some inhabitants(leveled .. hehe :) */
@@ -1070,9 +1112,9 @@ static void town_gen_hack(int t_idx, int qy, int qx)
 	get_mon_num_prep();
 }
 
-static void town_gen_circle(int t_idx, int qy, int qx)
+static void town_gen_circle(int qy, int qx)
 {
-	int y, x, cy, cx, rad, floor, num = 0;
+	int y, x, cy, cx, rad, floor;
 	bool_ (*old_get_mon_num_hook)(int r_idx);
 
 	/* Do we use dungeon floor or normal one */
@@ -1135,9 +1177,8 @@ static void town_gen_circle(int t_idx, int qy, int qx)
 			}
 		}
 
-	/* Prepare an Array of "remaining stores", and count them */
-	std::unique_ptr<int[]> rooms(new int[max_st_idx]);
-	num = get_shops(rooms.get());
+	/* Get "remaining stores" */
+	auto rooms = get_shops();
 
 	/* Place two rows of stores */
 	for (y = 0; y < 2; y++)
@@ -1145,10 +1186,14 @@ static void town_gen_circle(int t_idx, int qy, int qx)
 		/* Place four stores per row */
 		for (x = 0; x < 4; x++)
 		{
-			if(--num > -1)
+			if (!rooms.empty())
 			{
+				/* Extract store */
+				auto room = rooms.back();
+				rooms.pop_back();
+
 				/* Build that store at the proper location */
-				build_store_circle(qy, qx, rooms[num], y, x);
+				build_store_circle(qy, qx, room, y, x);
 			}
 		}
 	}
@@ -1199,33 +1244,40 @@ static void town_gen_circle(int t_idx, int qy, int qx)
 }
 
 
-static void town_gen_hidden(int t_idx, int qy, int qx)
+static void town_gen_hidden()
 {
-	int y, x, n, num = 0, i;
-
-	/* Prepare an Array of "remaining stores", and count them */
-	std::unique_ptr<int[]> rooms(new int[max_st_idx]);
-	num = get_shops(rooms.get());
+	/* Get "remaining stores" */
+	auto rooms = get_shops();
 
 	/* Get a number of stores to place */
-	n = rand_int(num / 2) + (num / 2);
+	std::size_t n = rand_int(rooms.size() / 2) + (rooms.size() / 2);
 
 	/* Place k stores */
-	for (i = 0; i < n; i++)
+	for (std::size_t i = 0; i < n; i++)
 	{
 		/* Find a good spot */
+		int x;
+		int y;
 		while (TRUE)
 		{
 			y = rand_range(1, cur_hgt - 2);
 			x = rand_range(1, cur_wid - 2);
 
-			if (cave_empty_bold(y, x)) break;
+			if (cave_empty_bold(y, x))
+			{
+				break;
+			}
 		}
 
-		if(--num > -1)
+		/* Any stores left? */
+		if (!rooms.empty())
 		{
+			/* Extract store */
+			auto room = rooms.back();
+			rooms.pop_back();
+
 			/* Build that store at the proper location */
-			build_store_hidden(rooms[num], y, x);
+			build_store_hidden(room, y, x);
 		}
 	}
 }
@@ -1250,22 +1302,20 @@ static void town_gen_hidden(int t_idx, int qy, int qx)
  */
 void town_gen(int t_idx)
 {
-	int qy, qx;
-
 	/* Level too small to contain a town */
 	if (cur_hgt < SCREEN_HGT) return;
 	if (cur_wid < SCREEN_WID) return;
 
-	/* Center fo the level */
-	qy = (cur_hgt - SCREEN_HGT) / 2;
-	qx = (cur_wid - SCREEN_WID) / 2;
+	/* Center of the level */
+	int qy = (cur_hgt - SCREEN_HGT) / 2;
+	int qx = (cur_wid - SCREEN_WID) / 2;
 
 	/* Build stuff */
 	switch (rand_int(3))
 	{
 	case 0:
 		{
-			town_gen_hack(t_idx, qy, qx);
+			town_gen_hack(qy, qx);
 			if (wizard)
 			{
 				msg_format("Town level(normal) (%d, seed %d)",
@@ -1276,7 +1326,7 @@ void town_gen(int t_idx)
 
 	case 1:
 		{
-			town_gen_circle(t_idx, qy, qx);
+			town_gen_circle(qy, qx);
 			if (wizard)
 			{
 				msg_format("Town level(circle)(%d, seed %d)",
@@ -1287,7 +1337,7 @@ void town_gen(int t_idx)
 
 	case 2:
 		{
-			town_gen_hidden(t_idx, qy, qx);
+			town_gen_hidden();
 			if (wizard)
 			{
 				msg_format("Town level(hidden)(%d, seed %d)",

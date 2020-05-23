@@ -2,86 +2,51 @@
 
 #include "body.hpp"
 #include "h-basic.h"
+#include "object_flag_set.hpp"
+#include "object_proto.hpp"
+#include "player_defs.hpp"
+#include "player_level_flag.hpp"
+#include "player_race_ability_type.hpp"
+#include "player_race_flag_set.hpp"
+#include "player_shared.hpp"
+#include "skill_modifiers.hpp"
 #include "skills_defs.hpp"
+
+#include <array>
+#include <string>
+#include <vector>
 
 struct player_race_mod
 {
-	char *title;                    /* Type of race mod */
-	char *desc;                     /* Desc */
+	std::string title;
+	std::string description;
 
-	bool_ place;                    /* TRUE = race race modifier, FALSE = Race modifier race */
+	bool_ place = FALSE;                                    /* TRUE = race race modifier, FALSE = Race modifier race */
 
-	s16b r_adj[6];                  /* (+) Racial stat bonuses */
+	char luck = '\0';                                       /* Luck */
+	s16b mana = 0;                                          /* Mana % */
 
-	char luck;                      /* Luck */
-	s16b mana;                      /* Mana % */
+	player_shared ps;
 
-	s16b r_dis;                     /* (+) disarming */
-	s16b r_dev;                     /* (+) magic devices */
-	s16b r_sav;                     /* (+) saving throw */
-	s16b r_stl;                     /* (+) stealth */
-	s16b r_srh;                     /* (+) search ability */
-	s16b r_fos;                     /* (+) search frequency */
-	s16b r_thn;                     /* (+) combat (normal) */
-	s16b r_thb;                     /* (+) combat (shooting) */
+	char infra = '\0';                                      /* (+) Infra-vision range */
 
-	char r_mhp;                     /* (+) Race mod hit-dice modifier */
-	s16b r_exp;                     /* (+) Race mod experience factor */
+	u32b choice[2] { };                                     /* Legal race choices */
 
-	char b_age;                     /* (+) base age */
-	char m_age;                     /* (+) mod age */
+	u32b pclass[2] { };                                     /* Classes allowed */
+	u32b mclass[2] { };                                     /* Classes restricted */
 
-	char m_b_ht;            /* (+) base height (males) */
-	char m_m_ht;            /* (+) mod height (males) */
-	char m_b_wt;            /* (+) base weight (males) */
-	char m_m_wt;            /* (+) mod weight (males) */
+	char body_parts[BODY_MAX] { };                          /* To help to decide what to use when body changing */
 
-	char f_b_ht;            /* (+) base height (females) */
-	char f_m_ht;            /* (+) mod height (females)   */
-	char f_b_wt;            /* (+) base weight (females) */
-	char f_m_wt;            /* (+) mod weight (females) */
+	player_race_flag_set flags;
 
-	char infra;             /* (+) Infra-vision range */
+	std::array<player_level_flag, PY_MAX_LEVEL+1> lflags;
 
-	u32b choice[2];            /* Legal race choices */
+	byte g_attr = 0;                                        /* Overlay graphic attribute */
+	char g_char = '\0';                                     /* Overlay graphic character */
 
-	u32b pclass[2];            /* Classes allowed */
-	u32b mclass[2];            /* Classes restricted */
+	struct skill_modifiers skill_modifiers;
 
-	s16b powers[4];        /* Powers of the subrace */
+	std::vector<object_proto> object_protos;
 
-	char body_parts[BODY_MAX];      /* To help to decide what to use when body changing */
-
-	u32b flags1;
-	u32b flags2;            /* flags */
-
-	u32b oflags1[PY_MAX_LEVEL + 1];
-	u32b oflags2[PY_MAX_LEVEL + 1];
-	u32b oflags3[PY_MAX_LEVEL + 1];
-	u32b oflags4[PY_MAX_LEVEL + 1];
-	u32b oflags5[PY_MAX_LEVEL + 1];
-	u32b oesp[PY_MAX_LEVEL + 1];
-	s16b opval[PY_MAX_LEVEL + 1];
-
-	byte g_attr;                    /* Overlay graphic attribute */
-	char g_char;                    /* Overlay graphic character */
-
-	char skill_basem[MAX_SKILLS];
-	u32b skill_base[MAX_SKILLS];
-	char skill_modm[MAX_SKILLS];
-	s16b skill_mod[MAX_SKILLS];
-
-	s16b obj_tval[5];
-	s16b obj_sval[5];
-	s16b obj_pval[5];
-	s16b obj_dd[5];
-	s16b obj_ds[5];
-	s16b obj_num;
-
-	struct
-	{
-		s16b    ability;
-		s16b    level;
-	} abilities[10];                /* Abilitiers to be gained by level(doesnt take prereqs in account) */
+	std::vector<player_race_ability_type> abilities;        /* Abilities to be gained by level; ignores prereqs */
 };
-

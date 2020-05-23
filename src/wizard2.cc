@@ -9,34 +9,35 @@
 #include "wizard2.hpp"
 
 #include "artifact_type.hpp"
+#include "birth.hpp"
 #include "cave.hpp"
 #include "cave_type.hpp"
 #include "cmd4.hpp"
 #include "corrupt.hpp"
 #include "dungeon_info_type.hpp"
 #include "files.hpp"
+#include "game.hpp"
 #include "hooks.hpp"
 #include "monster2.hpp"
 #include "monster_race.hpp"
 #include "monster_type.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
+#include "object_flag_meta.hpp"
 #include "object_kind.hpp"
 #include "player_type.hpp"
 #include "randart.hpp"
-#include "status.hpp"
 #include "spells1.hpp"
 #include "spells2.hpp"
 #include "stats.hpp"
 #include "tables.hpp"
-#include "traps.hpp"
 #include "util.hpp"
 #include "util.h"
 #include "variable.h"
 #include "variable.hpp"
 #include "wilderness_map.hpp"
 #include "wilderness_type_info.hpp"
-#include "wizard1.hpp"
 #include "xtra1.hpp"
 #include "xtra2.hpp"
 #include "z-rand.hpp"
@@ -80,7 +81,7 @@ static void wiz_align_monster(int status)
  */
 static void teleport_player_town(int town)
 {
-	int x = 0, y = 0;
+	auto const &wf_info = game->edit_data.wf_info;
 
 	autosave_checkpoint();
 
@@ -88,52 +89,43 @@ static void teleport_player_town(int town)
 	dun_level = 0;
 	p_ptr->town_num = town;
 
-	for (x = 0; x < max_wild_x; x++)
-		for (y = 0; y < max_wild_y; y++)
-			if (p_ptr->town_num == wf_info[wild_map[y][x].feat].entrance) goto finteletown;
-finteletown:
-	p_ptr->wilderness_y = y;
-	p_ptr->wilderness_x = x;
+	auto const &wilderness = game->wilderness;
+	for (std::size_t y = 0; y < wilderness.height(); y++)
+	{
+		for (std::size_t x = 0; x < wilderness.width(); x++)
+		{
+			if (p_ptr->town_num == wf_info[wilderness(x, y).feat].entrance)
+			{
+				p_ptr->wilderness_y = y;
+				p_ptr->wilderness_x = x;
 
-	leaving_quest = p_ptr->inside_quest;
-	p_ptr->inside_quest = 0;
+				leaving_quest = p_ptr->inside_quest;
+				p_ptr->inside_quest = 0;
 
-	/* Leaving */
-	p_ptr->leaving = TRUE;
+				/* Leaving */
+				p_ptr->leaving = TRUE;
+
+				// Done
+				return;
+			}
+		}
+	}
 }
 
 
 /*
  * Hack -- Rerate Hitpoints
  */
-void do_cmd_rerate(void)
+void do_cmd_rerate()
 {
-	int min_value, max_value, i, percent;
+	auto &player_hp = game->player_hp;
 
-	min_value = (PY_MAX_LEVEL * 3 * (p_ptr->hitdie - 1)) / 8;
-	min_value += PY_MAX_LEVEL;
+	// Force HP re-roll
+	roll_player_hp();
 
-	max_value = (PY_MAX_LEVEL * 5 * (p_ptr->hitdie - 1)) / 8;
-	max_value += PY_MAX_LEVEL;
-
-	player_hp[0] = p_ptr->hitdie;
-
-	/* Rerate */
-	while (1)
-	{
-		/* Collect values */
-		for (i = 1; i < PY_MAX_LEVEL; i++)
-		{
-			player_hp[i] = randint(p_ptr->hitdie);
-			player_hp[i] += player_hp[i - 1];
-		}
-
-		/* Legal values */
-		if ((player_hp[PY_MAX_LEVEL - 1] >= min_value) &&
-		                (player_hp[PY_MAX_LEVEL - 1] <= max_value)) break;
-	}
-
-	percent = (int)(((long)player_hp[PY_MAX_LEVEL - 1] * 200L) /
+	// Calculate life rating
+	int percent = static_cast<int>(
+	        (static_cast<long>(player_hp[PY_MAX_LEVEL - 1]) * 200L) /
 	                (p_ptr->hitdie + ((PY_MAX_LEVEL - 1) * p_ptr->hitdie)));
 
 	/* Update and redraw hitpoints */
@@ -157,20 +149,24 @@ void do_cmd_rerate(void)
  */
 static void wiz_create_named_art()
 {
+	auto const &a_info = game->edit_data.a_info;
+
 	object_type forge;
 	object_type *q_ptr;
 	int i, a_idx;
-	cptr p = "Number of the artifact :";
+	cptr p = "Number of the artifact: ";
 	char out_val[80] = "";
-	artifact_type *a_ptr;
 
 	if (!get_string(p, out_val, 4)) return;
 	a_idx = atoi(out_val);
 
 	/* Return if out-of-bounds */
-	if ((a_idx <= 0) || (a_idx >= max_a_idx)) return;
+	if ((a_idx <= 0) || (a_idx >= static_cast<int>(a_info.size())))
+	{
+		return;
+	}
 
-	a_ptr = &a_info[a_idx];
+	auto a_ptr = &a_info[a_idx];
 
 	/* Get local object */
 	q_ptr = &forge;
@@ -194,6 +190,9 @@ static void wiz_create_named_art()
 	q_ptr->name1 = a_idx;
 
 	apply_magic(q_ptr, -1, TRUE, TRUE, TRUE);
+
+	/* Apply any random resistances/powers */
+	random_artifact_resistance(q_ptr);
 
 	/* Identify it fully */
 	object_aware(q_ptr);
@@ -221,40 +220,14 @@ static void do_cmd_summon_horde()
 		if (cave_naked_bold(wy, wx)) break;
 	}
 
-	(void)alloc_horde(wy, wx);
-}
-
-
-/*
- * Output a long int in binary format.
- */
-static void prt_binary(u32b flags, int row, int col)
-{
-	int i;
-	u32b bitmask;
-
-	/* Scan the flags */
-	for (i = bitmask = 1; i <= 32; i++, bitmask *= 2)
-	{
-		/* Dump set bits */
-		if (flags & bitmask)
-		{
-			Term_putch(col++, row, TERM_BLUE, '*');
-		}
-
-		/* Dump unset bits */
-		else
-		{
-			Term_putch(col++, row, TERM_WHITE, '-');
-		}
-	}
+	alloc_horde(wy, wx);
 }
 
 
 /*
  * Hack -- Teleport to the target
  */
-static void do_cmd_wiz_bamf(void)
+static void do_cmd_wiz_bamf()
 {
 	/* Must have a target */
 	if (!target_who) return;
@@ -267,7 +240,7 @@ static void do_cmd_wiz_bamf(void)
 /*
  * Aux function for "do_cmd_wiz_change()".	-RAK-
  */
-static void do_cmd_wiz_change_aux(void)
+static void do_cmd_wiz_change_aux()
 {
 	int i;
 	int tmp_int;
@@ -370,7 +343,7 @@ static void do_cmd_wiz_change_aux(void)
 /*
  * Change various "permanent" player variables.
  */
-static void do_cmd_wiz_change(void)
+static void do_cmd_wiz_change()
 {
 	/* Interact */
 	do_cmd_wiz_change_aux();
@@ -443,12 +416,13 @@ static void do_cmd_wiz_change(void)
  */
 static void wiz_display_item(object_type *o_ptr)
 {
+	auto const &k_info = game->edit_data.k_info;
+
 	int i, j = 13;
-	u32b f1, f2, f3, f4, f5, esp;
 	char buf[256];
 
 	/* Extract the flags */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+	auto const flags = object_flags(o_ptr);
 
 	/* Clear the screen */
 	for (i = 1; i <= 23; i++) prt("", i, j - 2);
@@ -475,32 +449,27 @@ static void wiz_display_item(object_type *o_ptr)
 	prt(format("ident = %04x  timeout = %-d",
 	           o_ptr->ident, o_ptr->timeout), 8, j);
 
-	prt("+------------FLAGS1------------+", 10, j);
-	prt("AFFECT........SLAY........BRAND.", 11, j);
-	prt("              cvae      xsqpaefc", 12, j);
-	prt("siwdcc  ssidsahanvudotgddhuoclio", 13, j);
-	prt("tnieoh  trnipttmiinmrrnrrraiierl", 14, j);
-	prt("rtsxna..lcfgdkcpmldncltggpksdced", 15, j);
-	prt_binary(f1, 16, j);
+	/* Print all the flags which are set */
+	prt("Flags:", 10, j);
 
-	prt("+------------FLAGS2------------+", 17, j);
-	prt("SUST....IMMUN.RESIST............", 18, j);
-	prt("        aefcprpsaefcpfldbc sn   ", 19, j);
-	prt("siwdcc  cliooeatcliooeialoshtncd", 20, j);
-	prt("tnieoh  ierlifraierliatrnnnrhehi", 21, j);
-	prt("rtsxna..dcedslatdcedsrekdfddrxss", 22, j);
-	prt_binary(f2, 23, j);
-
-	prt("+------------FLAGS3------------+", 10, j + 32);
-	prt("fe      ehsi  st    iiiiadta  hp", 11, j + 32);
-	prt("il   n taihnf ee    ggggcregb vr", 12, j + 32);
-	prt("re  nowysdose eld   nnnntalrl ym", 13, j + 32);
-	prt("ec  omrcyewta ieirmsrrrriieaeccc", 14, j + 32);
-	prt("aa  taauktmatlnpgeihaefcvnpvsuuu", 15, j + 32);
-	prt("uu  egirnyoahivaeggoclioaeoasrrr", 16, j + 32);
-	prt("rr  litsopdretitsehtierltxrtesss", 17, j + 32);
-	prt("aa  echewestreshtntsdcedeptedeee", 18, j + 32);
-	prt_binary(f3, 19, j + 32);
+	int const row0 = 11;
+	int row = row0;
+	int col = 0;
+	for (auto const &object_flag_meta: object_flags_meta())
+	{
+		// Is the flag set?
+		if (object_flag_meta->flag_set & flags)
+		{
+			// Advance to next row/column
+			row += 1;
+			if (row >= 23) {
+				row = row0 + 1;
+				col += 1;
+			}
+			// Display
+			prt(object_flag_meta->name, row, j + 1 + 20 * col);
+		}
+	}
 }
 
 
@@ -508,12 +477,8 @@ static void wiz_display_item(object_type *o_ptr)
 /*
  * Strip an "object name" into a buffer
  */
-static void strip_name(char *buf, int k_idx)
+static void strip_name(char *buf, const object_kind *k_ptr)
 {
-	char *t;
-
-	object_kind *k_ptr = &k_info[k_idx];
-
 	cptr str = k_ptr->name;
 
 
@@ -521,6 +486,7 @@ static void strip_name(char *buf, int k_idx)
 	while ((*str == ' ') || (*str == '&')) str++;
 
 	/* Copy useful chars */
+	char *t;
 	for (t = buf; *str; str++)
 	{
 		if (*str != '~') *t++ = *str;
@@ -568,15 +534,15 @@ static void wci_string(cptr string, int num)
  *
  * List up to 50 choices in three columns
  */
-static int wiz_create_itemtype(void)
+static int wiz_create_itemtype()
 {
-	int i, num, max_num;
+	auto const &k_info = game->edit_data.k_info;
+
+	int num, max_num;
 	int tval;
 
 	cptr tval_desc2;
 	char ch;
-
-	int choice[60];
 
 	char buf[160];
 
@@ -616,29 +582,32 @@ static int wiz_create_itemtype(void)
 	Term_clear();
 
 	/* We have to search the whole itemlist. */
-	for (num = 0, i = 1; (num < 60) && (i < max_k_idx); i++)
+	std::vector<std::size_t> choice;
+	choice.reserve(60);
+	std::size_t i;
+	for (i = 1; (choice.size() < 60) && (i < k_info.size()); i++)
 	{
-		object_kind *k_ptr = &k_info[i];
+		auto k_ptr = &k_info[i];
 
 		/* Analyze matching items */
 		if (k_ptr->tval == tval)
 		{
 			/* Hack -- Skip instant artifacts */
-			if (k_ptr->flags3 & (TR3_INSTA_ART)) continue;
+			if (k_ptr->flags & TR_INSTA_ART) continue;
 
-			/* Acquire the "name" of object "i" */
-			strip_name(buf, i);
+			/* Acquire the "name" of object */
+			strip_name(buf, k_ptr);
 
 			/* Print it */
-			wci_string(buf, num);
+			wci_string(buf, choice.size());
 
 			/* Remember the object index */
-			choice[num++] = i;
+			choice.push_back(i);
 		}
 	}
 
 	/* Me need to know the maximal possible remembered object_index */
-	max_num = num;
+	max_num = choice.size();
 
 	/* Choose! */
 	if (!get_com(format("What Kind of %s? ", tval_desc2), &ch)) return (0);
@@ -664,10 +633,9 @@ static void wiz_tweak_item(object_type *o_ptr)
 {
 	cptr p;
 	char tmp_val[80];
-	u32b f1, f2, f3, f4, f5, esp;
 
 	/* Extract the flags */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+	auto const flags = object_flags(o_ptr);
 
 
 	p = "Enter new 'pval' setting: ";
@@ -729,7 +697,7 @@ static void wiz_tweak_item(object_type *o_ptr)
 	if (!get_string(p, tmp_val, 9)) return;
 	wiz_display_item(o_ptr);
 	o_ptr->exp = atoi(tmp_val);
-	if (f4 & TR4_LEVELS) check_experience_obj(o_ptr);
+	if (flags & TR_LEVELS) check_experience_obj(o_ptr);
 
 	p = "Enter new 'timeout' setting: ";
 	sprintf(tmp_val, "%d", o_ptr->timeout);
@@ -753,7 +721,7 @@ static void wiz_reroll_item(object_type *o_ptr)
 
 
 	/* Hack -- leave artifacts alone */
-	if (artifact_p(o_ptr) || o_ptr->art_name) return;
+	if (artifact_p(o_ptr)) return;
 
 
 	/* Get local object */
@@ -856,6 +824,9 @@ static void wiz_reroll_item(object_type *o_ptr)
  */
 static void wiz_statistics(object_type *o_ptr)
 {
+	auto &a_info = game->edit_data.a_info;
+	auto &random_artifacts = game->random_artifacts;
+
 	long i, matches, better, worse, other;
 
 	char ch;
@@ -866,15 +837,7 @@ static void wiz_statistics(object_type *o_ptr)
 	object_type forge;
 	object_type	*q_ptr;
 
-	obj_theme theme;
-
 	cptr q = "Rolls: %ld, Matches: %ld, Better: %ld, Worse: %ld, Other: %ld";
-
-	/* We can have everything */
-	theme.treasure = OBJ_GENE_TREASURE;
-	theme.combat = OBJ_GENE_COMBAT;
-	theme.magic = OBJ_GENE_MAGIC;
-	theme.tools = OBJ_GENE_TOOL;
 
 	/* XXX XXX XXX Mega-Hack -- allow multiple artifacts */
 	if (artifact_p(o_ptr))
@@ -963,7 +926,7 @@ static void wiz_statistics(object_type *o_ptr)
 			object_wipe(q_ptr);
 
 			/* Create an object */
-			make_object(q_ptr, good, great, theme);
+			make_object(q_ptr, good, great, obj_theme::defaults());
 
 
 			/* XXX XXX XXX Mega-Hack -- allow multiple artifacts */
@@ -1074,7 +1037,7 @@ static void wiz_quantity_item(object_type *o_ptr)
  *   - Change properties (via wiz_tweak_item)
  *   - Change the number of items (via wiz_quantity_item)
  */
-static void do_cmd_wiz_play(void)
+static void do_cmd_wiz_play()
 {
 	/* Get an item */
 	int item;
@@ -1205,7 +1168,7 @@ static void do_cmd_wiz_play(void)
  * Hack -- this routine always makes a "dungeon object", and applies
  * magic to it, and attempts to decline cursed items.
  */
-static void wiz_create_item(void)
+static void wiz_create_item()
 {
 	object_type	forge;
 	object_type *q_ptr;
@@ -1251,25 +1214,28 @@ static void wiz_create_item(void)
 /*
  * As above, but takes the k_idx as a parameter instead of using menus.
  */
-static void wiz_create_item_2(void)
+static void wiz_create_item_2()
 {
-	object_type forge;
-	object_type *q_ptr;
-	int a_idx;
+	auto const &k_info = game->edit_data.k_info;
+
 	cptr p = "Number of the object :";
 	char out_val[80] = "";
 
 	if (!get_string(p, out_val, 4)) return;
-	a_idx = atoi(out_val);
+	int k_idx = atoi(out_val);
 
 	/* Return if failed or out-of-bounds */
-	if ((a_idx <= 0) || (a_idx >= max_k_idx)) return;
+	if ((k_idx <= 0) || (k_idx >= static_cast<int>(k_info.size())))
+	{
+		return;
+	}
 
 	/* Get local object */
-	q_ptr = &forge;
+	object_type forge;
+	auto q_ptr = &forge;
 
 	/* Create the item */
-	object_prep(q_ptr, a_idx);
+	object_prep(q_ptr, k_idx);
 
 	/* Apply magic (no messages, no artifacts) */
 	apply_magic(q_ptr, dun_level, FALSE, FALSE, FALSE);
@@ -1285,23 +1251,23 @@ static void wiz_create_item_2(void)
 /*
  * Cure everything instantly
  */
-void do_cmd_wiz_cure_all(void)
+void do_cmd_wiz_cure_all()
 {
 	object_type *o_ptr;
 
 	/* Remove curses */
-	(void)remove_all_curse();
+	remove_all_curse();
 
 	/* Restore stats */
-	(void)res_stat(A_STR, TRUE);
-	(void)res_stat(A_INT, TRUE);
-	(void)res_stat(A_WIS, TRUE);
-	(void)res_stat(A_CON, TRUE);
-	(void)res_stat(A_DEX, TRUE);
-	(void)res_stat(A_CHR, TRUE);
+	res_stat(A_STR, TRUE);
+	res_stat(A_INT, TRUE);
+	res_stat(A_WIS, TRUE);
+	res_stat(A_CON, TRUE);
+	res_stat(A_DEX, TRUE);
+	res_stat(A_CHR, TRUE);
 
 	/* Restore the level */
-	(void)restore_level();
+	restore_level();
 
 	/* Heal the player */
 	p_ptr->chp = p_ptr->mhp;
@@ -1324,19 +1290,19 @@ void do_cmd_wiz_cure_all(void)
 	p_ptr->csp_frac = 0;
 
 	/* Cure stuff */
-	(void)set_blind(0);
-	(void)set_confused(0);
-	(void)set_poisoned(0);
-	(void)set_afraid(0);
-	(void)set_paralyzed(0);
-	(void)set_image(0);
-	(void)set_stun(0);
-	(void)set_cut(0);
-	(void)set_slow(0);
+	set_blind(0);
+	set_confused(0);
+	set_poisoned(0);
+	set_afraid(0);
+	set_paralyzed(0);
+	set_image(0);
+	set_stun(0);
+	set_cut(0);
+	set_slow(0);
 	p_ptr->black_breath = FALSE;
 
 	/* No longer hungry */
-	(void)set_food(PY_FOOD_MAX - 1);
+	set_food(PY_FOOD_MAX - 1);
 
 	/* Redraw everything */
 	do_cmd_redraw();
@@ -1346,8 +1312,10 @@ void do_cmd_wiz_cure_all(void)
 /*
  * Go to any level
  */
-static void do_cmd_wiz_jump(void)
+static void do_cmd_wiz_jump()
 {
+	auto const &d_info = game->edit_data.d_info;
+
 	/* Ask for level */
 	if (command_arg <= 0)
 	{
@@ -1395,23 +1363,21 @@ static void do_cmd_wiz_jump(void)
 /*
  * Become aware of a lot of objects
  */
-static void do_cmd_wiz_learn(void)
+static void do_cmd_wiz_learn()
 {
-	int i;
-
-	object_type forge;
-	object_type *q_ptr;
+	auto const &k_info = game->edit_data.k_info;
 
 	/* Scan every object */
-	for (i = 1; i < max_k_idx; i++)
+	for (std::size_t i = 0; i < k_info.size(); i++)
 	{
-		object_kind *k_ptr = &k_info[i];
+		auto k_ptr = &k_info[i];
 
 		/* Induce awareness */
 		if (k_ptr->level <= command_arg)
 		{
 			/* Get local object */
-			q_ptr = &forge;
+			object_type forge;
+			auto q_ptr = &forge;
 
 			/* Prepare object */
 			object_prep(q_ptr, i);
@@ -1432,7 +1398,7 @@ static void do_cmd_wiz_summon(int num)
 
 	for (i = 0; i < num; i++)
 	{
-		(void)summon_specific(p_ptr->py, p_ptr->px, dun_level, 0);
+		summon_specific(p_ptr->py, p_ptr->px, dun_level, 0);
 	}
 }
 
@@ -1442,15 +1408,17 @@ static void do_cmd_wiz_summon(int num)
  *
  * XXX XXX XXX This function is rather dangerous
  */
-static void do_cmd_wiz_named(int r_idx, bool_ slp)
+static void do_cmd_wiz_named(std::size_t r_idx, bool_ slp)
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	int i, x, y;
 
 	/* Paranoia */
 	/* if (!r_idx) return; */
 
 	/* Prevent illegal monsters */
-	if (r_idx >= max_r_idx) return;
+	if (r_idx >= r_info.size()) return;
 
 	/* Try 10 times */
 	for (i = 0; i < 10; i++)
@@ -1482,15 +1450,17 @@ static void do_cmd_wiz_named(int r_idx, bool_ slp)
  *
  * XXX XXX XXX This function is rather dangerous
  */
-void do_cmd_wiz_named_friendly(int r_idx, bool_ slp)
+void do_cmd_wiz_named_friendly(std::size_t r_idx, bool_ slp)
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	int i, x, y;
 
 	/* Paranoia */
 	/* if (!r_idx) return; */
 
 	/* Prevent illegal monsters */
-	if (r_idx >= max_r_idx) return;
+	if (r_idx >= r_info.size()) return;
 
 	/* Try 10 times */
 	for (i = 0; i < 10; i++)
@@ -1521,7 +1491,7 @@ void do_cmd_wiz_named_friendly(int r_idx, bool_ slp)
 /*
  * Hack -- Delete all nearby monsters
  */
-static void do_cmd_wiz_zap(void)
+static void do_cmd_wiz_zap()
 {
 	int i;
 
@@ -1543,6 +1513,8 @@ static void do_cmd_wiz_body(s16b bidx)
 	/* Might create problems with equipment slots. For safety,
 	be nude when calling this function */
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	p_ptr->body_monster = bidx;
 	p_ptr->disembodied = FALSE;
 	p_ptr->chp = maxroll( (&r_info[bidx])->hdice, (&r_info[bidx])->hside);
@@ -1556,6 +1528,8 @@ static void do_cmd_wiz_body(s16b bidx)
  */
 void do_cmd_debug()
 {
+	auto const &d_info = game->edit_data.d_info;
+
 	int x, y;
 	char cmd;
 
@@ -1573,15 +1547,6 @@ void do_cmd_debug()
 	case '\r':
 		break;
 
-
-		/* Hack -- Generate Spoilers */
-	case '"':
-		do_cmd_spoilers();
-		break;
-
-	case 'A':
-		status_main();
-		break;
 
 		/* Hack -- Help */
 	case '?':
@@ -1625,11 +1590,11 @@ void do_cmd_debug()
 
 		/* Change of Dungeon type */
 	case 'D':
-		if ((command_arg >= 0) && (command_arg < max_d_idx))
+		if ((command_arg >= 0) && (std::size_t(command_arg) < d_info.size()))
 		{
 			dungeon_type = command_arg;
 			dun_level = d_info[dungeon_type].mindepth;
-			msg_format("You go into %s", d_info[dungeon_type].text);
+			msg_format("You go into %s", d_info[dungeon_type].text.c_str());
 
 			/* Leaving */
 			p_ptr->leaving = TRUE;
@@ -1666,17 +1631,12 @@ void do_cmd_debug()
 
 		/* Identify */
 	case 'i':
-		(void)ident_spell();
+		ident_spell();
 		break;
 
 		/* Go up or down in the dungeon */
 	case 'j':
 		do_cmd_wiz_jump();
-		break;
-
-		/* Self-Knowledge */
-	case 'k':
-		self_knowledge(NULL);
 		break;
 
 		/* Learn about objects */
@@ -1692,11 +1652,6 @@ void do_cmd_debug()
 		/* corruption */
 	case 'M':
 		gain_random_corruption();
-		break;
-
-		/* Create a trap */
-	case 'R':
-		wiz_place_trap(p_ptr->py, p_ptr->px, command_arg);
 		break;
 
 		/* Summon _friendly_ named monster */
@@ -1727,7 +1682,7 @@ void do_cmd_debug()
 			{
 				quest[command_arg].status = QUEST_STATUS_TAKEN;
 				*(quest[command_arg].plot) = command_arg;
-				quest[command_arg].init(command_arg);
+				quest[command_arg].init();
 				break;
 			}
 			break;
@@ -1842,7 +1797,6 @@ void do_cmd_debug()
 
 		/* Change the feature of the map */
 	case 'F':
-		msg_format("Trap: %d", cave[p_ptr->py][p_ptr->px].t_idx);
 		msg_format("Old feature: %d", cave[p_ptr->py][p_ptr->px].feat);
 		msg_format("Special: %d", cave[p_ptr->py][p_ptr->px].special);
 		cave_set_feat(p_ptr->py, p_ptr->px, command_arg);

@@ -1,3 +1,17 @@
+tome (2.4.0-ah-1) unstable; urgency=medium
+
+  * New upstream version
+  * Update the VCS-* fields in the control file to point to salsa
+  * Update standards version to 4.3.0. No changes needed
+  * The GTK frontend is back.
+  * Bug fix: "duplicate files: README.Debian", thanks to IOhannes m
+    zmoelnig (Closes: #864346).
+  * Bug fix: "FTBFS on hurd-i386: PATH_MAX undeclared", thanks to Aaron
+    M. Ucko (Closes: #875774). Added the same max as from
+    /usr/include/linux/limits.h
+
+ -- Manoj Srivastava <srivasta@debian.org>  Fri, 22 May 2020 22:03:47 -0700
+
 tome (2.4~0.git.2015.12.29-1.2) unstable; urgency=medium
 
   * Non-maintainer upload.
@@ -7,7 +21,7 @@ tome (2.4~0.git.2015.12.29-1.2) unstable; urgency=medium
     that support these.
 
   [ Bhavani Shankar ]
-  * Match variable boolean type in z-rand.cc to fix compilation on 
+  * Match variable boolean type in z-rand.cc to fix compilation on
     32 bit archs. Thanks to Andreas Beckmann from debian for the
     report. Closes: #843984.
 

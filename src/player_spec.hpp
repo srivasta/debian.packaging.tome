@@ -1,38 +1,29 @@
 #pragma once
 
 #include "h-basic.h"
-#include "skills_defs.hpp"
+#include "object_proto.hpp"
+#include "player_race_ability_type.hpp"
+#include "player_race_flag_set.hpp"
+#include "skill_modifiers.hpp"
+
+#include <array>
+#include <vector>
 
 /**
  * Player class descriptor.
  */
 struct player_spec
 {
-	const char *title;              /* Type of class spec */
-	char *desc;                     /* Small desc of the class spec */
+	const char *title = nullptr;                            /* Type of class spec */
+	char *desc = nullptr;                                   /* Small desc of the class spec */
 
-	char skill_basem[MAX_SKILLS];   /* Mod for value */
-	u32b skill_base[MAX_SKILLS];    /* value */
-	char skill_modm[MAX_SKILLS];    /* mod for mod */
-	s16b skill_mod[MAX_SKILLS];     /* mod */
+	struct skill_modifiers skill_modifiers;
 
-	u32b skill_ideal[MAX_SKILLS];   /* Ideal skill levels at level 50 */
+	std::vector<object_proto> object_protos;
 
-	s16b obj_tval[5];
-	s16b obj_sval[5];
-	s16b obj_pval[5];
-	s16b obj_dd[5];
-	s16b obj_ds[5];
-	s16b obj_num;
+	u32b gods = 0;
 
-	u32b gods;
+	player_race_flag_set flags;
 
-	u32b flags1;
-	u32b flags2;            /* flags */
-
-	struct
-	{
-		s16b    ability;
-		s16b    level;
-	} abilities[10];                /* Abilitiers to be gained by level(doesnt take prereqs in account) */
+	std::vector<player_race_ability_type> abilities;        /* Abilities to be gained by level; ignores prereqs */
 };

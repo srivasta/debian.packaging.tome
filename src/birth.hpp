@@ -2,8 +2,10 @@
 
 #include "h-basic.h"
 
-extern void print_desc_aux(cptr txt, int y, int x);
-extern void save_savefile_names(void);
-extern bool_ begin_screen(void);
-extern void get_height_weight(void);
-extern void player_birth(void);
+void print_desc_aux(cptr txt, int y, int x);
+void save_savefile_names();
+bool_ begin_screen();
+void player_birth();
+void roll_player_hp();
+
+extern bool_ no_begin_screen;

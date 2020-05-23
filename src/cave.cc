@@ -1,12 +1,18 @@
 #include "cave.hpp"
 
 #include "cave_type.hpp"
+#include "dungeon_flag.hpp"
+#include "feature_flag.hpp"
 #include "feature_type.hpp"
+#include "game.hpp"
 #include "hook_enter_dungeon_in.hpp"
 #include "monster2.hpp"
 #include "monster_race.hpp"
+#include "monster_race_flag.hpp"
+#include "monster_spell_flag.hpp"
 #include "monster_type.hpp"
 #include "object1.hpp"
+#include "object_flag.hpp"
 #include "object_kind.hpp"
 #include "options.hpp"
 #include "player_type.hpp"
@@ -14,7 +20,6 @@
 #include "spells1.hpp"
 #include "store_info_type.hpp"
 #include "tables.hpp"
-#include "trap_type.hpp"
 #include "util.hpp"
 #include "util.h"
 #include "variable.h"
@@ -64,15 +69,15 @@ int distance(int y1, int x1, int y2, int x2)
  */
 static bool_ is_wall(cave_type *c_ptr)
 {
-	byte feat;
-
+	auto const &f_info = game->edit_data.f_info;
 
 	/* Handle feature mimics */
-	if (c_ptr->mimic) feat = c_ptr->mimic;
-	else feat = c_ptr->feat;
+	byte const feat = c_ptr->mimic
+		? c_ptr->mimic
+		: c_ptr->feat;
 
 	/* Paranoia */
-	if (feat >= max_f_idx) return FALSE;
+	if (feat >= f_info.size()) return FALSE;
 
 	/* Vanilla floors and doors aren't considered to be walls */
 	if (feat < FEAT_SECRET) return FALSE;
@@ -87,7 +92,7 @@ static bool_ is_wall(cave_type *c_ptr)
 	if (feat == FEAT_SMALL_TREES) return TRUE;
 
 	/* Normal cases: use the WALL flag in f_info.txt */
-	return (f_info[feat].flags1 & FF1_WALL) ? TRUE : FALSE;
+	return (f_info[feat].flags & FF_WALL) ? TRUE : FALSE;
 }
 
 
@@ -353,7 +358,7 @@ bool_ los(int y1, int x1, int y2, int x2)
 /*
  * Returns true if the player's grid is dark
  */
-bool_ no_lite(void)
+bool_ no_lite()
 {
 	return (!player_can_see_bold(p_ptr->py, p_ptr->px));
 }
@@ -379,7 +384,10 @@ bool_ cave_valid_bold(int y, int x)
 		object_type *o_ptr = &o_list[o_idx];
 
 		/* Forbid artifact grids */
-		if ((o_ptr->art_name) || artifact_p(o_ptr)) return (FALSE);
+		if (artifact_p(o_ptr))
+		{
+			return (FALSE);
+		}
 	}
 
 	/* Accept */
@@ -393,6 +401,8 @@ bool_ cave_valid_bold(int y, int x)
  */
 static void image_monster(byte *ap, char *cp)
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	// Cached state which keeps a list of all the "live" monster race entries.
 	static std::vector<size_t> *instance = nullptr;
 
@@ -402,7 +412,7 @@ static void image_monster(byte *ap, char *cp)
 		// Create the list of "live" indexes
 		instance = new std::vector<size_t>();
 		// Start at 1 to avoid 'player'
-		for (size_t i = 1; i < max_r_idx; i++)
+		for (size_t i = 1; i < r_info.size(); i++)
 		{
 			if (r_info[i].name)
 			{
@@ -426,6 +436,8 @@ static void image_monster(byte *ap, char *cp)
  */
 static void image_object(byte *ap, char *cp)
 {
+	auto const &k_info = game->edit_data.k_info;
+
 	// Cached state which keeps a list of the "live" object_kind entries.
 	static std::vector<size_t> *instance = nullptr;
 
@@ -435,7 +447,7 @@ static void image_object(byte *ap, char *cp)
 		// Create the list of "live" indexes
 		instance = new std::vector<size_t>();
 		// Filter all the "live" entries
-		for (size_t i = 0; i < max_k_idx; i++)
+		for (size_t i = 0; i < k_info.size(); i++)
 		{
 			if (k_info[i].name)
 			{
@@ -499,47 +511,57 @@ static char get_shimmer_color()
 
 
 /*
- * Table of breath colors.  Must match listings in a single set of 
- * monster spell flags.
- *
- * The value "255" is special.  Monsters with that kind of breath 
- * may be any color.
+ * Breath color
  */
-static byte breath_to_attr[32][2] =
-{
-	{ 0, 0 },
-	{ 0, 0 },
-	{ 0, 0 },
-	{ 0, 0 },
-	{ 0, 0 },
-	{ 0, 0 },
-	{ 0, 0 },
-	{ 0, 0 },
-	{ TERM_SLATE, TERM_L_DARK },        /* RF4_BRTH_ACID */
-	{ TERM_BLUE, TERM_L_BLUE },        /* RF4_BRTH_ELEC */
-	{ TERM_RED, TERM_L_RED },          /* RF4_BRTH_FIRE */
-	{ TERM_WHITE, TERM_L_WHITE },      /* RF4_BRTH_COLD */
-	{ TERM_GREEN, TERM_L_GREEN },      /* RF4_BRTH_POIS */
-	{ TERM_L_GREEN, TERM_GREEN },      /* RF4_BRTH_NETHR */
-	{ TERM_YELLOW, TERM_ORANGE },      /* RF4_BRTH_LITE */
-	{ TERM_L_DARK, TERM_SLATE },       /* RF4_BRTH_DARK */
-	{ TERM_L_UMBER, TERM_UMBER },      /* RF4_BRTH_CONFU */
-	{ TERM_YELLOW, TERM_L_UMBER },     /* RF4_BRTH_SOUND */
-	{ 255, 255 },    /* (any color) */ /* RF4_BRTH_CHAOS */
-	{ TERM_VIOLET, TERM_VIOLET },      /* RF4_BRTH_DISEN */
-	{ TERM_L_RED, TERM_VIOLET },       /* RF4_BRTH_NEXUS */
-	{ TERM_L_BLUE, TERM_L_BLUE },      /* RF4_BRTH_TIME */
-	{ TERM_L_WHITE, TERM_SLATE },      /* RF4_BRTH_INER */
-	{ TERM_L_WHITE, TERM_SLATE },      /* RF4_BRTH_GRAV */
-	{ TERM_UMBER, TERM_L_UMBER },      /* RF4_BRTH_SHARD */
-	{ TERM_ORANGE, TERM_RED },         /* RF4_BRTH_PLAS */
-	{ TERM_UMBER, TERM_L_UMBER },      /* RF4_BRTH_FORCE */
-	{ TERM_L_BLUE, TERM_WHITE },       /* RF4_BRTH_MANA */
-	{ 0, 0 },      /*  */
-	{ TERM_GREEN, TERM_L_GREEN },      /* RF4_BRTH_NUKE */
-	{ 0, 0 },      /*  */
-	{ TERM_WHITE, TERM_L_RED },        /* RF4_BRTH_DISINT */
+struct breath_color {
+	std::size_t breath_idx;
+	byte first_color;
+	byte second_color;
 };
+
+
+/*
+ * Breath colors. The value "255" is special.  Monsters with
+ * that kind of breath may be any color.
+ */
+static breath_color const *lookup_breath_color(std::size_t i)
+{
+	static breath_color breath_to_attr[] =
+	{
+		{ SF_BR_ACID_IDX, TERM_SLATE, TERM_L_DARK },
+		{ SF_BR_ELEC_IDX, TERM_BLUE, TERM_L_BLUE },
+		{ SF_BR_FIRE_IDX, TERM_RED, TERM_L_RED },
+		{ SF_BR_COLD_IDX, TERM_WHITE, TERM_L_WHITE },
+		{ SF_BR_POIS_IDX, TERM_GREEN, TERM_L_GREEN },
+		{ SF_BR_NETH_IDX, TERM_L_GREEN, TERM_GREEN },
+		{ SF_BR_LITE_IDX, TERM_YELLOW, TERM_ORANGE },
+		{ SF_BR_DARK_IDX, TERM_L_DARK, TERM_SLATE },
+		{ SF_BR_CONF_IDX, TERM_L_UMBER, TERM_UMBER },
+		{ SF_BR_SOUN_IDX, TERM_YELLOW, TERM_L_UMBER },
+		{ SF_BR_CHAO_IDX, 255, 255 },
+		{ SF_BR_DISE_IDX, TERM_VIOLET, TERM_VIOLET },
+		{ SF_BR_NEXU_IDX, TERM_L_RED, TERM_VIOLET },
+		{ SF_BR_TIME_IDX, TERM_L_BLUE, TERM_L_BLUE },
+		{ SF_BR_INER_IDX, TERM_L_WHITE, TERM_SLATE },
+		{ SF_BR_GRAV_IDX, TERM_L_WHITE, TERM_SLATE },
+		{ SF_BR_SHAR_IDX, TERM_UMBER, TERM_L_UMBER },
+		{ SF_BR_PLAS_IDX, TERM_ORANGE, TERM_RED },
+		{ SF_BR_WALL_IDX, TERM_UMBER, TERM_L_UMBER },
+		{ SF_BR_MANA_IDX, TERM_L_BLUE, TERM_WHITE },
+		{ SF_BR_NUKE_IDX, TERM_GREEN, TERM_L_GREEN },
+		{ SF_BR_DISI_IDX, TERM_WHITE, TERM_L_RED },
+	};
+
+	for (auto const &breath_color: breath_to_attr)
+	{
+		if (breath_color.breath_idx == i)
+		{
+			return &breath_color;
+		}
+	}
+
+	return nullptr;
+}
 
 
 /*
@@ -555,9 +577,7 @@ static byte multi_hued_attr(std::shared_ptr<monster_race> r_ptr)
 {
 	byte allowed_attrs[15];
 
-	int i, j;
-
-	int stored_colors = 0;
+	std::size_t stored_colors = 0;
 
 	int breaths = 0;
 
@@ -570,18 +590,22 @@ static byte multi_hued_attr(std::shared_ptr<monster_race> r_ptr)
 	if (!r_ptr->freq_inate) return (get_shimmer_color());
 
 	/* Check breaths */
-	for (i = 0; i < 32; i++)
+	for (std::size_t i = 0; i < monster_spell_flag_set::nbits; i++)
 	{
 		bool_ stored = FALSE;
 
 		/* Don't have that breath */
-		if (!(r_ptr->flags4 & (1L << i))) continue;
+		if (!(r_ptr->spells.bit(i))) continue;
+
+		/* Find the breath in our list */
+		auto breath_color = lookup_breath_color(i);
+		if (!breath_color)
+		{
+			continue;
+		}
 
 		/* Get the first color of this breath */
-		first_color = breath_to_attr[i][0];
-
-		/* Breath has no color associated with it */
-		if (first_color == 0) continue;
+		first_color = breath_color->first_color;
 
 		/* Monster can be of any color */
 		if (first_color == 255) return (randint(15));
@@ -595,7 +619,7 @@ static byte multi_hued_attr(std::shared_ptr<monster_race> r_ptr)
 
 
 		/* Always store the first color */
-		for (j = 0; j < stored_colors; j++)
+		for (std::size_t j = 0; j < stored_colors; j++)
 		{
 			/* Already stored */
 			if (allowed_attrs[j] == first_color) stored = TRUE;
@@ -612,7 +636,7 @@ static byte multi_hued_attr(std::shared_ptr<monster_race> r_ptr)
 		 */
 		if (breaths == 1)
 		{
-			second_color = breath_to_attr[i][1];
+			second_color = breath_color->second_color;
 		}
 	}
 
@@ -825,6 +849,11 @@ static byte darker_attrs[16] =
 
 static void map_info(int y, int x, byte *ap, char *cp)
 {
+	auto const &st_info = game->edit_data.st_info;
+	auto const &r_info = game->edit_data.r_info;
+	auto const &f_info = game->edit_data.f_info;
+	auto const &k_info = game->edit_data.k_info;
+
 	byte a;
 
 	byte c;
@@ -841,20 +870,13 @@ static void map_info(int y, int x, byte *ap, char *cp)
 	auto info = c_ptr->info;
 
 	/* Feature code */
-	auto feat = c_ptr->feat;
-
-	/* Apply "mimic" field */
-	if (c_ptr->mimic)
-	{
-		feat = c_ptr->mimic;
-	}
-	else
-	{
-		feat = f_info[feat].mimic;
-	}
+	auto const feat = c_ptr->mimic
+		? c_ptr->mimic
+		: f_info[c_ptr->feat].mimic
+		;
 
 	/* Access floor */
-	feature_type *f_ptr = &f_info[feat];
+	auto f_ptr = &f_info[feat];
 
 
 	/**** Layer 1 -- Terrain feature ****/
@@ -887,43 +909,8 @@ static void map_info(int y, int x, byte *ap, char *cp)
 			a = TERM_VIOLET;
 		}
 
-		/* Mega-Hack 3 -- Traps don't have f_info entries either */
-		if ((info & (CAVE_TRDT)) && (feat != FEAT_ILLUS_WALL))
-		{
-			/* Trap index */
-			auto t_idx = c_ptr->t_idx;
-
-			/*
-			 * If trap is set on a floor grid that is not
-			 * one of "interesting" features, use a special
-			 * symbol to display it. Check for doors is no longer
-			 * necessary because they have REMEMBER flag now.
-			 *
-			 * Cave macros cannot be used safely here, because of
-			 * c_ptr->mimic XXX XXX
-			 */
-			if ((f_ptr->flags1 & (FF1_FLOOR | FF1_REMEMBER)) == FF1_FLOOR)
-			{
-				c = f_info[FEAT_TRAP].x_char;
-			}
-
-			/* Add attr XXX XXX XXX */
-			a = t_info[t_idx].color;
-
-			/* Get a new color with a strange formula :) XXX XXX XXX */
-			if (t_info[t_idx].flags & FTRAP_CHANGE)
-			{
-				s32b tmp;
-
-				tmp = dun_level + dungeon_type + feat;
-
-				a = tmp % 16;
-			}
-		}
-
-
 		/**** Step 2 -- Apply special random effects ****/
-		if (!avoid_other && !avoid_shimmer)
+		if (!options->avoid_other && !options->avoid_shimmer)
 		{
 			/* Special terrain effect */
 			if (c_ptr->effect)
@@ -932,7 +919,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 			}
 
 			/* Multi-hued attr */
-			else if (f_ptr->flags1 & FF1_ATTR_MULTI)
+			else if (f_ptr->flags & FF_ATTR_MULTI)
 			{
 				a = f_ptr->shimmer[rand_int(7)];
 			}
@@ -945,7 +932,6 @@ static void map_info(int y, int x, byte *ap, char *cp)
 		 * Special lighting effects, if specified and applicable
 		 * This will never happen for
 		 * - any grids in the overhead map
-		 * - traps
 		 * - (graphics modes) terrain features without corresponding
 		 *   "darker" tiles.
 		 *
@@ -954,16 +940,16 @@ static void map_info(int y, int x, byte *ap, char *cp)
 		 */
 
 		/* view_special_lite: lighting effects for boring features */
-		if (view_special_lite &&
-		                ((f_ptr->flags1 & (FF1_FLOOR | FF1_REMEMBER)) == FF1_FLOOR))
+		if (options->view_special_lite &&
+		                ((f_ptr->flags & (FF_FLOOR | FF_REMEMBER)) == FF_FLOOR))
 		{
-			if (!p_ptr->wild_mode && !(info & (CAVE_TRDT)))
+			if (!p_ptr->wild_mode)
 			{
 				/* Handle "seen" grids */
 				if (info & (CAVE_SEEN))
 				{
 					/* Only lit by "torch" light */
-					if (view_yellow_lite && !(info & (CAVE_GLOW)))
+					if (options->view_yellow_lite && !(info & (CAVE_GLOW)))
 					{
 						/* Use "yellow" */
 						a = TERM_YELLOW;
@@ -985,7 +971,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 				}
 
 				/* "Out-of-sight" glowing grids -- handle "view_bright_lite" */
-				else if (view_bright_lite)
+				else if (options->view_bright_lite)
 				{
 					/* Use darker colour */
 					a = dark_attrs[a & 0xF];
@@ -994,10 +980,10 @@ static void map_info(int y, int x, byte *ap, char *cp)
 		}
 
 		/* view_granite_lite: lighting effects for walls and doors */
-		else if (view_granite_lite &&
-		                (f_ptr->flags1 & (FF1_NO_VISION | FF1_DOOR)))
+		else if (options->view_granite_lite &&
+		                (f_ptr->flags & (FF_NO_VISION | FF_DOOR)))
 		{
-			if (!p_ptr->wild_mode && !(info & (CAVE_TRDT)))
+			if (!p_ptr->wild_mode)
 			{
 				/* Handle "seen" grids */
 				if (info & (CAVE_SEEN))
@@ -1013,7 +999,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 				}
 
 				/* Handle "view_bright_lite" */
-				else if (view_bright_lite)
+				else if (options->view_bright_lite)
 				{
 					/* Use darker colour */
 					a = dark_attrs[a & 0xF];
@@ -1058,34 +1044,31 @@ static void map_info(int y, int x, byte *ap, char *cp)
 
 	/**** Layer 2 -- Objects ****/
 
-	if (feat != FEAT_MON_TRAP)
+	for (auto const o_idx: c_ptr->o_idxs)
 	{
-		for (auto const o_idx: c_ptr->o_idxs)
+		/* Acquire object */
+		object_type *o_ptr = &o_list[o_idx];
+
+		/* Memorized objects */
+		if (o_ptr->marked)
 		{
-			/* Acquire object */
-			object_type *o_ptr = &o_list[o_idx];
+			/* Normal char */
+			*cp = object_char(o_ptr);
 
-			/* Memorized objects */
-			if (o_ptr->marked)
+			/* Normal attr */
+			*ap = object_attr(o_ptr);
+
+			/* Multi-hued attr */
+			if (!options->avoid_other && (k_info[o_ptr->k_idx].flags & TR_ATTR_MULTI))
 			{
-				/* Normal char */
-				*cp = object_char(o_ptr);
-
-				/* Normal attr */
-				*ap = object_attr(o_ptr);
-
-				/* Multi-hued attr */
-				if (!avoid_other && (k_info[o_ptr->k_idx].flags5 & TR5_ATTR_MULTI))
-				{
-					*ap = get_shimmer_color();
-				}
-
-				/* Hack -- hallucination */
-				if (p_ptr->image) image_object(ap, cp);
-
-				/* Done */
-				break;
+				*ap = get_shimmer_color();
 			}
+
+			/* Hack -- hallucination */
+			if (p_ptr->image) image_object(ap, cp);
+
+			/* Done */
+			break;
 		}
 	}
 
@@ -1097,7 +1080,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 		monster_type *m_ptr = &m_list[c_ptr->m_idx];
 		auto const r_ptr = m_ptr->race();
 
-		if (r_ptr->flags9 & RF9_MIMIC)
+		if (r_ptr->flags & RF_MIMIC)
 		{
 			/* Acquire object being mimicked */
 			object_type *o_ptr = &o_list[m_ptr->mimic_o_idx()];
@@ -1112,7 +1095,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 				*ap = object_attr(o_ptr);
 
 				/* Multi-hued attr */
-				if (!avoid_other && (k_info[o_ptr->k_idx].flags5 & TR5_ATTR_MULTI))
+				if (!options->avoid_other && (k_info[o_ptr->k_idx].flags & TR_ATTR_MULTI))
 				{
 					*ap = get_shimmer_color();
 				}
@@ -1131,7 +1114,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 				a = r_ptr->x_attr;
 
 				/* Ignore weird codes */
-				if (avoid_other)
+				if (options->avoid_other)
 				{
 					/* Use char */
 					*cp = c;
@@ -1141,10 +1124,10 @@ static void map_info(int y, int x, byte *ap, char *cp)
 				}
 
 				/* Multi-hued monster */
-				else if (r_ptr->flags1 & (RF1_ATTR_MULTI))
+				else if (r_ptr->flags & RF_ATTR_MULTI)
 				{
 					/* Is it a shapechanger? */
-					if (r_ptr->flags2 & (RF2_SHAPECHANGER))
+					if (r_ptr->flags & RF_SHAPECHANGER)
 					{
 						image_random(ap, cp);
 					}
@@ -1152,7 +1135,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 						*cp = c;
 
 					/* Multi-hued attr */
-					if (r_ptr->flags2 & (RF2_ATTR_ANY))
+					if (r_ptr->flags & RF_ATTR_ANY)
 					{
 						*ap = randint(15);
 					}
@@ -1163,7 +1146,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 				}
 
 				/* Normal monster (not "clear" in any way) */
-				else if (!(r_ptr->flags1 & (RF1_ATTR_CLEAR | RF1_CHAR_CLEAR)))
+				else if (!(r_ptr->flags & (RF_ATTR_CLEAR | RF_CHAR_CLEAR)))
 				{
 					/* Use char */
 					*cp = c;
@@ -1189,14 +1172,14 @@ static void map_info(int y, int x, byte *ap, char *cp)
 				else
 				{
 					/* Normal (non-clear char) monster */
-					if (!(r_ptr->flags1 & (RF1_CHAR_CLEAR)))
+					if (!(r_ptr->flags & RF_CHAR_CLEAR))
 					{
 						/* Normal char */
 						*cp = c;
 					}
 
 					/* Normal (non-clear attr) monster */
-					else if (!(r_ptr->flags1 & (RF1_ATTR_CLEAR)))
+					else if (!(r_ptr->flags & RF_ATTR_CLEAR))
 					{
 						/* Normal attr */
 						*ap = a;
@@ -1217,10 +1200,10 @@ static void map_info(int y, int x, byte *ap, char *cp)
 	if ((y == p_ptr->py) && (x == p_ptr->px) &&
 	                (!p_ptr->invis || p_ptr->see_inv))
 	{
-		monster_race *r_ptr = &r_info[p_ptr->body_monster];
+		auto r_ptr = &r_info[p_ptr->body_monster];
 
 		/* Get the "player" attr */
-		if (!avoid_other && (r_ptr->flags1 & RF1_ATTR_MULTI))
+		if (!options->avoid_other && (r_ptr->flags & RF_ATTR_MULTI))
 		{
 			a = get_shimmer_color();
 		}
@@ -1233,7 +1216,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 		c = r_ptr->x_char;
 
 		/* Show player health char instead? */
-		if (player_char_health)
+		if (options->player_char_health)
 		{
 			int percent = p_ptr->chp * 10 / p_ptr->mhp;
 
@@ -1258,14 +1241,22 @@ static void map_info(int y, int x, byte *ap, char *cp)
  */
 void map_info_default(int y, int x, byte *ap, char *cp)
 {
+	auto const &st_info = game->edit_data.st_info;
+	auto const &r_info = game->edit_data.r_info;
+	auto const &f_info = game->edit_data.f_info;
+	auto const &k_info = game->edit_data.k_info;
+
 	byte a;
 
 	byte c;
 
+	/* Shorthand */
+	auto const avoid_other = options->avoid_other;
+
 	/**** Preparation ****/
 
 	/* Access the grid */
-	cave_type *c_ptr = &cave[y][x];
+	auto const c_ptr = &cave[y][x];
 
 
 	/* Cache some frequently used values */
@@ -1274,20 +1265,12 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 	auto info = c_ptr->info;
 
 	/* Feature code */
-	auto feat = c_ptr->feat;
-
-	/* Apply "mimic" field */
-	if (c_ptr->mimic)
-	{
-		feat = c_ptr->mimic;
-	}
-	else
-	{
-		feat = f_info[feat].mimic;
-	}
+	auto const feat = c_ptr->mimic
+		? c_ptr->mimic
+		: f_info[c_ptr->feat].mimic;
 
 	/* Access floor */
-	feature_type *f_ptr = &f_info[feat];
+	feature_type const *f_ptr = &f_info[feat];
 
 
 	/**** Layer 1 -- Terrain feature ****/
@@ -1321,41 +1304,6 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 			a = TERM_VIOLET;
 		}
 
-		/* Mega-Hack 3 -- Traps don't have f_info entries either */
-		if ((info & (CAVE_TRDT)) && (feat != FEAT_ILLUS_WALL))
-		{
-			/* Trap index */
-			auto t_idx = c_ptr->t_idx;
-
-			/*
-			 * If trap is set on a floor grid that is not
-			 * one of "interesting" features, use a special
-			 * symbol to display it. Check for doors is no longer
-			 * necessary because they have REMEMBER flag now.
-			 *
-			 * Cave macros cannot be used safely here, because of
-			 * c_ptr->mimic XXX XXX
-			 */
-			if ((f_ptr->flags1 & (FF1_FLOOR | FF1_REMEMBER)) == FF1_FLOOR)
-			{
-				c = f_info[FEAT_TRAP].d_char;
-			}
-
-			/* Add attr */
-			a = t_info[t_idx].color;
-
-			/* Get a new color with a strange formula :) */
-			if (t_info[t_idx].flags & FTRAP_CHANGE)
-			{
-				s32b tmp;
-
-				tmp = dun_level + dungeon_type + feat;
-
-				a = tmp % 16;
-			}
-		}
-
-
 		/**** Step 2 -- Apply special random effects ****/
 		if (!avoid_other)
 		{
@@ -1366,7 +1314,7 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 			}
 
 			/* Multi-hued attr */
-			else if (f_ptr->flags1 & FF1_ATTR_MULTI)
+			else if (f_ptr->flags & FF_ATTR_MULTI)
 			{
 				a = f_ptr->shimmer[rand_int(7)];
 			}
@@ -1379,7 +1327,6 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 		 * Special lighting effects, if specified and applicable
 		 * This will never happen for
 		 * - any grids in the overhead map
-		 * - traps
 		 * - (graphics modes) terrain features without corresponding
 		 *   "darker" tiles.
 		 *
@@ -1388,16 +1335,16 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 		 */
 
 		/* view_special_lite: lighting effects for boring features */
-		if (view_special_lite &&
-		                ((f_ptr->flags1 & (FF1_FLOOR | FF1_REMEMBER)) == FF1_FLOOR))
+		if (options->view_special_lite &&
+		                ((f_ptr->flags & (FF_FLOOR | FF_REMEMBER)) == FF_FLOOR))
 		{
-			if (!p_ptr->wild_mode && !(info & (CAVE_TRDT)))
+			if (!p_ptr->wild_mode)
 			{
 				/* Handle "seen" grids */
 				if (info & (CAVE_SEEN))
 				{
 					/* Only lit by "torch" light */
-					if (view_yellow_lite && !(info & (CAVE_GLOW)))
+					if (options->view_yellow_lite && !(info & (CAVE_GLOW)))
 					{
 						/* Use "yellow" */
 						a = TERM_YELLOW;
@@ -1419,7 +1366,7 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 				}
 
 				/* "Out-of-sight" glowing grids -- handle "view_bright_lite" */
-				else if (view_bright_lite)
+				else if (options->view_bright_lite)
 				{
 					/* Use darker colour */
 					a = dark_attrs[a & 0xF];
@@ -1428,10 +1375,10 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 		}
 
 		/* view_granite_lite: lighting effects for walls and doors */
-		else if (view_granite_lite &&
-		                (f_ptr->flags1 & (FF1_NO_VISION | FF1_DOOR)))
+		else if (options->view_granite_lite &&
+		                (f_ptr->flags & (FF_NO_VISION | FF_DOOR)))
 		{
-			if (!p_ptr->wild_mode && !(info & (CAVE_TRDT)))
+			if (!p_ptr->wild_mode)
 			{
 				/* Handle "seen" grids */
 				if (info & (CAVE_SEEN))
@@ -1447,7 +1394,7 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 				}
 
 				/* Handle "view_bright_lite" */
-				else if (view_bright_lite)
+				else if (options->view_bright_lite)
 				{
 					/* Use darker colour */
 					a = dark_attrs[a & 0xF];
@@ -1487,35 +1434,31 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 
 	/**** Layer 2 -- Objects ****/
 
-	if (feat != FEAT_MON_TRAP)
+	for (auto const this_o_idx: c_ptr->o_idxs)
 	{
-		for (auto const this_o_idx: c_ptr->o_idxs)
+		/* Acquire object */
+		object_type *o_ptr = &o_list[this_o_idx];
+
+		/* Memorized objects */
+		if (o_ptr->marked)
 		{
-			/* Acquire object */
-			object_type *o_ptr = &o_list[this_o_idx];
+			/* Normal char */
+			*cp = object_char_default(o_ptr);
 
-			/* Memorized objects */
-			if (o_ptr->marked)
+			/* Normal attr */
+			*ap = object_attr_default(o_ptr);
+
+			/* Multi-hued attr */
+			if (!avoid_other && (k_info[o_ptr->k_idx].flags & TR_ATTR_MULTI))
 			{
-				/* Normal char */
-				*cp = object_char_default(o_ptr);
-
-				/* Normal attr */
-				*ap = object_attr_default(o_ptr);
-
-				/* Multi-hued attr */
-				if (!avoid_other &&
-				                (k_info[o_ptr->k_idx].flags5 & TR5_ATTR_MULTI))
-				{
-					*ap = get_shimmer_color();
-				}
-
-				/* Hack -- hallucination */
-				if (p_ptr->image) image_object(ap, cp);
-
-				/* Done */
-				break;
+				*ap = get_shimmer_color();
 			}
+
+			/* Hack -- hallucination */
+			if (p_ptr->image) image_object(ap, cp);
+
+			/* Done */
+			break;
 		}
 	}
 
@@ -1527,7 +1470,7 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 		monster_type *m_ptr = &m_list[c_ptr->m_idx];
 		auto const r_ptr = m_ptr->race();
 
-		if (r_ptr->flags9 & RF9_MIMIC)
+		if (r_ptr->flags & RF_MIMIC)
 		{
 			/* Acquire object being mimicked */
 			object_type *o_ptr = &o_list[m_ptr->mimic_o_idx()];
@@ -1542,7 +1485,7 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 				*ap = object_attr_default(o_ptr);
 
 				/* Multi-hued attr */
-				if (!avoid_other && (k_info[o_ptr->k_idx].flags5 & TR5_ATTR_MULTI))
+				if (!avoid_other && (k_info[o_ptr->k_idx].flags & TR_ATTR_MULTI))
 				{
 					*ap = get_shimmer_color();
 				}
@@ -1571,10 +1514,10 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 				}
 
 				/* Multi-hued monster */
-				else if (r_ptr->flags1 & (RF1_ATTR_MULTI))
+				else if (r_ptr->flags & RF_ATTR_MULTI)
 				{
 					/* Is it a shapechanger? */
-					if (r_ptr->flags2 & (RF2_SHAPECHANGER))
+					if (r_ptr->flags & RF_SHAPECHANGER)
 					{
 						image_random(ap, cp);
 					}
@@ -1582,7 +1525,7 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 						*cp = c;
 
 					/* Multi-hued attr */
-					if (r_ptr->flags2 & (RF2_ATTR_ANY))
+					if (r_ptr->flags & RF_ATTR_ANY)
 					{
 						*ap = randint(15);
 					}
@@ -1593,7 +1536,7 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 				}
 
 				/* Normal monster (not "clear" in any way) */
-				else if (!(r_ptr->flags1 & (RF1_ATTR_CLEAR | RF1_CHAR_CLEAR)))
+				else if (!(r_ptr->flags & (RF_ATTR_CLEAR | RF_CHAR_CLEAR)))
 				{
 					/* Use char */
 					*cp = c;
@@ -1616,14 +1559,14 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 				else
 				{
 					/* Normal (non-clear char) monster */
-					if (!(r_ptr->flags1 & (RF1_CHAR_CLEAR)))
+					if (!(r_ptr->flags & RF_CHAR_CLEAR))
 					{
 						/* Normal char */
 						*cp = c;
 					}
 
 					/* Normal (non-clear attr) monster */
-					else if (!(r_ptr->flags1 & (RF1_ATTR_CLEAR)))
+					else if (!(r_ptr->flags & RF_ATTR_CLEAR))
 					{
 						/* Normal attr */
 						*ap = a;
@@ -1646,10 +1589,10 @@ void map_info_default(int y, int x, byte *ap, char *cp)
 	                (!p_ptr->invis ||
 	                 (p_ptr->invis && p_ptr->see_inv)))
 	{
-		monster_race *r_ptr = &r_info[p_ptr->body_monster];
+		auto r_ptr = &r_info[p_ptr->body_monster];
 
 		/* Get the "player" attr */
-		if (!avoid_other && (r_ptr->flags1 & RF1_ATTR_MULTI))
+		if (!avoid_other && (r_ptr->flags & RF_ATTR_MULTI))
 		{
 			a = get_shimmer_color();
 		}
@@ -1774,7 +1717,7 @@ void note_spot(int y, int x)
 		monster_type *m_ptr = &m_list[c_ptr->m_idx];
 		auto r_ptr = m_ptr->race();
 
-		if (r_ptr->flags9 & RF9_MIMIC)
+		if (r_ptr->flags & RF_MIMIC)
 		{
 			object_type *o_ptr = &o_list[m_ptr->mimic_o_idx()];
 			o_ptr->marked = TRUE;
@@ -1783,18 +1726,17 @@ void note_spot(int y, int x)
 
 
 	/* Hack -- memorize grids */
-	if (!(info & (CAVE_MARK)))
+	if (!(info & CAVE_MARK))
 	{
 		/* Memorise some "boring" grids */
 		if (cave_plain_floor_grid(c_ptr))
 		{
 			/* Option -- memorise certain floors */
-			if ((info & (CAVE_TRDT)) ||
-			                ((info & (CAVE_GLOW)) && view_perma_grids ) ||
-			                view_torch_grids)
+			if (((info & CAVE_GLOW) && options->view_perma_grids) ||
+			        options->view_torch_grids)
 			{
 				/* Memorize */
-				c_ptr->info |= (CAVE_MARK);
+				c_ptr->info |= CAVE_MARK;
 			}
 		}
 
@@ -1802,7 +1744,7 @@ void note_spot(int y, int x)
 		else
 		{
 			/* Memorize */
-			c_ptr->info |= (CAVE_MARK);
+			c_ptr->info |= CAVE_MARK;
 		}
 	}
 }
@@ -1839,17 +1781,17 @@ void lite_spot(int y, int x)
  * of both "lite_spot()" and "print_rel()", and that we use the
  * "lite_spot()" function to display the player grid, if needed.
  */
-void prt_map(void)
+void prt_map()
 {
 	int x, y;
 
 	int v;
 
 	/* Access the cursor state */
-	(void)Term_get_cursor(&v);
+	Term_get_cursor(&v);
 
 	/* Hide the cursor */
-	(void)Term_set_cursor(0);
+	Term_set_cursor(0);
 
 	/* Dump the map */
 	for (y = panel_row_min; y <= panel_row_max; y++)
@@ -1872,7 +1814,7 @@ void prt_map(void)
 	lite_spot(p_ptr->py, p_ptr->px);
 
 	/* Restore the cursor */
-	(void)Term_set_cursor(v);
+	Term_set_cursor(v);
 }
 
 
@@ -1970,9 +1912,9 @@ static byte priority_table[][2] =
  */
 static byte priority(byte a, char c)
 {
-	int i, p0, p1;
+	auto const &f_info = game->edit_data.f_info;
 
-	feature_type *f_ptr;
+	int i, p0, p1;
 
 	/* Scan the table */
 	for (i = 0; TRUE; i++)
@@ -1987,7 +1929,7 @@ static byte priority(byte a, char c)
 		p0 = priority_table[i][0];
 
 		/* Access the feature */
-		f_ptr = &f_info[p0];
+		auto f_ptr = &f_info[p0];
 
 		/* Check character and attribute, accept matches */
 		if ((f_ptr->x_char == c) && (f_ptr->x_attr == a)) return (p1);
@@ -2020,9 +1962,6 @@ void display_map(int *cy, int *cx)
 
 	byte tp;
 
-	bool_ old_view_special_lite;
-	bool_ old_view_granite_lite;
-
 	int hgt, wid, yrat, xrat, yfactor, xfactor;
 
 
@@ -2047,12 +1986,12 @@ void display_map(int *cy, int *cx)
 
 
 	/* Save lighting effects */
-	old_view_special_lite = view_special_lite;
-	old_view_granite_lite = view_granite_lite;
+	auto const old_view_special_lite = options->view_special_lite;
+	auto const old_view_granite_lite = options->view_granite_lite;
 
 	/* Disable lighting effects */
-	view_special_lite = FALSE;
-	view_granite_lite = FALSE;
+	options->view_special_lite = FALSE;
+	options->view_granite_lite = FALSE;
 
 
 	/* Set up initial maps */
@@ -2149,8 +2088,8 @@ void display_map(int *cy, int *cx)
 	*cx = p_ptr->px * xfactor / xrat + COL_MAP;
 
 	/* Restore lighting effects */
-	view_special_lite = old_view_special_lite;
-	view_granite_lite = old_view_granite_lite;
+	options->view_special_lite = old_view_special_lite;
+	options->view_granite_lite = old_view_granite_lite;
 }
 
 
@@ -2159,7 +2098,7 @@ void display_map(int *cy, int *cx)
  *
  * Currently, the "player" is displayed on the map.  XXX XXX XXX
  */
-void do_cmd_view_map(void)
+void do_cmd_view_map()
 {
 	int cy, cx;
 	int wid, hgt;
@@ -2822,7 +2761,7 @@ static void vinfo_init_aux(vinfo_hack *hack, int y, int x, long m)
  * a number which is too high, running this function, and using the
  * error messages to obtain the correct values.
  */
-errr vinfo_init(void)
+errr vinfo_init()
 {
 	int i, y, x;
 
@@ -3044,7 +2983,7 @@ errr vinfo_init(void)
 /*
  * Forget the "CAVE_VIEW" grids, redrawing as needed
  */
-void forget_view(void)
+void forget_view()
 {
 	int i;
 
@@ -3152,7 +3091,7 @@ void forget_view(void)
  * special grids.  Because the actual number of required grids is bizarre,
  * we simply allocate twice as many as we would normally need.  XXX XXX XXX
  */
-void update_view(void)
+void update_view()
 {
 	int i, o;
 	int y, x;
@@ -3471,7 +3410,7 @@ void update_view(void)
 /*
  * Clear monster light 
  */
-void forget_mon_lite(void)
+void forget_mon_lite()
 {
 	int i, y, x;
 
@@ -3519,7 +3458,7 @@ void forget_mon_lite(void)
  * This function works within the current player's field of view
  * calculated by update_view(), so it should normally be called
  * whenever FoV is updated (== PU_VIEW | PU_MON_LITE). The other
- * case is when RF9_HAS_LITE monsters have moved or dead. Monster
+ * case is when RF_HAS_LITE monsters have moved or dead. Monster
  * creation occurs out of LoS, so I chose not to take this into
  * consideration.
  *
@@ -3536,8 +3475,10 @@ void forget_mon_lite(void)
  * or brighter light, and it doesn't work well with PernAngband's already
  * colourful terrain features in aesthetically pleasing ways... -- pelpel
  */
-void update_mon_lite(void)
+void update_mon_lite()
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	int i, y, x, d;
 	int fy, fx;
 
@@ -3625,7 +3566,7 @@ void update_mon_lite(void)
 		auto r_ptr = m_ptr->race();
 
 		/* Skip monsters not carrying light source */
-		if (!(r_ptr->flags9 & RF9_HAS_LITE)) continue;
+		if (!(r_ptr->flags & RF_HAS_LITE)) continue;
 
 		/* Access the location */
 		fy = m_ptr->fy;
@@ -3676,7 +3617,7 @@ void update_mon_lite(void)
 			 *
 			 * We don't have four sides for a wall grid, so...
 			 */
-			if (invis && (f_info[c_ptr->feat].flags1 & FF1_NO_VISION)) continue;
+			if (invis && (f_info[c_ptr->feat].flags & FF_NO_VISION)) continue;
 
 			/* Give monster light to the location */
 			c_ptr->info |= (CAVE_MLIT | CAVE_SEEN);
@@ -3850,12 +3791,12 @@ static void update_flow_aux(int y, int x, int n)
  * We do not need a priority queue because the cost from grid
  * to grid is always "one" and we process them in order.
  */
-void update_flow(void)
+void update_flow()
 {
 	int x, y, d;
 
 	/* Hack -- disabled */
-	if (!flow_by_sound) return;
+	if (!options->flow_by_sound) return;
 
 	/* Paranoia -- make sure the array is empty */
 	if (temp_n) return;
@@ -3918,31 +3859,14 @@ void update_flow(void)
 /*
  * Hack -- map the current panel (plus some) ala "magic mapping"
  */
-void map_area(void)
+void map_area()
 {
-	int i, x, y, y1, y2, x1, x2;
-
-	cave_type *c_ptr;
-
-
-	/* Pick an area to map */
-	y1 = panel_row_min - randint(10);
-	y2 = panel_row_max + randint(10);
-	x1 = panel_col_min - randint(20);
-	x2 = panel_col_max + randint(20);
-
-	/* Speed -- shrink to fit legal bounds */
-	if (y1 < 1) y1 = 1;
-	if (y2 > cur_hgt - 2) y2 = cur_hgt - 2;
-	if (x1 < 1) x1 = 1;
-	if (x2 > cur_wid - 2) x2 = cur_wid - 2;
-
-	/* Scan that area */
-	for (y = y1; y <= y2; y++)
+	/* Scan the whole map */
+	for (int y = 1; y < cur_hgt - 1; y++)
 	{
-		for (x = x1; x <= x2; x++)
+		for (int x = 1; x < cur_wid - 1; x++)
 		{
-			c_ptr = &cave[y][x];
+			auto c_ptr = &cave[y][x];
 
 			/* All non-walls are "checked" */
 			if (!is_wall(c_ptr))
@@ -3955,7 +3879,7 @@ void map_area(void)
 				}
 
 				/* Memorize known walls */
-				for (i = 0; i < 8; i++)
+				for (int i = 0; i < 8; i++)
 				{
 					c_ptr = &cave[y + ddy_ddd[i]][x + ddx_ddd[i]];
 
@@ -3995,7 +3919,7 @@ void map_area(void)
  * since this would prevent the use of "view_torch_grids" as a method to
  * keep track of what grids have been observed directly.
  */
-void wiz_lite(void)
+void wiz_lite()
 {
 	int i, y, x;
 
@@ -4028,7 +3952,7 @@ void wiz_lite(void)
 				monster_type *m_ptr = &m_list[c_ptr->m_idx];
 				auto const r_ptr = m_ptr->race();
 
-				if (r_ptr->flags9 & RF9_MIMIC)
+				if (r_ptr->flags & RF_MIMIC)
 				{
 					object_type *o_ptr = &o_list[m_ptr->mimic_o_idx()];
 					o_ptr->marked = TRUE;
@@ -4058,7 +3982,7 @@ void wiz_lite(void)
 					}
 
 					/* Normally, memorize floors (see above) */
-					if (view_perma_grids && !view_torch_grids)
+					if (options->view_perma_grids && !options->view_torch_grids)
 					{
 						/* Memorize the grid */
 						c_ptr->info |= (CAVE_MARK);
@@ -4078,7 +4002,7 @@ void wiz_lite(void)
 	p_ptr->window |= (PW_OVERHEAD);
 }
 
-void wiz_lite_extra(void)
+void wiz_lite_extra()
 {
 	int y, x;
 	for (y = 0; y < cur_hgt; y++)
@@ -4094,7 +4018,7 @@ void wiz_lite_extra(void)
 /*
  * Forget the dungeon map (ala "Thinking of Maud...").
  */
-void wiz_dark(void)
+void wiz_dark()
 {
 	int i, y, x;
 
@@ -4406,7 +4330,7 @@ void object_track(object_type *o_ptr)
  *
  * All disturbance cancels repeated commands, resting, and running.
  */
-void disturb(int stop_search)
+void disturb()
 {
 	/* Cancel auto-commands */
 	/* command_new = 0; */
@@ -4441,21 +4365,37 @@ void disturb(int stop_search)
 		p_ptr->update |= (PU_TORCH);
 	}
 
-	/* Cancel searching if requested */
-	if (stop_search && p_ptr->searching)
-	{
-		/* Cancel */
-		p_ptr->searching = FALSE;
-
-		/* Recalculate bonuses */
-		p_ptr->update |= (PU_BONUS);
-
-		/* Redraw the state */
-		p_ptr->redraw |= (PR_FRAME);
-	}
-
 	/* Flush the input if requested */
-	if (flush_disturb) flush();
+	if (options->flush_disturb)
+	{
+		flush();
+	}
+}
+
+
+
+/*
+ * Disturb if option 'disturb_state' is set.
+ */
+void disturb_on_state()
+{
+	if (options->disturb_state)
+	{
+		disturb();
+	}
+}
+
+
+
+/*
+ * Disturb if option 'disturb_other' is set.
+ */
+void disturb_on_other()
+{
+	if (options->disturb_other)
+	{
+		disturb();
+	}
 }
 
 
@@ -4467,7 +4407,7 @@ void disturb(int stop_search)
 static int random_quest_number()
 {
 	if ((dun_level >= 1) && (dun_level < MAX_RANDOM_QUEST) &&
-			(dungeon_flags1 & DF1_PRINCIPAL) &&
+			(dungeon_flags & DF_PRINCIPAL) &&
 			(random_quests[dun_level].type) &&
 					(!random_quests[dun_level].done) &&
 					(!is_randhero(dun_level)))
@@ -4550,7 +4490,9 @@ bool cave_floor_bold(int y, int x)
  */
 bool cave_floor_grid(cave_type const *c)
 {
-	return (f_info[c->feat].flags1 & FF1_FLOOR) && (c->feat != FEAT_MON_TRAP);
+	auto const &f_info = game->edit_data.f_info;
+
+	return bool(f_info[c->feat].flags & FF_FLOOR);
 }
 
 
@@ -4569,9 +4511,11 @@ bool cave_plain_floor_bold(int y, int x)
  */
 bool cave_plain_floor_grid(cave_type const *c)
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	return
-		(f_info[c->feat].flags1 & FF1_FLOOR) &&
-		!(f_info[c->feat].flags1 & FF1_REMEMBER);
+		(f_info[c->feat].flags & FF_FLOOR) &&
+		!(f_info[c->feat].flags & FF_REMEMBER);
 }
 
 
@@ -4595,7 +4539,9 @@ bool cave_sight_bold(int y, int x)
 
 bool cave_sight_grid(cave_type const *c)
 {
-	return !(f_info[c->feat].flags1 & FF1_NO_VISION);
+	auto const &f_info = game->edit_data.f_info;
+
+	return !(f_info[c->feat].flags & FF_NO_VISION);
 }
 
 
@@ -4609,11 +4555,12 @@ bool cave_sight_grid(cave_type const *c)
  */
 bool cave_clean_bold(int y, int x)
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	return
-		(f_info[cave[y][x].feat].flags1 & FF1_FLOOR) &&
-		(cave[y][x].feat != FEAT_MON_TRAP) &&
+		(f_info[cave[y][x].feat].flags & FF_FLOOR) &&
 		(cave[y][x].o_idxs.empty()) &&
-		!(f_info[cave[y][x].feat].flags1 & FF1_PERMANENT);
+		!(f_info[cave[y][x].feat].flags & FF_PERMANENT);
 }
 
 /*
@@ -4641,19 +4588,21 @@ bool cave_empty_bold(int y, int x)
  */
 bool cave_naked_bold(int y, int x)
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	return
-		(f_info[cave[y][x].feat].flags1 & FF1_FLOOR) &&
-		(cave[y][x].feat != FEAT_MON_TRAP) &&
-		!(f_info[cave[y][x].feat].flags1 & FF1_PERMANENT) &&
+		(f_info[cave[y][x].feat].flags & FF_FLOOR) &&
+		!(f_info[cave[y][x].feat].flags & FF_PERMANENT) &&
 		(cave[y][x].o_idxs.empty()) &&
 		(cave[y][x].m_idx == 0);
 }
 
 bool cave_naked_bold2(int y, int x)
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	return
-		(f_info[cave[y][x].feat].flags1 & FF1_FLOOR) &&
-		(cave[y][x].feat != FEAT_MON_TRAP) &&
+		(f_info[cave[y][x].feat].flags & FF_FLOOR) &&
 		(cave[y][x].o_idxs.empty()) &&
 		(cave[y][x].m_idx == 0);
 }
@@ -4669,7 +4618,9 @@ bool cave_perma_bold(int y, int x)
 
 bool cave_perma_grid(cave_type const *c)
 {
-	return f_info[c->feat].flags1 & FF1_PERMANENT;
+	auto const &f_info = game->edit_data.f_info;
+
+	return bool(f_info[c->feat].flags & FF_PERMANENT);
 }
 
 /*

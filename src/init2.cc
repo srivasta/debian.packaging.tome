@@ -11,37 +11,40 @@
 #include "ego_item_type.hpp"
 #include "files.hpp"
 #include "feature_type.hpp"
+#include "game.hpp"
 #include "generate.hpp"
 #include "gen_evol.hpp"
 #include "gen_maze.hpp"
-#include "hist_type.hpp"
 #include "hooks.hpp"
 #include "init1.hpp"
 #include "lua_bind.hpp"
 #include "messages.hpp"
-#include "meta_class_type.hpp"
 #include "modules.hpp"
 #include "monster_ego.hpp"
 #include "monster_race.hpp"
+#include "monster_race_flag.hpp"
 #include "monster_type.hpp"
+#include "object_flag.hpp"
 #include "object_kind.hpp"
+#include "object_type.hpp"
 #include "owner_type.hpp"
 #include "player_class.hpp"
 #include "player_race.hpp"
 #include "player_race_mod.hpp"
-#include "quark.hpp"
+#include "q_library.hpp"
 #include "randart.hpp"
 #include "randart_part_type.hpp"
-#include "script.h"
 #include "set_type.hpp"
 #include "skill_type.hpp"
 #include "spells3.hpp"
+#include "spells4.hpp"
+#include "spells5.hpp"
+#include "spells6.hpp"
 #include "squeltch.hpp"
 #include "store_action_type.hpp"
 #include "store_info_type.hpp"
 #include "store_type.hpp"
 #include "tables.hpp"
-#include "trap_type.hpp"
 #include "tome/make_array.hpp"
 #include "town_type.hpp"
 #include "util.hpp"
@@ -228,41 +231,6 @@ void init_file_paths(char *path)
 
 
 /*
- * Initialize and verify the file paths, and the score file.
- *
- * Use the ANGBAND_PATH environment var if possible, else use
- * DEFAULT_PATH, and in either case, branch off appropriately.
- *
- * First, we'll look for the ANGBAND_PATH environment variable,
- * and then look for the files in there.  If that doesn't work,
- * we'll try the DEFAULT_PATH constant.  So be sure that one of
- * these two things works...
- *
- * We must ensure that the path ends with "PATH_SEP" if needed,
- * since the "init_file_paths()" function will simply append the
- * relevant "sub-directory names" to the given path.
- */
-void init_file_paths_with_env()
-{
-	char path[1024];
-
-	cptr tail;
-
-	/* Get the environment variable */
-	tail = getenv("TOME_PATH");
-
-	/* Use the angband_path, or a default */
-	strcpy(path, tail ? tail : DEFAULT_PATH);
-
-	/* Hack -- Add a path separator (only if needed) */
-	if (!suffix(path, PATH_SEP)) strcat(path, PATH_SEP);
-
-	/* Initialize */
-	init_file_paths(path);
-}
-
-
-/*
  * Hack -- help give useful error messages
  */
 s16b error_idx;
@@ -306,11 +274,6 @@ namespace {
 
 		static constexpr char const *name = "f_info.txt";
 
-		static void allocate()
-		{
-			f_info = make_array<feature_type>(max_f_idx);
-		}
-
 		static errr parse(FILE *fp)
 		{
 			return init_f_info_txt(fp);
@@ -321,11 +284,6 @@ namespace {
 	struct k_info_traits {
 
 		static constexpr char const *name = "k_info.txt";
-
-		static void allocate()
-		{
-			k_info = make_array<object_kind>(max_k_idx);
-		}
 
 		static errr parse(FILE *fp)
 		{
@@ -338,11 +296,6 @@ namespace {
 
 		static constexpr char const *name = "set_info.txt";
 
-		static void allocate()
-		{
-			set_info = make_array<set_type>(max_set_idx);
-		}
-
 		static errr parse(FILE *fp)
 		{
 			return init_set_info_txt(fp);
@@ -353,11 +306,6 @@ namespace {
 	struct a_info_traits {
 
 		static constexpr char const *name = "a_info.txt";
-
-		static void allocate()
-		{
-			a_info = make_array<artifact_type>(max_a_idx);
-		}
 
 		static errr parse(FILE *fp)
 		{
@@ -370,11 +318,6 @@ namespace {
 
 		static constexpr char const *name = "s_info.txt";
 
-		static void allocate()
-		{
-			s_info = make_array<skill_type>(max_s_idx);
-		}
-
 		static errr parse(FILE *fp)
 		{
 			return init_s_info_txt(fp);
@@ -385,11 +328,6 @@ namespace {
 	struct ab_info_traits {
 
 		static constexpr char const *name = "ab_info.txt";
-
-		static void allocate()
-		{
-			ab_info = make_array<ability_type>(max_ab_idx);
-		}
 
 		static errr parse(FILE *fp)
 		{
@@ -402,11 +340,6 @@ namespace {
 
 		static constexpr char const *name = "e_info.txt";
 
-		static void allocate()
-		{
-			e_info = make_array<ego_item_type>(max_e_idx);
-		}
-
 		static errr parse(FILE *fp)
 		{
 			return init_e_info_txt(fp);
@@ -417,11 +350,6 @@ namespace {
 	struct ra_info_traits {
 
 		static constexpr char const *name = "ra_info.txt";
-
-		static void allocate()
-		{
-			ra_info = make_array<randart_part_type>(max_ra_idx);
-		}
 
 		static errr parse(FILE *fp)
 		{
@@ -434,11 +362,6 @@ namespace {
 
 		static constexpr char const *name = "r_info.txt";
 
-		static void allocate()
-		{
-			r_info = make_array<monster_race>(max_r_idx);
-		}
-
 		static errr parse(FILE *fp)
 		{
 			return init_r_info_txt(fp);
@@ -449,11 +372,6 @@ namespace {
 	struct re_info_traits {
 
 		static constexpr char const *name = "re_info.txt";
-
-		static void allocate()
-		{
-			re_info = make_array<monster_ego>(max_re_idx);
-		}
 
 		static errr parse(FILE *fp)
 		{
@@ -466,11 +384,6 @@ namespace {
 
 		static constexpr char const *name = "d_info.txt";
 
-		static void allocate()
-		{
-			d_info = make_array<dungeon_info_type>(max_d_idx);
-		}
-
 		static errr parse(FILE *fp)
 		{
 			return init_d_info_txt(fp);
@@ -481,11 +394,6 @@ namespace {
 	struct st_info_traits {
 
 		static constexpr char const *name = "st_info.txt";
-
-		static void allocate()
-		{
-			st_info = make_array<store_info_type>(max_st_idx);
-		}
 
 		static errr parse(FILE *fp)
 		{
@@ -498,11 +406,6 @@ namespace {
 
 		static constexpr char const *name = "ow_info.txt";
 
-		static void allocate()
-		{
-			ow_info = make_array<owner_type>(max_ow_idx);
-		}
-
 		static errr parse(FILE *fp)
 		{
 			return init_ow_info_txt(fp);
@@ -513,11 +416,6 @@ namespace {
 	struct ba_info_traits {
 
 		static constexpr char const *name = "ba_info.txt";
-
-		static void allocate()
-		{
-			ba_info = make_array<store_action_type>(max_ba_idx);
-		}
 
 		static errr parse(FILE *fp)
 		{
@@ -530,11 +428,6 @@ namespace {
 
 		static constexpr char const *name = "wf_info.txt";
 
-		static void allocate()
-		{
-			wf_info = make_array<wilderness_type_info>(max_wf_idx);
-		}
-
 		static errr parse(FILE *fp)
 		{
 			return init_wf_info_txt(fp);
@@ -542,30 +435,9 @@ namespace {
 
 	};
 
-	struct tr_info_traits {
-
-		static constexpr char const *name = "tr_info.txt";
-
-		static void allocate()
-		{
-			t_info = make_array<trap_type>(max_t_idx);
-		}
-
-		static errr parse(FILE *fp)
-		{
-			return init_t_info_txt(fp);
-		}
-
-	};
-
 	struct v_info_traits {
 
 		static constexpr char const *name = "v_info.txt";
-
-		static void allocate()
-		{
-			v_info = make_array<vault_type>(max_v_idx);
-		}
 
 		static errr parse(FILE *fp)
 		{
@@ -578,19 +450,6 @@ namespace {
 
 		static constexpr char const *name = "p_info.txt";
 
-		static void allocate()
-		{
-			race_info = make_array<player_race>(max_rp_idx);
-			race_mod_info = make_array<player_race_mod>(max_rmp_idx);
-			class_info = make_array<player_class>(max_c_idx);
-			bg = make_array<hist_type>(max_bg_idx);
-			meta_class_info = make_array<meta_class_type>(max_mc_idx);
-			for (std::size_t i = 0; i < max_mc_idx; i++)
-			{
-				meta_class_info[i].classes = make_array<s16b>(max_c_idx);
-			}
-		}
-
 		static errr parse(FILE *fp)
 		{
 			return init_player_info_txt(fp);
@@ -601,9 +460,6 @@ namespace {
 }
 
 template<typename T> static errr init_x_info() {
-
-	/* Allocate the data array */
-	T::allocate();
 
 	/* Build the filename */
 	boost::filesystem::path path(ANGBAND_DIR_EDIT);
@@ -663,25 +519,22 @@ static void init_basic()
 
 	/* Extended trigger macros */
 	cli_info = make_array<cli_comm>(CLI_MAX);
+
+	/* Options */
+	options = new struct options();
 }
 
 
 /*
  * Initialise misc. values
  */
-static errr init_misc(void)
+static errr init_misc()
 {
 	int xstart = 0;
 	int ystart = 0;
 	int i;
 
 	/*** Prepare the various "bizarre" arrays ***/
-
-	/* Initialize quark subsystem */
-	quark_init();
-
-	/* Initialize messages subsystem */
-	message_init();
 
 	/* Initialise the values */
 	process_dungeon_file("misc.txt", &ystart, &xstart, 0, 0, TRUE, FALSE);
@@ -705,26 +558,24 @@ static errr init_misc(void)
 /*
  * Initialise town array
  */
-static errr init_towns(void)
+static errr init_towns()
 {
-	int i = 0, j = 0;
+	auto const &st_info = game->edit_data.st_info;
 
-	/*** Prepare the Towns ***/
+	town_info = new town_type[max_towns];
 
-	/* Allocate the towns */
-	town_info = make_array<town_type>(max_towns);
-
-	for (i = 1; i < max_towns; i++)
+	for (std::size_t i = 1; i < max_towns; i++)
 	{
-		if (i <= max_real_towns) town_info[i].flags |= (TOWN_REAL);
-
-		/* Allocate the stores */
-		town_info[i].store = make_array<store_type>(max_st_idx);
+		if (i <= max_real_towns)
+		{
+			town_info[i].flags |= TOWN_REAL;
+		}
 
 		/* Fill in each store */
-		for (j = 0; j < max_st_idx; j++)
+		for (std::size_t j = 0; j < st_info.size(); j++)
 		{
-			/* Access the store */
+			/* Create the store */
+			town_info[i].store.emplace_back(store_type());
 			store_type *st_ptr = &town_info[i].store[j];
 
 			/* Know who we are */
@@ -734,74 +585,59 @@ static errr init_towns(void)
 			st_ptr->stock_size = 0;
 		}
 	}
+
 	return 0;
 }
 
 void create_stores_stock(int t)
 {
-	int j;
+	auto const &st_info = game->edit_data.st_info;
+
 	town_type *t_ptr = &town_info[t];
 
 	if (t_ptr->stocked) return;
 
-	for (j = 0; j < max_st_idx; j++)
+	for (std::size_t j = 0; j < st_info.size(); j++)
 	{
 		store_type *st_ptr = &t_ptr->store[j];
 
 		/* Assume full stock */
 		st_ptr->stock_size = st_info[j].max_obj;
 
-		/* Allocate the stock */
-		st_ptr->stock = make_array<object_type>(st_ptr->stock_size);
+		/* Reserve space for stock */
+		st_ptr->stock.reserve(st_ptr->stock_size);
 	}
+
 	t_ptr->stocked = TRUE;
-}
-
-/*
- * Initialise wilderness map array
- */
-static errr init_wilderness(void)
-{
-	int i;
-
-	/* Allocate the wilderness (two-dimension array) */
-	wild_map = make_array<wilderness_map *>(max_wild_y);
-
-	/* Init the other pointers */
-	for (i = 0; i < max_wild_y; i++)
-	{
-		wild_map[i] = make_array<wilderness_map>(max_wild_x);
-	}
-
-	/* No encounter right now */
-	generate_encounter = FALSE;
-
-	return 0;
 }
 
 /*
  * Initialise some other arrays
  */
-static errr init_other(void)
+static errr init_other()
 {
-	int i, n;
+	auto const &d_info = game->edit_data.d_info;
+	auto const &r_info = game->edit_data.r_info;
+	auto const &k_info = game->edit_data.k_info;
+	auto const &a_info = game->edit_data.a_info;
+	auto &level_markers = game->level_markers;
 
 	/*** Prepare the "dungeon" information ***/
 
 	/* Allocate and Wipe the special gene flags */
-	m_allow_special = make_array<bool_>(max_r_idx);
-	k_allow_special = make_array<bool_>(max_k_idx);
-	a_allow_special = make_array<bool_>(max_a_idx);
+	m_allow_special = make_array<bool_>(r_info.size());
+	k_allow_special = make_array<bool_>(k_info.size());
+	a_allow_special = make_array<bool_>(a_info.size());
 
 
 	/*** Prepare "vinfo" array ***/
 
 	/* Used by "update_view()" */
-	(void)vinfo_init();
+	vinfo_init();
 
 
 	/* Allocate and Wipe the object list */
-	o_list = make_array<object_type>(max_o_idx);
+	o_list = new object_type[max_o_idx];
 
 	/* Allocate and Wipe the monster list */
 	m_list = new monster_type[max_m_idx];
@@ -810,76 +646,24 @@ static errr init_other(void)
 	km_list = new monster_type[max_m_idx];
 
 	/* Allocate and Wipe the max dungeon level */
-	max_dlv = make_array<s16b>(max_d_idx);
+	max_dlv = make_array<s16b>(d_info.size());
 
-	/* Allocate and Wipe the special levels */
-	for (i = 0; i < MAX_DUNGEON_DEPTH; i++)
-	{
-		special_lvl[i] = make_array<bool_>(max_d_idx);
-	}
+	/* Allocate level markers */
+	level_markers.resize(boost::extents[MAX_DUNGEON_DEPTH][d_info.size()]);
 
 	/* Allocate and wipe each line of the cave */
 	cave = new cave_type *[MAX_HGT];
-	for (i = 0; i < MAX_HGT; i++)
+	for (std::size_t i = 0; i < MAX_HGT; i++)
 	{
 		/* Allocate one row of the cave */
 		cave[i] = new cave_type[MAX_WID];
 	}
 
-	/*** Pre-allocate the basic "auto-inscriptions" ***/
-
-	/* The "basic" feelings */
-	(void)quark_add("cursed");
-	(void)quark_add("broken");
-	(void)quark_add("average");
-	(void)quark_add("good");
-
-	/* The "extra" feelings */
-	(void)quark_add("excellent");
-	(void)quark_add("worthless");
-	(void)quark_add("special");
-	(void)quark_add("terrible");
-
-	/* Some extra strings */
-	(void)quark_add("uncursed");
-	(void)quark_add("on sale");
-
-
-	/*** Prepare the options ***/
-
-	/* Scan the options */
-	for (i = 0; option_info[i].o_desc; i++)
-	{
-		int os = option_info[i].o_page;
-		int ob = option_info[i].o_bit;
-
-		/* Set the "default" options */
-		if (option_info[i].o_var)
-		{
-			/* Accept */
-			option_mask[os] |= (1L << ob);
-
-			/* Set */
-			if (option_info[i].o_norm)
-			{
-				/* Set */
-				option_flag[os] |= (1L << ob);
-			}
-
-			/* Clear */
-			else
-			{
-				/* Clear */
-				option_flag[os] &= ~(1L << ob);
-			}
-		}
-	}
-
 	/* Analyze the windows */
-	for (n = 0; n < 8; n++)
+	for (std::size_t n = 0; n < 8; n++)
 	{
 		/* Analyze the options */
-		for (i = 0; i < 32; i++)
+		for (std::size_t i = 0; i < 32; i++)
 		{
 			/* Accept */
 			if (window_flag_desc[i])
@@ -901,7 +685,7 @@ static errr init_other(void)
 	/*** Pre-allocate space for the "format()" buffer ***/
 
 	/* Hack -- Just call the "format()" function */
-	(void)format("%s (%s).", "Dark God <darkgod@t-o-m-e.net>", MAINTAINER);
+	format("%s (%s).", "Dark God <darkgod@t-o-m-e.net>", MAINTAINER);
 
 	/* Success */
 	return (0);
@@ -912,15 +696,11 @@ static errr init_other(void)
 /*
  * Initialise some other arrays
  */
-static errr init_alloc(void)
+static errr init_alloc()
 {
-	int i, j;
-
-	object_kind *k_ptr;
-
-	monster_race *r_ptr;
-
-	alloc_entry *table;
+	auto const &r_info = game->edit_data.r_info;
+	auto const &k_info = game->edit_data.k_info;
+	auto &alloc = game->alloc;
 
 	s16b num[MAX_DEPTH_MONSTER];
 
@@ -934,22 +714,20 @@ static errr init_alloc(void)
 	/* Clear the "num" array */
 	memset(num, 0, MAX_DEPTH_MONSTER * sizeof(s16b));
 
-	/* Size of "alloc_kind_table" */
-	alloc_kind_size = 0;
-
 	/* Scan the objects */
-	for (i = 1; i < max_k_idx; i++)
+	std::size_t kind_size = 0;
+	for (auto const &k_ref: k_info)
 	{
-		k_ptr = &k_info[i];
+		auto k_ptr = &k_ref;
 
 		/* Scan allocation pairs */
-		for (j = 0; j < ALLOCATION_MAX; j++)
+		for (std::size_t j = 0; j < ALLOCATION_MAX; j++)
 		{
 			/* Count the "legal" entries */
 			if (k_ptr->chance[j])
 			{
 				/* Count the entries */
-				alloc_kind_size++;
+				kind_size++;
 
 				/* Group by level */
 				num[k_ptr->locale[j]]++;
@@ -958,7 +736,7 @@ static errr init_alloc(void)
 	}
 
 	/* Collect the level indexes */
-	for (i = 1; i < MAX_DEPTH_MONSTER; i++)
+	for (std::size_t i = 1; i < MAX_DEPTH_MONSTER; i++)
 	{
 		/* Group by level */
 		num[i] += num[i - 1];
@@ -971,18 +749,16 @@ static errr init_alloc(void)
 	/*** Initialise object allocation info ***/
 
 	/* Allocate the alloc_kind_table */
-	alloc_kind_table = make_array<alloc_entry>(alloc_kind_size);
-
-	/* Access the table entry */
-	table = alloc_kind_table;
+	alloc.kind_table.clear();
+	alloc.kind_table.resize(kind_size);
 
 	/* Scan the objects */
-	for (i = 1; i < max_k_idx; i++)
+	for (std::size_t i = 1; i < k_info.size(); i++)
 	{
-		k_ptr = &k_info[i];
+		auto k_ptr = &k_info[i];
 
 		/* Scan allocation pairs */
-		for (j = 0; j < ALLOCATION_MAX; j++)
+		for (std::size_t j = 0; j < ALLOCATION_MAX; j++)
 		{
 			/* Count the "legal" entries */
 			if (k_ptr->chance[j])
@@ -1002,11 +778,12 @@ static errr init_alloc(void)
 				z = y + aux[x];
 
 				/* Load the entry */
-				table[z].index = i;
-				table[z].level = x;
-				table[z].prob1 = p;
-				table[z].prob2 = p;
-				table[z].prob3 = p;
+				auto &entry = alloc.kind_table[z];
+				entry.index = i;
+				entry.level = x;
+				entry.prob1 = p;
+				entry.prob2 = p;
+				entry.prob3 = p;
 
 				/* Another entry complete for this locale */
 				aux[x]++;
@@ -1023,20 +800,18 @@ static errr init_alloc(void)
 	/* Clear the "num" array */
 	memset(num, 0, MAX_DEPTH_MONSTER * sizeof(s16b));
 
-	/* Size of "alloc_race_table" */
-	alloc_race_size = 0;
-
 	/* Scan the monsters */
-	for (i = 1; i < max_r_idx; i++)
+	std::size_t race_size = 0;
+	for (auto &r_ref: r_info)
 	{
 		/* Get the i'th race */
-		r_ptr = &r_info[i];
+		auto r_ptr = &r_ref;
 
 		/* Legal monsters */
 		if (r_ptr->rarity)
 		{
 			/* Count the entries */
-			alloc_race_size++;
+			race_size++;
 
 			/* Group by level */
 			num[r_ptr->level]++;
@@ -1044,7 +819,7 @@ static errr init_alloc(void)
 	}
 
 	/* Collect the level indexes */
-	for (i = 1; i < MAX_DEPTH_MONSTER; i++)
+	for (std::size_t i = 1; i < MAX_DEPTH_MONSTER; i++)
 	{
 		/* Group by level */
 		num[i] += num[i - 1];
@@ -1057,16 +832,14 @@ static errr init_alloc(void)
 	/*** Initialise monster allocation info ***/
 
 	/* Allocate the alloc_race_table */
-	alloc_race_table = make_array<alloc_entry>(alloc_race_size);
-
-	/* Access the table entry */
-	table = alloc_race_table;
+	alloc.race_table.clear();
+	alloc.race_table.resize(race_size);
 
 	/* Scan the monsters */
-	for (i = 1; i < max_r_idx; i++)
+	for (std::size_t i = 1; i < r_info.size(); i++)
 	{
 		/* Get the i'th race */
-		r_ptr = &r_info[i];
+		auto r_ptr = &r_info[i];
 
 		/* Count valid pairs */
 		if (r_ptr->rarity)
@@ -1086,11 +859,12 @@ static errr init_alloc(void)
 			z = y + aux[x];
 
 			/* Load the entry */
-			table[z].index = i;
-			table[z].level = x;
-			table[z].prob1 = p;
-			table[z].prob2 = p;
-			table[z].prob3 = p;
+			auto &entry = alloc.race_table[z];
+			entry.index = i;
+			entry.level = x;
+			entry.prob1 = p;
+			entry.prob2 = p;
+			entry.prob3 = p;
 
 			/* Another entry complete for this locale */
 			aux[x]++;
@@ -1105,15 +879,21 @@ static errr init_alloc(void)
 /* Init the sets in a_info */
 static void init_sets_aux()
 {
-	int i, j;
+	auto const &set_info = game->edit_data.set_info;
+	auto &a_info = game->edit_data.a_info;
 
-	for (i = 0; i < max_a_idx; i++)
-		a_info[i].set = -1;
-	for (i = 0; i < max_set_idx; i++)
+	for (auto &a_ref: a_info)
 	{
-		for (j = 0; j < set_info[i].num; j++)
+		a_ref.set = -1;
+	}
+
+	for (std::size_t i = 0; i < set_info.size(); i++)
+	{
+		auto const &set_ref = set_info[i];
+
+		for (std::size_t j = 0; j < set_ref.num; j++)
 		{
-			a_info[set_info[i].arts[j].a_idx].set = i;
+			a_info[set_ref.arts[j].a_idx].set = i;
 		}
 	}
 }
@@ -1121,42 +901,43 @@ static void init_sets_aux()
 /*
  * Mark guardians and their artifacts with SPECIAL_GENE flag
  */
-static void init_guardians(void)
+static void init_guardians()
 {
-	int i;
+	auto const &d_info = game->edit_data.d_info;
+	auto &r_info = game->edit_data.r_info;
+	auto &k_info = game->edit_data.k_info;
+	auto &a_info = game->edit_data.a_info;
 
 	/* Scan dungeons */
-	for (i = 0; i < max_d_idx; i++)
+	for (std::size_t i = 0; i < d_info.size(); i++)
 	{
-		dungeon_info_type *d_ptr = &d_info[i];
+		auto d_ptr = &d_info[i];
 
 		/* Mark the guadian monster */
 		if (d_ptr->final_guardian)
 		{
-			monster_race *r_ptr = &r_info[d_ptr->final_guardian];
+			auto r_ptr = &r_info[d_ptr->final_guardian];
 
-			r_ptr->flags9 |= RF9_SPECIAL_GENE;
+			r_ptr->flags |= RF_SPECIAL_GENE;
 
 			/* Mark the final artifact */
 			if (d_ptr->final_artifact)
 			{
-				artifact_type *a_ptr = &a_info[d_ptr->final_artifact];
-
-				a_ptr->flags4 |= TR4_SPECIAL_GENE;
+				auto a_ptr = &a_info[d_ptr->final_artifact];
+				a_ptr->flags |= TR_SPECIAL_GENE;
 			}
 
 			/* Mark the final object */
 			if (d_ptr->final_object)
 			{
-				object_kind *k_ptr = &k_info[d_ptr->final_object];
-
-				k_ptr->flags4 |= TR4_SPECIAL_GENE;
+				auto k_ptr = &k_info[d_ptr->final_object];
+				k_ptr->flags |= TR_SPECIAL_GENE;
 			}
 
 			/* Give randart if there are no final artifacts */
 			if (!(d_ptr->final_artifact) && !(d_ptr->final_object))
 			{
-				r_ptr->flags7 |= RF7_DROP_RANDART;
+				r_ptr->flags |= RF_DROP_RANDART;
 			}
 		}
 	}
@@ -1236,7 +1017,7 @@ static void init_angband_aux(cptr why)
  * Note that the "graf-xxx.prf" file must be loaded separately,
  * if needed, in the first (?) pass through "TERM_XTRA_REACT".
  */
-void init_angband(void)
+void init_angband()
 {
 	int fd = -1;
 
@@ -1293,7 +1074,7 @@ void init_angband(void)
 	}
 
 	/* Close it */
-	(void)fd_close(fd);
+	fd_close(fd);
 
 
 	/*** Display the "news" file ***/
@@ -1355,8 +1136,7 @@ void init_angband(void)
 	}
 
 	/* Close it */
-	(void)fd_close(fd);
-
+	fd_close(fd);
 
 	/*** Initialise some arrays ***/
 
@@ -1365,8 +1145,20 @@ void init_angband(void)
 	if (init_misc()) quit("Cannot initialise misc. values");
 
 	/* Initialise some other arrays */
-	note("[Initialising scripting... (script)]");
-	init_lua_init();
+	{
+		note("[Initialising scripting... (script)]");
+
+		/* Initialize schooled spells */
+		schools_init();
+		school_spells_init();
+		init_school_books();
+
+		/* Post-spell creation initialization */
+		initialize_bookable_spells();
+
+		/* Finish up the corruptions */
+		init_corruptions();
+	}
 
 	/* Initialise skills info */
 	note("[Initialising arrays... (skills)]");
@@ -1434,17 +1226,9 @@ void init_angband(void)
 	note("[Initialising arrays... (wilderness features)]");
 	if (init_x_info<wf_info_traits>()) quit("Cannot initialise wilderness features");
 
-	/* Initialise wilderness map array */
-	note("[Initialising arrays... (wilderness map)]");
-	if (init_wilderness()) quit("Cannot initialise wilderness map");
-
 	/* Initialise town array */
 	note("[Initialising arrays... (towns)]");
 	if (init_towns()) quit("Cannot initialise towns");
-
-	/* Initialise trap info */
-	note("[Initialising arrays... (traps)]");
-	if (init_x_info<tr_info_traits>()) quit("Cannot initialise traps");
 
 	/* Initialise some other arrays */
 	note("[Initialising arrays... (other)]");

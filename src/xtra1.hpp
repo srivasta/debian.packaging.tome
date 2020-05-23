@@ -1,24 +1,27 @@
 #pragma once
 
 #include "h-basic.h"
+#include "object_flag_set.hpp"
+#include "player_race_flag_set.hpp"
 
-extern void fix_message(void);
-extern void apply_flags(u32b f1, u32b f2, u32b f3, u32b f4, u32b f5, u32b esp, s16b pval, s16b tval, s16b to_h, s16b to_d, s16b to_a);
-extern int luck(int min, int max);
-extern int weight_limit(void);
+#include <string>
+
+void fix_message();
+void apply_flags(object_flag_set const &f, s16b pval, s16b tval, s16b to_h, s16b to_d, s16b to_a);
+int luck(int min, int max);
+int weight_limit();
 extern bool_ calc_powers_silent;
-extern void cnv_stat(int i, char *out_val);
-extern s16b modify_stat_value(int value, int amount);
-extern void calc_hitpoints(void);
-extern void notice_stuff(void);
-extern void update_stuff(void);
-extern void redraw_stuff(void);
-extern void window_stuff(void);
-extern void handle_stuff(void);
-extern bool_ monk_heavy_armor(void);
-extern void calc_bonuses(bool_ silent);
-extern void gain_fate(byte fate);
-extern void fate_desc(char *desc, int fate);
-extern void dump_fates(FILE *OutFile);
-extern bool race_flags1_p(u32b flags1_mask);
-extern bool race_flags2_p(u32b flags2_mask);
+void cnv_stat(int i, char *out_val);
+s16b modify_stat_value(int value, int amount);
+void calc_hitpoints();
+void notice_stuff();
+void update_stuff();
+void redraw_stuff();
+void window_stuff();
+void handle_stuff();
+bool_ monk_heavy_armor();
+void calc_bonuses(bool_ silent);
+void gain_fate(byte fate);
+std::string fate_desc(int fate);
+std::string dump_fates();
+bool race_flags_p(player_race_flag_set const &flags_mask);

@@ -10,7 +10,9 @@
 
 #include "cave.hpp"
 #include "cave_type.hpp"
+#include "feature_flag.hpp"
 #include "feature_type.hpp"
+#include "game.hpp"
 #include "generate.hpp"
 #include "levels.hpp"
 #include "player_type.hpp"
@@ -22,6 +24,8 @@
  */
 void evolve_level(bool_ noise)
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	int i, j;
 
 	int cw = 0, cf = 0;
@@ -34,8 +38,8 @@ void evolve_level(bool_ noise)
 		{
 			for (j = 1; j < cur_hgt - 1; j++)
 			{
-				if (f_info[cave[j][i].feat].flags1 & FF1_WALL) cw++;
-				if (f_info[cave[j][i].feat].flags1 & FF1_FLOOR) cf++;
+				if (f_info[cave[j][i].feat].flags & FF_WALL) cw++;
+				if (f_info[cave[j][i].feat].flags & FF_FLOOR) cf++;
 			}
 		}
 
@@ -49,7 +53,7 @@ void evolve_level(bool_ noise)
 				c_ptr = &cave[j][i];
 
 				/* Permanent features should stay */
-				if (f_info[c_ptr->feat].flags1 & FF1_PERMANENT) continue;
+				if (f_info[c_ptr->feat].flags & FF_PERMANENT) continue;
 
 				/* Avoid evolving grids with object or monster */
 				if ((!c_ptr->o_idxs.empty()) || c_ptr->m_idx) continue;
@@ -83,7 +87,7 @@ void evolve_level(bool_ noise)
 			c_ptr = &cave[j][i];
 
 			/* Permanent features should stay */
-			if (f_info[c_ptr->feat].flags1 & FF1_PERMANENT) continue;
+			if (f_info[c_ptr->feat].flags & FF_PERMANENT) continue;
 
 			/* Avoid evolving grids with object or monster */
 			if ((!c_ptr->o_idxs.empty()) || c_ptr->m_idx) continue;
@@ -101,7 +105,7 @@ void evolve_level(bool_ noise)
 				for (y = j - 1; y <= j + 1; y++)
 				{
 					if ((x == i) && (y == j)) continue;
-					if (f_info[cave[y][x].feat].flags1 & FF1_WALL) c++;
+					if (f_info[cave[y][x].feat].flags & FF_WALL) c++;
 				}
 			}
 
@@ -112,7 +116,7 @@ void evolve_level(bool_ noise)
 			/* Starved or suffocated */
 			if ((c < 4) || (c >= 7))
 			{
-				if (f_info[c_ptr->feat].flags1 & FF1_WALL)
+				if (f_info[c_ptr->feat].flags & FF_WALL)
 				{
 					place_floor(j, i);
 				}
@@ -121,7 +125,7 @@ void evolve_level(bool_ noise)
 			/* Spawned */
 			else if ((c == 4) || (c == 5))
 			{
-				if (!(f_info[c_ptr->feat].flags1 & FF1_WALL))
+				if (!(f_info[c_ptr->feat].flags & FF_WALL))
 				{
 					place_filler(j, i);
 				}

@@ -2,10 +2,12 @@
 
 #include "h-basic.h"
 
-extern void init_hooks_help();
-extern void help_race(cptr race);
-extern void help_subrace(cptr subrace);
-extern void help_class(cptr klass);
-extern void help_god(cptr god);
-extern void help_skill(cptr skill);
-extern void help_ability(cptr ability);
+#include <string>
+
+void init_hooks_help();
+void help_race(std::string const &race);
+void help_subrace(std::string const &subrace);
+void help_class(std::string const &klass);
+void help_god(cptr god);
+void help_skill(std::string const &skill);
+void help_ability(std::string const &ability);

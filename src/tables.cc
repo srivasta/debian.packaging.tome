@@ -10,6 +10,9 @@
 #include "tables.h"
 
 #include "modules.hpp"
+#include "monster_race_flag.hpp"
+#include "monster_spell_flag.hpp"
+#include "object_flag.hpp"
 #include "options.hpp"
 #include "q_library.hpp"
 #include "q_fireprof.hpp"
@@ -307,98 +310,6 @@ byte adj_wis_sav[] =
 	17      /* 18/200-18/209 */,
 	18      /* 18/210-18/219 */,
 	19      /* 18/220+ */
-};
-
-
-/*
- * Stat Table (DEX) -- disarming
- */
-byte adj_dex_dis[] =
-{
-	0       /* 3 */,
-	0       /* 4 */,
-	0       /* 5 */,
-	0       /* 6 */,
-	0       /* 7 */,
-	0       /* 8 */,
-	0       /* 9 */,
-	0       /* 10 */,
-	0       /* 11 */,
-	0       /* 12 */,
-	1       /* 13 */,
-	1       /* 14 */,
-	1       /* 15 */,
-	2       /* 16 */,
-	2       /* 17 */,
-	4       /* 18/00-18/09 */,
-	4       /* 18/10-18/19 */,
-	4       /* 18/20-18/29 */,
-	4       /* 18/30-18/39 */,
-	5       /* 18/40-18/49 */,
-	5       /* 18/50-18/59 */,
-	5       /* 18/60-18/69 */,
-	6       /* 18/70-18/79 */,
-	6       /* 18/80-18/89 */,
-	7       /* 18/90-18/99 */,
-	8       /* 18/100-18/109 */,
-	8       /* 18/110-18/119 */,
-	8       /* 18/120-18/129 */,
-	8       /* 18/130-18/139 */,
-	8       /* 18/140-18/149 */,
-	9       /* 18/150-18/159 */,
-	9       /* 18/160-18/169 */,
-	9       /* 18/170-18/179 */,
-	9       /* 18/180-18/189 */,
-	9       /* 18/190-18/199 */,
-	10      /* 18/200-18/209 */,
-	10      /* 18/210-18/219 */,
-	10      /* 18/220+ */
-};
-
-
-/*
- * Stat Table (INT) -- disarming
- */
-byte adj_int_dis[] =
-{
-	0       /* 3 */,
-	0       /* 4 */,
-	0       /* 5 */,
-	0       /* 6 */,
-	0       /* 7 */,
-	1       /* 8 */,
-	1       /* 9 */,
-	1       /* 10 */,
-	1       /* 11 */,
-	1       /* 12 */,
-	1       /* 13 */,
-	1       /* 14 */,
-	2       /* 15 */,
-	2       /* 16 */,
-	2       /* 17 */,
-	3       /* 18/00-18/09 */,
-	3       /* 18/10-18/19 */,
-	3       /* 18/20-18/29 */,
-	4       /* 18/30-18/39 */,
-	4       /* 18/40-18/49 */,
-	5       /* 18/50-18/59 */,
-	6       /* 18/60-18/69 */,
-	7       /* 18/70-18/79 */,
-	8       /* 18/80-18/89 */,
-	9       /* 18/90-18/99 */,
-	10      /* 18/100-18/109 */,
-	10      /* 18/110-18/119 */,
-	11      /* 18/120-18/129 */,
-	12      /* 18/130-18/139 */,
-	13      /* 18/140-18/149 */,
-	14      /* 18/150-18/159 */,
-	15      /* 18/160-18/169 */,
-	16      /* 18/170-18/179 */,
-	17      /* 18/180-18/189 */,
-	18      /* 18/190-18/199 */,
-	19      /* 18/200-18/209 */,
-	19      /* 18/210-18/219 */,
-	20      /* 18/220+ */
 };
 
 
@@ -1144,29 +1055,6 @@ s32b player_exp[PY_MAX_LEVEL] =
 
 
 /*
- * Player Sexes
- *
- *      Title,
- *      Winner
- */
-player_sex sex_info[MAX_SEXES] =
-{
-	{
-		"Female",
-		"Queen"
-	},
-
-{
-"Male",
-"King"
-},
-{
-"Neuter",
-"Ruler"
-}
-};
-
-/*
  * Hack -- the "basic" color names (see "TERM_xxx")
  */
 cptr color_names[16] =
@@ -1256,230 +1144,6 @@ cptr window_flag_desc[32] =
 	NULL,
 	NULL
 };
-
-
-/*
- * Available Options
- *
- * Option Screen Sets:
- *
- *      Set 1: User Interface
- *      Set 2: Disturbance
- *      Set 3: Inventory
- *      Set 4: Game Play
- *      Set 5: ToME
- *      Set 6: Birth
- *
- * Note that bits 28-31 of set 0 are currently unused.
- */
-option_type option_info[] =
-{
-	/*** User-Interface ***/
-
-	{ &rogue_like_commands, FALSE, 1, 0,
-	  "rogue_like_commands", "Rogue-like commands" },
-
-	{ &quick_messages, TRUE, 1, 1,
-	  "quick_messages", "Activate quick messages" },
-
-	{ &carry_query_flag, FALSE, 1, 3,
-	  "carry_query_flag", "Prompt before picking things up" },
-
-	{ &use_old_target, FALSE, 1, 4,
-	  "use_old_target", "Use old target by default" },
-
-	{ &always_pickup, FALSE, 1, 5,
-	  "always_pickup", "Pick things up by default" },
-
-	{ &always_repeat, TRUE, 1, 7,
-	  "always_repeat", "Repeat obvious commands" },
-
-	{ &ring_bell, FALSE, 1, 18,
-	  "ring_bell", "Audible bell (on errors, etc)" },
-	/* Changed to default to FALSE -- it's so extremely annoying!!! -TY */
-
-	/*** Disturbance ***/
-
-	{ &find_ignore_stairs, FALSE, 2, 0,
-	  "find_ignore_stairs", "Run past stairs" },
-
-	{ &find_ignore_doors, TRUE, 2, 1,
-	  "find_ignore_doors", "Run through open doors" },
-
-	{ &find_cut, FALSE, 2, 2,
-	  "find_cut", "Run past known corners" },
-
-	{ &find_examine, TRUE, 2, 3,
-	  "find_examine", "Run into potential corners" },
-
-	{ &disturb_move, FALSE, 2, 4,
-	  "disturb_move", "Disturb whenever any monster moves" },
-
-	{ &disturb_near, TRUE, 2, 5,
-	  "disturb_near", "Disturb whenever viewable monster moves" },
-
-	{ &disturb_panel, TRUE, 2, 6,
-	  "disturb_panel", "Disturb whenever map panel changes" },
-
-	{ &disturb_detect, TRUE, 2, 21,
-	  "disturb_detect", "Disturb whenever leaving trap-detected area" },
-
-	{ &disturb_state, TRUE, 2, 7,
-	  "disturb_state", "Disturb whenever player state changes" },
-
-	{ &disturb_minor, TRUE, 2, 8,
-	  "disturb_minor", "Disturb whenever boring things happen" },
-
-	{ &disturb_other, FALSE, 2, 9,
-	  "disturb_other", "Disturb whenever random things happen" },
-
-	{ &alert_hitpoint, FALSE, 2, 10,
-	  "alert_hitpoint", "Alert user to critical hitpoints" },
-
-	{ &alert_failure, FALSE, 2, 11,
-	  "alert_failure", "Alert user to various failures" },
-
-	{ &last_words, TRUE, 2, 12,
-	  "last_words", "Get last words when the character dies" },
-
-	{ &wear_confirm, TRUE, 2, 15,
-	  "confirm_wear", "Confirm to wear/wield known cursed items" },
-
-	{ &confirm_stairs, FALSE, 2, 16,
-	  "confirm_stairs", "Prompt before exiting a dungeon level" },
-
-	{ &disturb_pets, FALSE, 2, 17,
-	  "disturb_pets", "Disturb when visible pets move" },
-
-	/*** Game-Play ***/
-
-	{ &auto_scum, TRUE, 3, 1,
-	  "auto_scum", "Auto-scum for good levels" },
-
-	{ &view_perma_grids, TRUE, 3, 6,
-	  "view_perma_grids", "Map remembers all perma-lit grids" },
-
-	{ &view_torch_grids, FALSE, 3, 7,
-	  "view_torch_grids", "Map remembers all torch-lit grids" },
-
-	{ &dungeon_align, TRUE, 3, 8,
-	  "dungeon_align", "Generate dungeons with aligned rooms" },
-
-	{ &dungeon_stair, TRUE, 3, 9,
-	  "dungeon_stair", "Generate dungeons with connected stairs" },
-
-	{ &flow_by_sound, FALSE, 3, 10,
-	  "flow_by_sound", "Monsters chase current location (v.slow)" },
-
-	{ &smart_learn, FALSE, 3, 14,
-	  "smart_learn", "Monsters learn from their mistakes" },
-
-	{ &small_levels, TRUE, 3, 17,
-	  "small_levels", "Allow unusually small dungeon levels" },
-
-	{ &empty_levels, TRUE, 3, 18,
-	  "empty_levels", "Allow empty 'arena' levels" },
-
-	/*** Efficiency ***/
-
-	{ &view_reduce_lite, FALSE, 4, 0,
-	  "view_reduce_lite", "Reduce lite-radius when running" },
-
-	{ &avoid_abort, FALSE, 4, 2,
-	  "avoid_abort", "Avoid checking for user abort" },
-
-	{ &avoid_shimmer, FALSE, 4, 17,
-	  "avoid_shimmer", "Avoid extra shimmering (fast)" },
-
-	{ &avoid_other, FALSE, 4, 3,
-	  "avoid_other", "Avoid processing special colors (fast)" },
-
-	{ &flush_failure, TRUE, 4, 4,
-	  "flush_failure", "Flush input on various failures" },
-
-	{ &flush_disturb, FALSE, 4, 5,
-	  "flush_disturb", "Flush input whenever disturbed" },
-
-	{ &flush_command, FALSE, 4, 6,
-	  "flush_command", "Flush input before every command" },
-
-	{ &fresh_before, TRUE, 4, 7,
-	  "fresh_before", "Flush output before every command" },
-
-	{ &fresh_after, FALSE, 4, 8,
-	  "fresh_after", "Flush output after every command" },
-
-	{ &fresh_message, FALSE, 4, 9,
-	  "fresh_message", "Flush output after every message" },
-
-	{ &hilite_player, FALSE, 4, 11,
-	  "hilite_player", "Hilite the player with the cursor" },
-
-	{ &view_yellow_lite, FALSE, 4, 12,
-	  "view_yellow_lite", "Use special colors for torch-lit grids" },
-
-	{ &view_bright_lite, FALSE, 4, 13,
-	  "view_bright_lite", "Use special colors for 'viewable' grids" },
-
-	{ &view_granite_lite, FALSE, 4, 14,
-	  "view_granite_lite", "Use special colors for wall grids (slow)" },
-
-	{ &view_special_lite, FALSE, 4, 15,
-	  "view_special_lite", "Use special colors for floor grids (slow)" },
-
-	{ &center_player, FALSE, 4, 16,
-	  "center_player", "Center the view on the player (very slow)" },
-
-	/*** ToME options ***/
-
-	{ &option_ingame_help, TRUE, 5, 1,
-	  "ingame_help", "Ingame contextual help" },
-
-	{ &auto_more, FALSE, 5, 4,
-	  "auto_more", "Automatically clear '-more-' prompts" },
-
-	{ &player_char_health, TRUE, 5, 6,
-	  "player_char_health", "Player char represent his/her health" },
-
-	{ &linear_stats, TRUE, 5, 7,
-	  "linear_stats", "Stats are represented in a linear way" },
-
-	{ &inventory_no_move, FALSE, 5, 8,
-	  "inventory_no_move", "In option windows, just omit the select char" },
-
-
-	/*** Birth Options ***/
-
-	{ &preserve, TRUE, 6, 2,
-	  "preserve", "Preserve artifacts" },
-
-	{ &autoroll, TRUE, 6, 3,
-	  "autoroll", "Specify 'minimal' stats" },
-
-	{ &point_based, FALSE, 6, 17,
-	  "point_based", "Generate character using a point system" },
-
-	{ &ironman_rooms, FALSE, 6, 6,
-	  "ironman_rooms", "Always generate very unusual rooms" },
-
-	{ &joke_monsters, FALSE, 6, 14,
-	  "joke_monsters", "Allow use of some 'joke' monsters" },
-
-	{ &always_small_level, FALSE, 6, 16,
-	  "always_small_level", "Always make small levels" },
-
-	{ &fate_option, TRUE, 6, 18,
-	  "fate_option", "You can receive fates, good or bad" },
-	  
-	{ &no_selling, FALSE, 6, 20,
-	  "no_selling", "Items always sell for 0 gold" },
-
-	/*** End of Table ***/
-
-	{ NULL, 0, 0, 0,
-	  NULL, NULL }
-};
-
 
 
 /* Names used for random artifact name generation */
@@ -2505,16 +2169,16 @@ deity_type deity_info[MAX_GODS] =
 /* as far as I know. */
 tactic_info_type tactic_info[9] =
 {
-	/*        hit  dam   ac stl  dis  sav */
-	{ -10, -10, + 15, + 3, + 15, + 14, "coward"},             /* 4-4 */
-	{ -8, -8, + 10, + 2, + 9, + 9, "meek"},               /* 4-3 */
-	{ -4, -4, + 5, + 1, + 5, + 5, "wary"},               /* 4-2 */
-	{ -2, -2, + 2, + 1, + 2, + 2, "careful"},            /* 4-1 */
-	{ 0, 0, 0, 0, 0, 0, "normal"},             /* 4+0 */
-	{ 2, 2, -2, -1, -2, -3, "confident"},          /* 4+1 */
-	{ 4, 4, -5, -2, -5, -7, "aggressive"},         /* 4+2 */
-	{ 6, 6, -10, -3, -11, -12, "furious"},            /* 4+3 */
-	{ 8, 12, -25, -5, -18, -18, "berserker"}         /* 4+4 */
+	/* hit  dam   ac  stl  sav */
+	{  -10, -10, +15,  +3, +14, "coward" },
+	{   -8,  -8, +10,  +2,  +9, "meek" },
+	{   -4,  -4,  +5,  +1,  +5, "wary" },
+	{   -2,  -2,  +2,  +1,  +2, "careful" },
+	{    0,   0,   0,   0,   0, "normal" },
+	{    2,   2,  -2,  -1,  -3, "confident" },
+	{    4,   4,  -5,  -2,  -7, "aggressive" },
+	{    6,   6, -10,  -3, -12, "furious" },
+	{    8,  12, -25,  -5, -18, "berserker" }
 };
 
 /*
@@ -2597,52 +2261,44 @@ move_info_type move_info[9] =
  */
 inscription_info_type inscription_info[MAX_INSCRIPTIONS] =
 {
-	{       /* Nothing */
+        {       /* Padding; 0 index is used to signify "no inscription" */
 		"",
 		0,
-		TRUE,
 		0,
 	},
 	{       /* Light up the room(Adunaic) */
 		"ure nimir",   /* sun shine */
 		INSCRIP_EXEC_ENGRAVE | INSCRIP_EXEC_WALK | INSCRIP_EXEC_MONST_WALK,
-		FALSE,
 		30,
 	},
 	{       /* Darkness in room(Adunaic) */
 		"lomi gimli",   /* night stars */
 		INSCRIP_EXEC_ENGRAVE | INSCRIP_EXEC_WALK | INSCRIP_EXEC_MONST_WALK,
-		FALSE,
 		10,
 	},
 	{       /* Storm(Adunaic) */
 		"dulgi bawiba",   /* black winds */
 		INSCRIP_EXEC_ENGRAVE | INSCRIP_EXEC_WALK | INSCRIP_EXEC_MONST_WALK,
-		FALSE,
 		40,
 	},
 	{       /* Protection(Sindarin) */
 		"pedo mellon a minno",   /* say friend and enter */
 		INSCRIP_EXEC_MONST_WALK,
-		FALSE,
 		8,
 	},
 	{       /* Dwarves summoning(Khuzdul) */
 		"Baruk Khazad! Khazad aimenu!",   /* Axes of the Dwarves, the Dwarves are upon you! */
 		INSCRIP_EXEC_ENGRAVE,
-		FALSE,
 		100,
 	},
 	{       /* Open Chasm(Nandorin) */
 		"dunna hrassa",   /* black precipice */
 		INSCRIP_EXEC_MONST_WALK,
-		FALSE,
 		50,
 	},
 	{       /* Blast of Black Fire(Orcish) */
 		"burz ghash ronk",   /* black fire pool */
 		INSCRIP_EXEC_ENGRAVE | INSCRIP_EXEC_WALK | INSCRIP_EXEC_MONST_WALK,
-		FALSE,
 		60,
 	},
 };
@@ -2676,128 +2332,103 @@ cptr sense_desc[] =
  * Flags 4,
  * ESP,
  */
-flags_group flags_groups[MAX_FLAG_GROUP] =
+std::vector<flags_group> const &flags_groups()
 {
-	{
-		"Fire",
-		TERM_L_RED,
-		1,
-		TR1_SLAY_UNDEAD | TR1_BRAND_FIRE,
-		TR2_RES_FIRE,
-		TR3_SH_FIRE | TR3_LITE1 | TR3_IGNORE_FIRE,
-		0,
-		0,
-	},
-	{
-		"Cold",
-		TERM_WHITE,
-		1,
-		TR1_SLAY_DRAGON | TR1_SLAY_DEMON | TR1_BRAND_COLD,
-		TR2_RES_COLD | TR2_INVIS,
-		TR3_SLOW_DIGEST | TR3_IGNORE_COLD,
-		0,
-		0,
-	},
-	{
-		"Acid",
-		TERM_GREEN,
-		3,
-		TR1_SLAY_ANIMAL | TR1_IMPACT | TR1_TUNNEL | TR1_BRAND_ACID,
-		TR2_RES_ACID,
-		TR3_IGNORE_ACID,
-		0,
-		0,
-	},
-	{
-		"Lightning",
-		TERM_L_BLUE,
-		1,
-		TR1_SLAY_EVIL | TR1_BRAND_ELEC,
-		TR2_RES_ELEC,
-		TR3_IGNORE_ELEC | TR3_SH_ELEC | TR3_TELEPORT,
-		0,
-		0,
-	},
-	{
-		"Poison",
-		TERM_L_GREEN,
-		2,
-		TR1_CHR | TR1_VAMPIRIC | TR1_SLAY_ANIMAL | TR1_BRAND_POIS,
-		TR2_SUST_CHR | TR2_RES_POIS,
-		TR3_DRAIN_EXP,
-		0,
-		ESP_TROLL | ESP_GIANT,
-	},
-	{
-		"Air",
-		TERM_BLUE,
-		5,
-		TR1_WIS | TR1_STEALTH | TR1_INFRA | TR1_SPEED,
-		TR2_RES_LITE | TR2_RES_DARK | TR2_RES_BLIND | TR2_SUST_WIS,
-		TR3_FEATHER | TR3_SEE_INVIS | TR3_BLESSED,
-		0,
-		ESP_GOOD,
-	},
-	{
-		"Earth",
-		TERM_L_UMBER,
-		5,
-		TR1_STR | TR1_CON | TR1_TUNNEL | TR1_BLOWS | TR1_SLAY_TROLL | TR1_SLAY_GIANT | TR1_IMPACT,
-		TR2_SUST_STR | TR2_SUST_CON | TR2_FREE_ACT | TR2_RES_FEAR | TR2_RES_SHARDS,
-		TR3_REGEN,
-		0,
-		ESP_TROLL | ESP_GIANT,
-	},
-	{
-		"Mind",
-		TERM_YELLOW,
-		7,
-		TR1_INT | TR1_SEARCH,
-		TR2_SUST_INT | TR2_RES_CONF | TR2_RES_FEAR,
-		0,
-		0,
-		ESP_ORC | ESP_TROLL | ESP_GIANT | ESP_ANIMAL | ESP_UNIQUE | ESP_SPIDER | ESP_DEMON,
-	},
-	{
-		"Shield",
-		TERM_RED,
-		7,
-		TR1_DEX,
-		TR2_SUST_DEX | TR2_INVIS | TR2_REFLECT | TR2_HOLD_LIFE | TR2_RES_SOUND | TR2_RES_NEXUS,
-		TR3_REGEN,
-		0,
-		0,
-	},
-	{
-		"Chaos",
-		TERM_VIOLET,
-		7,
-		TR1_CHAOTIC | TR1_IMPACT,
-		TR2_RES_CHAOS | TR2_RES_DISEN,
-		TR3_REGEN,
-		0,
-		ESP_ALL,
-	},
-	{
-		"Magic",
-		TERM_L_BLUE,
-		10,
-		TR1_MANA | TR1_SPELL,
-		TR2_RES_CHAOS | TR2_RES_DISEN,
-		TR3_WRAITH,
-		TR4_PRECOGNITION | TR4_FLY | TR4_CLONE,
-		0,
-	},
-	{
-		"Antimagic",
-		TERM_L_DARK,
-		10,
-		TR1_VAMPIRIC | TR1_CHAOTIC | TR1_BLOWS | TR1_SPEED,
-		TR2_LIFE | TR2_REFLECT | TR2_FREE_ACT | TR2_HOLD_LIFE,
-		TR3_NO_MAGIC | TR3_NO_TELE | TR3_SEE_INVIS,
-		TR4_ANTIMAGIC_50,
-		0,
-	},
+	static auto *instance = new std::vector<flags_group> {
+		flags_group {
+			"Fire",
+			TERM_L_RED,
+			1,
+			TR_SLAY_UNDEAD | TR_BRAND_FIRE | TR_RES_FIRE |
+	                TR_SH_FIRE | TR_LITE1 | TR_IGNORE_FIRE,
+		},
+		flags_group {
+			"Cold",
+			TERM_WHITE,
+			1,
+			TR_SLAY_DRAGON | TR_SLAY_DEMON | TR_BRAND_COLD | TR_RES_COLD |
+	                TR_INVIS | TR_SLOW_DIGEST | TR_IGNORE_COLD,
+		},
+		flags_group {
+			"Acid",
+			TERM_GREEN,
+			3,
+			TR_SLAY_ANIMAL | TR_IMPACT | TR_TUNNEL |
+	                TR_BRAND_ACID | TR_RES_ACID | TR_IGNORE_ACID,
+		},
+		flags_group {
+			"Lightning",
+			TERM_L_BLUE,
+			1,
+			TR_SLAY_EVIL | TR_BRAND_ELEC | TR_RES_ELEC |
+	                TR_IGNORE_ELEC | TR_SH_ELEC | TR_TELEPORT,
+		},
+		flags_group {
+			"Poison",
+			TERM_L_GREEN,
+			2,
+			TR_CHR | TR_VAMPIRIC | TR_SLAY_ANIMAL | TR_BRAND_POIS |
+	                TR_SUST_CHR | TR_RES_POIS | TR_DRAIN_EXP |
+	                ESP_TROLL | ESP_GIANT,
+		},
+		flags_group {
+			"Air",
+			TERM_BLUE,
+			5,
+			TR_WIS | TR_STEALTH | TR_INFRA | TR_SPEED |
+			TR_RES_LITE | TR_RES_DARK | TR_RES_BLIND | TR_SUST_WIS |
+	                TR_FEATHER | TR_SEE_INVIS | TR_BLESSED |
+	                ESP_GOOD,
+		},
+		flags_group {
+			"Earth",
+			TERM_L_UMBER,
+			5,
+			TR_STR | TR_CON | TR_TUNNEL | TR_BLOWS | TR_SLAY_TROLL |
+			TR_SLAY_GIANT | TR_IMPACT | TR_SUST_STR | TR_SUST_CON |
+	                TR_FREE_ACT | TR_RES_FEAR | TR_RES_SHARDS | TR_REGEN |
+			ESP_TROLL | ESP_GIANT,
+		},
+		flags_group {
+			"Mind",
+			TERM_YELLOW,
+			7,
+			TR_INT | TR_SUST_INT | TR_RES_CONF | TR_RES_FEAR |
+			ESP_ORC | ESP_TROLL | ESP_GIANT | ESP_ANIMAL | ESP_UNIQUE | ESP_SPIDER | ESP_DEMON,
+		},
+		flags_group {
+			"Shield",
+			TERM_RED,
+			7,
+			TR_DEX | TR_SUST_DEX | TR_INVIS | TR_REFLECT |
+			TR_HOLD_LIFE | TR_RES_SOUND | TR_RES_NEXUS |
+	                TR_REGEN,
+		},
+		flags_group {
+			"Chaos",
+			TERM_VIOLET,
+			7,
+	                TR_CHAOTIC | TR_IMPACT | TR_RES_CHAOS | TR_RES_DISEN | TR_REGEN |
+			ESP_ALL,
+		},
+		flags_group {
+			"Magic",
+			TERM_L_BLUE,
+			10,
+			TR_MANA | TR_SPELL | TR_RES_CHAOS | TR_RES_DISEN | TR_WRAITH |
+			TR_PRECOGNITION | TR_FLY | TR_CLONE,
+		},
+		flags_group {
+			"Antimagic",
+			TERM_L_DARK,
+			10,
+			TR_VAMPIRIC | TR_CHAOTIC | TR_BLOWS | TR_SPEED | TR_LIFE |
+			TR_REFLECT | TR_FREE_ACT | TR_HOLD_LIFE | TR_NO_MAGIC |
+			TR_NO_TELE | TR_SEE_INVIS | TR_ANTIMAGIC_50,
+		}
+	};
+
+	return *instance;
 };
 
 /* Powers */
@@ -3954,107 +3585,148 @@ quest_type quest[MAX_Q_IDX] =
 
 
 /* List of powers for Symbiants/Powers */
-monster_power monster_powers[96] =
+monster_power monster_powers[] =
 	{
-		{ RF4_SHRIEK, "Aggravate Monster", 1, FALSE },
-		{ RF4_MULTIPLY, "Multiply", 10, FALSE },
-		{ RF4_S_ANIMAL, "Summon Animal", 30, FALSE },
-		{ RF4_ROCKET, "Fire a Rocket", 40, TRUE },
-		{ RF4_ARROW_1, "Light Arrow", 1, FALSE },
-		{ RF4_ARROW_2, "Minor Arrow", 3, FALSE },
-		{ RF4_ARROW_3, "Major Arrow", 7, TRUE },
-		{ RF4_ARROW_4, "Great Arrow", 9, TRUE },
-		{ RF4_BR_ACID, "Breathe Acid", 10, FALSE },
-		{ RF4_BR_ELEC, "Breathe Lightning", 10, FALSE },
-		{ RF4_BR_FIRE, "Breathe Fire", 10, FALSE },
-		{ RF4_BR_COLD, "Breathe Cold", 10, FALSE },
-		{ RF4_BR_POIS, "Breathe Poison", 15, TRUE },
-		{ RF4_BR_NETH, "Breathe Nether", 30, TRUE },
-		{ RF4_BR_LITE, "Breathe Light", 20, TRUE },
-		{ RF4_BR_DARK, "Breathe Dark", 20, TRUE },
-		{ RF4_BR_CONF, "Breathe Confusion", 15, TRUE },
-		{ RF4_BR_SOUN, "Breathe Sound", 30, TRUE },
-		{ RF4_BR_CHAO, "Breathe Chaos", 30, TRUE },
-		{ RF4_BR_DISE, "Breathe Disenchantment", 30, TRUE },
-		{ RF4_BR_NEXU, "Breathe Nexus", 30, TRUE },
-		{ RF4_BR_TIME, "Breathe Time", 30, TRUE },
-		{ RF4_BR_INER, "Breathe Inertia", 30, TRUE },
-		{ RF4_BR_GRAV, "Breathe Gravity", 30, TRUE },
-		{ RF4_BR_SHAR, "Breathe Shards", 30, TRUE },
-		{ RF4_BR_PLAS, "Breathe Plasma", 30, TRUE },
-		{ RF4_BR_WALL, "Breathe Force", 30, TRUE },
-		{ RF4_BR_MANA, "Breathe Mana", 40, TRUE },
-		{ RF4_BA_NUKE, "Nuke Ball", 30, TRUE },
-		{ RF4_BR_NUKE, "Breathe Nuke", 40, TRUE },
-		{ RF4_BA_CHAO, "Chaos Ball", 30, TRUE },
-		{ RF4_BR_DISI, "Breathe Disintegration", 40, TRUE },
-
-		{ RF5_BA_ACID, "Acid Ball", 8, FALSE },
-		{ RF5_BA_ELEC, "Lightning Ball", 8, FALSE },
-		{ RF5_BA_FIRE, "Fire Ball", 8, FALSE },
-		{ RF5_BA_COLD, "Cold Ball", 8, FALSE },
-		{ RF5_BA_POIS, "Poison Ball", 20, TRUE },
-		{ RF5_BA_NETH, "Nether Ball", 20, TRUE },
-		{ RF5_BA_WATE, "Water Ball", 20, TRUE },
-		{ RF5_BA_MANA, "Mana Ball", 50, TRUE },
-		{ RF5_BA_DARK, "Darkness Ball", 20, TRUE },
-		{ 0, "(none)", 0, FALSE },
-		{ 0, "(none)", 0, FALSE },
-		{ 0, "(none)", 0, FALSE },
-		{ RF5_CAUSE_1, "Cause Light Wounds", 20, FALSE },
-		{ RF5_CAUSE_2, "Cause Medium Wounds", 30, FALSE },
-		{ RF5_CAUSE_3, "Cause Critical Wounds", 35, TRUE },
-		{ RF5_CAUSE_4, "Cause Mortal Wounds", 45, TRUE },
-		{ RF5_BO_ACID, "Acid Bolt", 5, FALSE },
-		{ RF5_BO_ELEC, "Lightning Bolt", 5, FALSE },
-		{ RF5_BO_FIRE, "Fire Bolt", 5, FALSE },
-		{ RF5_BO_COLD, "Cold Bolt", 5, FALSE },
-		{ RF5_BO_POIS, "Poison Bolt", 10, TRUE },
-		{ RF5_BO_NETH, "Nether Bolt", 15, TRUE },
-		{ RF5_BO_WATE, "Water Bolt", 20, TRUE },
-		{ RF5_BO_MANA, "Mana Bolt", 25, TRUE },
-		{ RF5_BO_PLAS, "Plasma Bolt", 20, TRUE },
-		{ RF5_BO_ICEE, "Ice Bolt", 20, TRUE },
-		{ RF5_MISSILE, "Magic Missile", 1, FALSE },
-		{ RF5_SCARE, "Scare", 4, FALSE },
-		{ RF5_BLIND, "Blindness", 6, FALSE },
-		{ RF5_CONF, "Confusion", 7, FALSE },
-		{ RF5_SLOW, "Slowness", 10, FALSE },
-		{ RF5_HOLD, "Paralyse", 10, FALSE },
-
-		{ RF6_HASTE, "Haste Self", 50, FALSE },
-		{ RF6_HAND_DOOM, "Hand of Doom", 30, TRUE },
-		{ RF6_HEAL, "Healing", 60, FALSE },
-		{ RF6_S_ANIMALS, "Summon Animals", 60, TRUE },
-		{ RF6_BLINK, "Phase Door", 2, FALSE },
-		{ RF6_TPORT, "Teleport", 10, FALSE },
-		{ RF6_TELE_TO, "Teleport To", 20, TRUE },
-		{ RF6_TELE_AWAY, "Teleport Away", 20, FALSE },
-		{ RF6_TELE_LEVEL, "Teleport Level", 20, TRUE },
-		{ RF6_DARKNESS, "Darkness", 3, FALSE },
-		{ RF6_TRAPS, "Create Traps", 10, TRUE },
-		{ 0, "(none)", 0, FALSE },
-		{ RF6_RAISE_DEAD, "Raise the Dead", 400, TRUE },
-		{ 0, "(none)", 0, FALSE },
-		{ 0, "(none)", 0, FALSE },
-		{ RF6_S_THUNDERLORD, "Summon Thunderlords", 90, TRUE },
-		{ RF6_S_KIN, "Summon Kin", 80, FALSE },
-		{ RF6_S_HI_DEMON, "Summon Greater Demons", 90, TRUE },
-		{ RF6_S_MONSTER, "Summon Monster", 50, FALSE },
-		{ RF6_S_MONSTERS, "Summon Monsters", 60, TRUE },
-		{ RF6_S_ANT, "Summon Ants", 30, FALSE },
-		{ RF6_S_SPIDER, "Summon Spider", 30, FALSE },
-		{ RF6_S_HOUND, "Summon Hound", 50, TRUE },
-		{ RF6_S_HYDRA, "Summon Hydra", 40, TRUE },
-		{ RF6_S_ANGEL, "Summon Angel", 60, TRUE },
-		{ RF6_S_DEMON, "Summon Demon", 60, TRUE },
-		{ RF6_S_UNDEAD, "Summon Undead", 70, TRUE },
-		{ RF6_S_DRAGON, "Summon Dragon", 70, TRUE },
-		{ RF6_S_HI_UNDEAD, "Summon High Undead", 90, TRUE },
-		{ RF6_S_HI_DRAGON, "Summon High Dragon", 90, TRUE },
-		{ RF6_S_WRAITH, "Summon Wraith", 90, TRUE },
-		{ 0, "(none)", 0, FALSE },
+		{ SF_SHRIEK_IDX, "Aggravate Monster", 1, FALSE },
+		{ SF_MULTIPLY_IDX, "Multiply", 10, FALSE },
+		{ SF_S_ANIMAL_IDX, "Summon Animal", 30, FALSE },
+		{ SF_ROCKET_IDX, "Fire a Rocket", 40, TRUE },
+		{ SF_ARROW_1_IDX, "Light Arrow", 1, FALSE },
+		{ SF_ARROW_2_IDX, "Minor Arrow", 3, FALSE },
+		{ SF_ARROW_3_IDX, "Major Arrow", 7, TRUE },
+		{ SF_ARROW_4_IDX, "Great Arrow", 9, TRUE },
+		{ SF_BR_ACID_IDX, "Breathe Acid", 10, FALSE },
+		{ SF_BR_ELEC_IDX, "Breathe Lightning", 10, FALSE },
+		{ SF_BR_FIRE_IDX, "Breathe Fire", 10, FALSE },
+		{ SF_BR_COLD_IDX, "Breathe Cold", 10, FALSE },
+		{ SF_BR_POIS_IDX, "Breathe Poison", 15, TRUE },
+		{ SF_BR_NETH_IDX, "Breathe Nether", 30, TRUE },
+		{ SF_BR_LITE_IDX, "Breathe Light", 20, TRUE },
+		{ SF_BR_DARK_IDX, "Breathe Dark", 20, TRUE },
+		{ SF_BR_CONF_IDX, "Breathe Confusion", 15, TRUE },
+		{ SF_BR_SOUN_IDX, "Breathe Sound", 30, TRUE },
+		{ SF_BR_CHAO_IDX, "Breathe Chaos", 30, TRUE },
+		{ SF_BR_DISE_IDX, "Breathe Disenchantment", 30, TRUE },
+		{ SF_BR_NEXU_IDX, "Breathe Nexus", 30, TRUE },
+		{ SF_BR_TIME_IDX, "Breathe Time", 30, TRUE },
+		{ SF_BR_INER_IDX, "Breathe Inertia", 30, TRUE },
+		{ SF_BR_GRAV_IDX, "Breathe Gravity", 30, TRUE },
+		{ SF_BR_SHAR_IDX, "Breathe Shards", 30, TRUE },
+		{ SF_BR_PLAS_IDX, "Breathe Plasma", 30, TRUE },
+		{ SF_BR_WALL_IDX, "Breathe Force", 30, TRUE },
+		{ SF_BR_MANA_IDX, "Breathe Mana", 40, TRUE },
+		{ SF_BA_NUKE_IDX, "Nuke Ball", 30, TRUE },
+		{ SF_BR_NUKE_IDX, "Breathe Nuke", 40, TRUE },
+		{ SF_BA_CHAO_IDX, "Chaos Ball", 30, TRUE },
+		{ SF_BR_DISI_IDX, "Breathe Disintegration", 40, TRUE },
+		{ SF_BA_ACID_IDX, "Acid Ball", 8, FALSE },
+		{ SF_BA_ELEC_IDX, "Lightning Ball", 8, FALSE },
+		{ SF_BA_FIRE_IDX, "Fire Ball", 8, FALSE },
+		{ SF_BA_COLD_IDX, "Cold Ball", 8, FALSE },
+		{ SF_BA_POIS_IDX, "Poison Ball", 20, TRUE },
+		{ SF_BA_NETH_IDX, "Nether Ball", 20, TRUE },
+		{ SF_BA_WATE_IDX, "Water Ball", 20, TRUE },
+		{ SF_BA_MANA_IDX, "Mana Ball", 50, TRUE },
+		{ SF_BA_DARK_IDX, "Darkness Ball", 20, TRUE },
+		{ SF_CAUSE_1_IDX, "Cause Light Wounds", 20, FALSE },
+		{ SF_CAUSE_2_IDX, "Cause Medium Wounds", 30, FALSE },
+		{ SF_CAUSE_3_IDX, "Cause Critical Wounds", 35, TRUE },
+		{ SF_CAUSE_4_IDX, "Cause Mortal Wounds", 45, TRUE },
+		{ SF_BO_ACID_IDX, "Acid Bolt", 5, FALSE },
+		{ SF_BO_ELEC_IDX, "Lightning Bolt", 5, FALSE },
+		{ SF_BO_FIRE_IDX, "Fire Bolt", 5, FALSE },
+		{ SF_BO_COLD_IDX, "Cold Bolt", 5, FALSE },
+		{ SF_BO_POIS_IDX, "Poison Bolt", 10, TRUE },
+		{ SF_BO_NETH_IDX, "Nether Bolt", 15, TRUE },
+		{ SF_BO_WATE_IDX, "Water Bolt", 20, TRUE },
+		{ SF_BO_MANA_IDX, "Mana Bolt", 25, TRUE },
+		{ SF_BO_PLAS_IDX, "Plasma Bolt", 20, TRUE },
+		{ SF_BO_ICEE_IDX, "Ice Bolt", 20, TRUE },
+		{ SF_MISSILE_IDX, "Magic Missile", 1, FALSE },
+		{ SF_SCARE_IDX, "Scare", 4, FALSE },
+		{ SF_BLIND_IDX, "Blindness", 6, FALSE },
+		{ SF_CONF_IDX, "Confusion", 7, FALSE },
+		{ SF_SLOW_IDX, "Slowness", 10, FALSE },
+		{ SF_HOLD_IDX, "Paralyse", 10, FALSE },
+		{ SF_HASTE_IDX, "Haste Self", 50, FALSE },
+		{ SF_HAND_DOOM_IDX, "Hand of Doom", 30, TRUE },
+		{ SF_HEAL_IDX, "Healing", 60, FALSE },
+		{ SF_S_ANIMALS_IDX, "Summon Animals", 60, TRUE },
+		{ SF_BLINK_IDX, "Phase Door", 2, FALSE },
+		{ SF_TPORT_IDX, "Teleport", 10, FALSE },
+		{ SF_TELE_TO_IDX, "Teleport To", 20, TRUE },
+		{ SF_TELE_AWAY_IDX, "Teleport Away", 20, FALSE },
+		{ SF_TELE_LEVEL_IDX, "Teleport Level", 20, TRUE },
+		{ SF_DARKNESS_IDX, "Darkness", 3, FALSE },
+		{ SF_RAISE_DEAD_IDX, "Raise the Dead", 400, TRUE },
+		{ SF_S_THUNDERLORD_IDX, "Summon Thunderlords", 90, TRUE },
+		{ SF_S_KIN_IDX, "Summon Kin", 80, FALSE },
+		{ SF_S_HI_DEMON_IDX, "Summon Greater Demons", 90, TRUE },
+		{ SF_S_MONSTER_IDX, "Summon Monster", 50, FALSE },
+		{ SF_S_MONSTERS_IDX, "Summon Monsters", 60, TRUE },
+		{ SF_S_ANT_IDX, "Summon Ants", 30, FALSE },
+		{ SF_S_SPIDER_IDX, "Summon Spider", 30, FALSE },
+		{ SF_S_HOUND_IDX, "Summon Hound", 50, TRUE },
+		{ SF_S_HYDRA_IDX, "Summon Hydra", 40, TRUE },
+		{ SF_S_ANGEL_IDX, "Summon Angel", 60, TRUE },
+		{ SF_S_DEMON_IDX, "Summon Demon", 60, TRUE },
+		{ SF_S_UNDEAD_IDX, "Summon Undead", 70, TRUE },
+		{ SF_S_DRAGON_IDX, "Summon Dragon", 70, TRUE },
+		{ SF_S_HI_UNDEAD_IDX, "Summon High Undead", 90, TRUE },
+		{ SF_S_HI_DRAGON_IDX, "Summon High Dragon", 90, TRUE },
+		{ SF_S_WRAITH_IDX, "Summon Wraith", 90, TRUE },
 	};
+
+
+/*
+ * A list of tvals and their textual names
+ */
+tval_desc tvals[] =
+{
+        { TV_SWORD, "Sword" },
+        { TV_POLEARM, "Polearm" },
+        { TV_HAFTED, "Hafted Weapon" },
+        { TV_AXE, "Axe" },
+        { TV_BOW, "Bow" },
+        { TV_BOOMERANG, "Boomerang" },
+        { TV_ARROW, "Arrows" },
+        { TV_BOLT, "Bolts" },
+        { TV_SHOT, "Shots" },
+        { TV_SHIELD, "Shield" },
+        { TV_CROWN, "Crown" },
+        { TV_HELM, "Helm" },
+        { TV_GLOVES, "Gloves" },
+        { TV_BOOTS, "Boots" },
+        { TV_CLOAK, "Cloak" },
+        { TV_DRAG_ARMOR, "Dragon Scale Mail" },
+        { TV_HARD_ARMOR, "Hard Armor" },
+        { TV_SOFT_ARMOR, "Soft Armor" },
+        { TV_RING, "Ring" },
+        { TV_AMULET, "Amulet" },
+        { TV_LITE, "Lite" },
+        { TV_POTION, "Potion" },
+        { TV_POTION2, "Potion" },
+        { TV_SCROLL, "Scroll" },
+        { TV_WAND, "Wand" },
+        { TV_STAFF, "Staff" },
+        { TV_ROD_MAIN, "Rod" },
+        { TV_ROD, "Rod Tip" },
+        { TV_BOOK, "Schools Spellbook", },
+        { TV_SYMBIOTIC_BOOK, "Symbiotic Spellbook", },
+        { TV_DRUID_BOOK, "Elemental Stone" },
+        { TV_MUSIC_BOOK, "Music Book" },
+        { TV_DAEMON_BOOK, "Daemon Book" },
+        { TV_SPIKE, "Spikes" },
+        { TV_DIGGING, "Digger" },
+        { TV_CHEST, "Chest" },
+        { TV_FOOD, "Food" },
+        { TV_FLASK, "Flask" },
+        { TV_MSTAFF, "Mage Staff" },
+        { TV_PARCHMENT, "Parchment" },
+        { TV_INSTRUMENT, "Musical Instrument" },
+        { TV_JUNK, "Junk" },
+        { 0, NULL }
+};
 
 /* Tval descriptions */
 tval_desc tval_descs[] =
@@ -4156,11 +3828,6 @@ tval_desc tval_descs[] =
 		"arcane magics."
 	},
 	{
-		TV_TRAPKIT,
-		"Trapping kits are used with the trapping ability to set "
-		"deadly monster traps."
-	},
-	{
 		TV_STAFF,
 		"Staves are objects imbued with mystical powers."
 	},
@@ -4215,14 +3882,6 @@ tval_desc tval_descs[] =
 		TV_RANDART,
 		"Those objects are only known of by rumours.  It is said that "
 		"they can be activated for great or strange effects..."
-	},
-	{
-		TV_RUNE1,
-		"Runes are used with the Runecraft skill to create brand new spells."
-	},
-	{
-		TV_RUNE2,
-		"Runes are used with the Runecraft skill to create brand new spells."
 	},
 	{
 		TV_JUNK,
@@ -4390,10 +4049,8 @@ gf_name_type gf_names[] =
 	{ GF_GRAVITY, "gravity" },
 	{ GF_KILL_WALL, "wall destruction" },
 	{ GF_KILL_DOOR, "door destruction" },
-	{ GF_KILL_TRAP, "trap destruction" },
 	{ GF_MAKE_WALL, "wall creation" },
 	{ GF_MAKE_DOOR, "door creation" },
-	{ GF_MAKE_TRAP, "trap creation" },
 	{ GF_OLD_CLONE, "clone" },
 	{ GF_OLD_POLY, "polymorph" },
 	{ GF_OLD_HEAL, "healing" },
@@ -4432,7 +4089,6 @@ gf_name_type gf_names[] =
 	{ GF_JAM_DOOR, "door jamming" },
 	{ GF_DOMINATION, "domination" },
 	{ GF_DISP_GOOD, "dispel good" },
-	{ GF_IDENTIFY, "identification" },
 	{ GF_RAISE, "raise dead" },
 	{ GF_STAR_IDENTIFY, "*identification*" },
 	{ GF_DESTRUCTION, "destruction" },
@@ -4470,8 +4126,6 @@ module_type modules[MAX_MODULES] =
 		},
 		/* Randarts: */
 		{ 30, 20, 20 },
-		/* Max player level: */
-		50,
 		/* Skills: */
 		{ 6, 4, },
 		/* Intro function */
@@ -4492,8 +4146,6 @@ module_type modules[MAX_MODULES] =
 		},
 		/* Randarts: */
 		{ 30, 30, 30 },
-		/* Max player level: */
-		50,
 		/* Skill overage: */
 		{ 6, 5, },
 		/* Intro function */

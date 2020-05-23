@@ -14,9 +14,11 @@
 #include "cmd1.hpp"
 #include "cmd7.hpp"
 #include "corrupt.hpp"
+#include "dungeon_flag.hpp"
 #include "dungeon_info_type.hpp"
 #include "ego_item_type.hpp"
 #include "files.hpp"
+#include "game.hpp"
 #include "hook_eat_in.hpp"
 #include "hook_eat_out.hpp"
 #include "hooks.hpp"
@@ -24,12 +26,16 @@
 #include "mimic.hpp"
 #include "monster2.hpp"
 #include "monster_race.hpp"
+#include "monster_race_flag.hpp"
+#include "monster_spell_flag.hpp"
 #include "monster_type.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
 #include "object_kind.hpp"
 #include "object_type.hpp"
 #include "options.hpp"
+#include "player_race_flag.hpp"
 #include "player_type.hpp"
 #include "randart.hpp"
 #include "skills.hpp"
@@ -53,12 +59,6 @@
 #include <cassert>
 
 using boost::algorithm::iequals;
-
-/*
- * Forward declare
- */
-static bool_ activate_spell(object_type * o_ptr, byte choice);
-
 
 /*
  * General function to find an item by its name
@@ -148,7 +148,9 @@ static select_by_name_t select_object_by_name(std::string const &prompt)
  */
 static void corpse_effect(object_type *o_ptr, bool_ cutting)
 {
-	monster_race *r_ptr = &r_info[o_ptr->pval2];
+	auto const &r_info = game->edit_data.r_info;
+
+	auto r_ptr = &r_info[o_ptr->pval2];
 
 	/* Assume no bad effects */
 	bool_ harmful = FALSE;
@@ -538,7 +540,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 	 */
 
 	/* Acid */
-	if (r_ptr->flags4 & RF4_BR_ACID && brpow > 0)
+	if ((r_ptr->spells & SF_BR_ACID) && brpow > 0)
 	{
 		brdam = ((brpow / 3) > 1600 ? 1600 : (brpow / 3));
 
@@ -553,13 +555,13 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 		}
 		o_ptr->pval = 1;
 	}
-	else if (r_ptr->flags4 & RF4_BR_ACID)
+	else if (r_ptr->spells & SF_BR_ACID)
 	{
 		set_oppose_acid(p_ptr->oppose_acid + rand_int(10) + 10);
 	}
 
 	/* Electricity */
-	if (r_ptr->flags4 & RF4_BR_ELEC && brpow > 0)
+	if ((r_ptr->spells & SF_BR_ELEC) && brpow > 0)
 	{
 		brdam = ((brpow / 3) > 1600 ? 1600 : (brpow / 3));
 
@@ -575,13 +577,13 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 		o_ptr->weight = o_ptr->weight - brpow;
 		o_ptr->pval = o_ptr->weight;
 	}
-	else if (r_ptr->flags4 & RF4_BR_ELEC)
+	else if (r_ptr->spells & SF_BR_ELEC)
 	{
 		set_oppose_elec(p_ptr->oppose_elec + rand_int(10) + 10);
 	}
 
 	/* Fire */
-	if (r_ptr->flags4 & RF4_BR_FIRE && brpow > 0)
+	if ((r_ptr->spells & SF_BR_FIRE) && brpow > 0)
 	{
 		brdam = ((brpow / 3) > 1600 ? 1600 : (brpow / 3));
 
@@ -596,13 +598,13 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 		}
 		o_ptr->pval = 1;
 	}
-	else if (r_ptr->flags4 & RF4_BR_FIRE)
+	else if (r_ptr->spells & SF_BR_FIRE)
 	{
 		set_oppose_fire(p_ptr->oppose_fire + rand_int(10) + 10);
 	}
 
 	/* Cold */
-	if (r_ptr->flags4 & RF4_BR_COLD && brpow > 0)
+	if ((r_ptr->spells & SF_BR_COLD) && brpow > 0)
 	{
 		brdam = ((brpow / 3) > 1600 ? 1600 : (brpow / 3));
 
@@ -618,13 +620,13 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 		o_ptr->weight = o_ptr->weight - brpow;
 		o_ptr->pval = o_ptr->weight;
 	}
-	else if (r_ptr->flags4 & RF4_BR_COLD)
+	else if (r_ptr->spells & SF_BR_COLD)
 	{
 		set_oppose_cold(p_ptr->oppose_cold + rand_int(10) + 10);
 	}
 
 	/* Poison */
-	if (r_ptr->flags4 & RF4_BR_POIS && brpow > 0)
+	if ((r_ptr->spells & SF_BR_POIS) && brpow > 0)
 	{
 		brdam = ((brpow / 3) > 800 ? 800 : (brpow / 3));
 
@@ -636,7 +638,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 
 		if (!(p_ptr->resist_pois || p_ptr->oppose_pois))
 		{
-			(void)set_poisoned(p_ptr->poisoned + rand_int(brdam) + 10);
+			set_poisoned(p_ptr->poisoned + rand_int(brdam) + 10);
 		}
 
 		/* Take damage */
@@ -647,7 +649,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 	}
 
 	/* Nether */
-	if (r_ptr->flags4 & RF4_BR_NETH && brpow > 0)
+	if ((r_ptr->spells & SF_BR_NETH) && brpow > 0)
 	{
 		brdam = ((brpow / 6) > 550 ? 550 : (brpow / 6));
 
@@ -684,7 +686,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 	}
 
 	/* Confusion */
-	if (r_ptr->flags4 & RF4_BR_CONF && brpow > 0)
+	if ((r_ptr->spells & SF_BR_CONF) && brpow > 0)
 	{
 		msg_print("A strange liquid splashes on you!");
 
@@ -697,7 +699,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 	}
 
 	/* Chaos */
-	if (r_ptr->flags4 & RF4_BR_CHAO && brpow > 0)
+	if ((r_ptr->spells & SF_BR_CHAO) && brpow > 0)
 	{
 		brdam = ((brpow / 6) > 600 ? 600 : (brpow / 6));
 
@@ -711,12 +713,12 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 
 		if (!p_ptr->resist_conf)
 		{
-			(void)set_confused(p_ptr->confused + rand_int(20) + 10);
+			set_confused(p_ptr->confused + rand_int(20) + 10);
 		}
 
 		if (!p_ptr->resist_chaos)
 		{
-			(void)set_image(p_ptr->image + randint(10));
+			set_image(p_ptr->image + randint(10));
 		}
 
 		if (!p_ptr->resist_neth && !p_ptr->resist_chaos)
@@ -743,7 +745,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 	}
 
 	/* Disenchantment */
-	if (r_ptr->flags4 & RF4_BR_DISE && brpow > 0)
+	if ((r_ptr->spells & SF_BR_DISE) && brpow > 0)
 	{
 		brdam = ((brpow / 6) > 500 ? 500 : (brpow / 6));
 
@@ -756,7 +758,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 		}
 		else
 		{
-			(void)apply_disenchant(0);
+			apply_disenchant(0);
 		}
 
 		/* Take damage */
@@ -765,7 +767,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 	}
 
 	/* Plasma */
-	if (r_ptr->flags4 & RF4_BR_PLAS && brpow > 0)
+	if ((r_ptr->spells & SF_BR_PLAS) && brpow > 0)
 	{
 		brdam = ((brpow / 6) > 150 ? 150 : (brpow / 6));
 
@@ -777,7 +779,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 		if (!p_ptr->resist_sound)
 		{
 			int k = (randint((brdam > 40) ? 35 : (brdam * 3 / 4 + 5)));
-			(void)set_stun(p_ptr->stun + k);
+			set_stun(p_ptr->stun + k);
 		}
 
 		/* Take damage */
@@ -787,7 +789,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 	}
 
 	/* Hack -- Jellies are immune to acid only if they are already acidic */
-	if (strchr("j", r_ptr->d_char) && (r_ptr->flags3 & RF3_IM_ACID))
+	if (strchr("j", r_ptr->d_char) && (r_ptr->flags & RF_IM_ACID))
 	{
 		dam = damroll(8, 8);
 
@@ -809,7 +811,7 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 	 * are immune to poison because their body already contains
 	 * poisonous chemicals.
 	 */
-	if (strchr("ijkmS,", r_ptr->d_char) && (r_ptr->flags3 & RF3_IM_POIS))
+	if (strchr("ijkmS,", r_ptr->d_char) && (r_ptr->flags & RF_IM_POIS))
 	{
 		if (!(p_ptr->resist_pois || p_ptr->oppose_pois))
 		{
@@ -824,82 +826,82 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 	 */
 	if (!harmful && !cutting && (o_ptr->sval != SV_CORPSE_MEAT))
 	{
-		if (r_ptr->flags3 & RF3_IM_ACID)
+		if (r_ptr->flags & RF_IM_ACID)
 		{
 			set_oppose_acid(p_ptr->oppose_acid + rand_int(10) + 10);
 		}
-		if (r_ptr->flags3 & RF3_IM_ELEC)
+		if (r_ptr->flags & RF_IM_ELEC)
 		{
 			set_oppose_elec(p_ptr->oppose_elec + rand_int(10) + 10);
 		}
-		if (r_ptr->flags3 & RF3_IM_FIRE)
+		if (r_ptr->flags & RF_IM_FIRE)
 		{
 			set_oppose_fire(p_ptr->oppose_fire + rand_int(10) + 10);
 		}
-		if (r_ptr->flags3 & RF3_IM_COLD)
+		if (r_ptr->flags & RF_IM_COLD)
 		{
 			set_oppose_cold(p_ptr->oppose_cold + rand_int(10) + 10);
 		}
-		if (r_ptr->flags3 & RF3_IM_POIS)
+		if (r_ptr->flags & RF_IM_POIS)
 		{
 			set_oppose_pois(p_ptr->oppose_pois + rand_int(10) + 10);
 		}
-		if (r_ptr->flags3 & RF3_RES_NETH)
+		if (r_ptr->flags & RF_RES_NETH)
 		{
 			set_protevil(p_ptr->protevil + rand_int(25) + 3 * r_ptr->level);
 		}
-		if (r_ptr->flags3 & RF3_RES_PLAS)
+		if (r_ptr->flags & RF_RES_PLAS)
 		{
 			set_oppose_fire(p_ptr->oppose_fire + rand_int(20) + 20);
 		}
-		if (r_ptr->flags2 & RF2_SHAPECHANGER)
+		if (r_ptr->flags & RF_SHAPECHANGER)
 		{
-			/* DGDGDG			(void)set_mimic(20 , rand_int(MIMIC_VALAR)); */
+			/* DGDGDG			set_mimic(20 , rand_int(MIMIC_VALAR)); */
 		}
 
-		if (r_ptr->flags3 & RF3_DEMON)
+		if (r_ptr->flags & RF_DEMON)
 		{
-			/* DGDGDG			(void)set_mimic(30 , MIMIC_DEMON); */
+			/* DGDGDG			set_mimic(30 , MIMIC_DEMON); */
 		}
 
-		if (r_ptr->flags3 & RF3_UNDEAD)
+		if (r_ptr->flags & RF_UNDEAD)
 		{
-			/* DGDGDG			(void)set_mimic(30 , MIMIC_VAMPIRE); */
+			/* DGDGDG			set_mimic(30 , MIMIC_VAMPIRE); */
 		}
 
-		if (r_ptr->flags3 & RF3_NO_FEAR)
+		if (r_ptr->flags & RF_NO_FEAR)
 		{
-			(void)set_afraid(0);
+			set_afraid(0);
 		}
-		if (r_ptr->flags3 & RF3_NO_STUN)
+		if (r_ptr->flags & RF_NO_STUN)
 		{
-			(void)set_stun(0);
+			set_stun(0);
 		}
-		if (r_ptr->flags3 & RF3_NO_CONF)
+		if (r_ptr->flags & RF_NO_CONF)
 		{
-			(void)set_confused(0);
+			set_confused(0);
 		}
-		if (r_ptr->flags6 & RF6_S_THUNDERLORD)
+		if (r_ptr->spells & SF_S_THUNDERLORD)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_THUNDERLORD, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_DEMON)
+		if (r_ptr->spells & SF_S_DEMON)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_DEMON, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_KIN)
+		if (r_ptr->spells & SF_S_KIN)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_KIN, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_HI_DEMON)
+		if (r_ptr->spells & SF_S_HI_DEMON)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_HI_DEMON, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_MONSTER)
+		if (r_ptr->spells & SF_S_MONSTER)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, 0, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_MONSTERS)
+		if (r_ptr->spells & SF_S_MONSTERS)
 		{
 			int k;
 			for (k = 0; k < 8; k++)
@@ -907,47 +909,47 @@ static void corpse_effect(object_type *o_ptr, bool_ cutting)
 				summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, 0, FALSE);
 			}
 		}
-		if (r_ptr->flags6 & RF6_S_UNDEAD)
+		if (r_ptr->spells & SF_S_UNDEAD)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_UNDEAD, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_DRAGON)
+		if (r_ptr->spells & SF_S_DRAGON)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_DRAGON, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_ANT)
+		if (r_ptr->spells & SF_S_ANT)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_ANT, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_SPIDER)
+		if (r_ptr->spells & SF_S_SPIDER)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_SPIDER, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_HOUND)
+		if (r_ptr->spells & SF_S_HOUND)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_HOUND, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_HYDRA)
+		if (r_ptr->spells & SF_S_HYDRA)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_HYDRA, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_ANGEL)
+		if (r_ptr->spells & SF_S_ANGEL)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_ANGEL, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_HI_DRAGON)
+		if (r_ptr->spells & SF_S_HI_DRAGON)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_HI_DRAGON, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_HI_UNDEAD)
+		if (r_ptr->spells & SF_S_HI_UNDEAD)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_HI_UNDEAD, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_WRAITH)
+		if (r_ptr->spells & SF_S_WRAITH)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_WRAITH, FALSE);
 		}
-		if (r_ptr->flags6 & RF6_S_UNIQUE)
+		if (r_ptr->spells & SF_S_UNIQUE)
 		{
 			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_UNIQUE, FALSE);
 		}
@@ -972,13 +974,14 @@ static object_filter_t const &item_tester_hook_eatable()
 /*
  * Eat some food (from the pack or floor)
  */
-void do_cmd_eat_food(void)
+void do_cmd_eat_food()
 {
+	auto const &r_info = game->edit_data.r_info;
+	auto const &k_info = game->edit_data.k_info;
+
 	int ident, lev, fval = 0;
 
 	object_type *q_ptr, forge;
-
-	monster_race *r_ptr;
 
 	bool_ destroy = TRUE;
 
@@ -996,10 +999,6 @@ void do_cmd_eat_food(void)
 
 	/* Get the item */
 	object_type *o_ptr = get_object(item);
-
-	/* Sound */
-	sound(SOUND_EAT);
-
 
 	/* Take a turn */
 	energy_use = 100;
@@ -1114,7 +1113,7 @@ void do_cmd_eat_food(void)
 		case SV_FOOD_WEAKNESS:
 			{
 				take_hit(damroll(6, 6), "poisonous food");
-				(void)do_dec_stat(A_STR, STAT_DEC_NORMAL);
+				do_dec_stat(A_STR, STAT_DEC_NORMAL);
 
 				ident = TRUE;
 
@@ -1124,7 +1123,7 @@ void do_cmd_eat_food(void)
 		case SV_FOOD_SICKNESS:
 			{
 				take_hit(damroll(6, 6), "poisonous food");
-				(void)do_dec_stat(A_CON, STAT_DEC_NORMAL);
+				do_dec_stat(A_CON, STAT_DEC_NORMAL);
 
 				ident = TRUE;
 
@@ -1134,7 +1133,7 @@ void do_cmd_eat_food(void)
 		case SV_FOOD_STUPIDITY:
 			{
 				take_hit(damroll(8, 8), "poisonous food");
-				(void)do_dec_stat(A_INT, STAT_DEC_NORMAL);
+				do_dec_stat(A_INT, STAT_DEC_NORMAL);
 
 				ident = TRUE;
 
@@ -1144,7 +1143,7 @@ void do_cmd_eat_food(void)
 		case SV_FOOD_NAIVETY:
 			{
 				take_hit(damroll(8, 8), "poisonous food");
-				(void)do_dec_stat(A_WIS, STAT_DEC_NORMAL);
+				do_dec_stat(A_WIS, STAT_DEC_NORMAL);
 
 				ident = TRUE;
 
@@ -1154,7 +1153,7 @@ void do_cmd_eat_food(void)
 		case SV_FOOD_UNHEALTH:
 			{
 				take_hit(damroll(10, 10), "poisonous food");
-				(void)do_dec_stat(A_CON, STAT_DEC_NORMAL);
+				do_dec_stat(A_CON, STAT_DEC_NORMAL);
 
 				ident = TRUE;
 
@@ -1164,7 +1163,7 @@ void do_cmd_eat_food(void)
 		case SV_FOOD_DISEASE:
 			{
 				take_hit(damroll(10, 10), "poisonous food");
-				(void)do_dec_stat(A_STR, STAT_DEC_NORMAL);
+				do_dec_stat(A_STR, STAT_DEC_NORMAL);
 
 				ident = TRUE;
 
@@ -1308,8 +1307,8 @@ void do_cmd_eat_food(void)
 		case SV_FOOD_WAYBREAD:
 			{
 				msg_print("That tastes very good.");
-				(void)set_poisoned(0);
-				(void)hp_player(damroll(4, 8));
+				set_poisoned(0);
+				hp_player(damroll(4, 8));
 				set_food(PY_FOOD_MAX - 1);
 
 				ident = TRUE;
@@ -1330,7 +1329,7 @@ void do_cmd_eat_food(void)
 				object_aware(q_ptr);
 				object_known(q_ptr);
 				q_ptr->ident |= IDENT_STOREB;
-				(void)inven_carry(q_ptr, FALSE);
+				inven_carry(q_ptr, FALSE);
 
 				break;
 			}
@@ -1339,9 +1338,9 @@ void do_cmd_eat_food(void)
 			{
 				msg_print("A fresh, clean essence rises, driving away wounds and poison.");
 
-				(void)set_poisoned(0);
-				(void)set_stun(0);
-				(void)set_cut(0);
+				set_poisoned(0);
+				set_stun(0);
+				set_cut(0);
 				if (p_ptr->black_breath)
 				{
 					msg_print("The hold of the Black Breath on you is broken!");
@@ -1358,7 +1357,7 @@ void do_cmd_eat_food(void)
 	/* Corpses... */
 	else
 	{
-		r_ptr = &r_info[o_ptr->pval2];
+		auto r_ptr = &r_info[o_ptr->pval2];
 
 		/* Analyse the corpse */
 		switch (o_ptr->sval)
@@ -1370,7 +1369,7 @@ void do_cmd_eat_food(void)
 				/* Not all is edible. Apologies if messy. */
 
 				/* Check weight -- they have to have some meat left */
-				if (r_ptr->flags9 & RF9_DROP_SKELETON)
+				if (r_ptr->flags & RF_DROP_SKELETON)
 				{
 					if (o_ptr->weight <= (r_ptr->weight * 3) / 5)
 					{
@@ -1491,10 +1490,10 @@ void do_cmd_eat_food(void)
 	/* Food can feed the player, in a different ways */
 
 	/* Vampires */
-	if ((race_flags1_p(PR1_VAMPIRE)) || (p_ptr->mimic_form == resolve_mimic_name("Vampire")))
+	if ((race_flags_p(PR_VAMPIRE)) || (p_ptr->mimic_form == resolve_mimic_name("Vampire")))
 	{
 		/* Reduced nutritional benefit */
-		/*		(void)set_food(p_ptr->food + (fval / 10)); -- No more */
+		/*		set_food(p_ptr->food + (fval / 10)); -- No more */
 		msg_print("Mere victuals hold scant sustenance for a being such as yourself.");
 
 		/* Hungry */
@@ -1504,9 +1503,9 @@ void do_cmd_eat_food(void)
 		}
 	}
 
-	else if (race_flags1_p(PR1_NO_FOOD))
+	else if (race_flags_p(PR_NO_FOOD))
 	{
-		if (race_flags1_p(PR1_UNDEAD))
+		if (race_flags_p(PR_UNDEAD))
 		{
 			msg_print("The food of mortals is poor sustenance for you.");
 		}
@@ -1520,7 +1519,7 @@ void do_cmd_eat_food(void)
 	/* Those living in fresh */
 	else
 	{
-		(void)set_food(p_ptr->food + fval);
+		set_food(p_ptr->food + fval);
 	}
 
 
@@ -1535,8 +1534,10 @@ void do_cmd_eat_food(void)
 /*
  * Cut a corpse up for convenient storage
  */
-void do_cmd_cut_corpse(void)
+void do_cmd_cut_corpse()
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	int item, meat = 0, not_meat = 0;
 
 	/* Get an item */
@@ -1552,7 +1553,7 @@ void do_cmd_cut_corpse(void)
 	/* Get the item */
 	object_type *o_ptr = get_object(item);
 
-	monster_race *r_ptr = &r_info[o_ptr->pval2];
+	auto r_ptr = &r_info[o_ptr->pval2];
 
 	if ((o_ptr->sval != SV_CORPSE_CORPSE) && (o_ptr->sval != SV_CORPSE_HEAD))
 	{
@@ -1564,7 +1565,7 @@ void do_cmd_cut_corpse(void)
 	{
 	case SV_CORPSE_CORPSE:
 		{
-			if (r_ptr->flags9 & RF9_DROP_SKELETON)
+			if (r_ptr->flags & RF_DROP_SKELETON)
 			{
 				not_meat = (r_ptr->weight * 3) / 5;
 			}
@@ -1634,7 +1635,7 @@ void do_cmd_cut_corpse(void)
  *
  * Salt water works well.
  */
-void do_cmd_cure_meat(void)
+void do_cmd_cure_meat()
 {
 	int item, num, cure;
 
@@ -1813,9 +1814,9 @@ static bool_ quaff_potion(int tval, int sval, int pval, int pval2)
 		case SV_POTION_SALT_WATER:
 			{
 				msg_print("The potion makes you vomit!");
-				(void)set_food(PY_FOOD_STARVE - 1);
-				(void)set_poisoned(0);
-				(void)set_paralyzed(4);
+				set_food(PY_FOOD_STARVE - 1);
+				set_poisoned(0);
+				set_paralyzed(4);
 				ident = TRUE;
 
 				break;
@@ -1907,12 +1908,12 @@ static bool_ quaff_potion(int tval, int sval, int pval, int pval2)
 			{
 				msg_print("Your nerves and muscles feel weak and lifeless!");
 				take_hit(damroll(10, 10), "a potion of Ruination");
-				(void)dec_stat(A_DEX, 25, TRUE);
-				(void)dec_stat(A_WIS, 25, TRUE);
-				(void)dec_stat(A_CON, 25, TRUE);
-				(void)dec_stat(A_STR, 25, TRUE);
-				(void)dec_stat(A_CHR, 25, TRUE);
-				(void)dec_stat(A_INT, 25, TRUE);
+				dec_stat(A_DEX, 25, TRUE);
+				dec_stat(A_WIS, 25, TRUE);
+				dec_stat(A_CON, 25, TRUE);
+				dec_stat(A_STR, 25, TRUE);
+				dec_stat(A_CHR, 25, TRUE);
+				dec_stat(A_INT, 25, TRUE);
 				ident = TRUE;
 
 				break;
@@ -1964,8 +1965,8 @@ static bool_ quaff_potion(int tval, int sval, int pval, int pval2)
 			{
 				msg_print("Massive explosions rupture your body!");
 				take_hit(damroll(50, 20), "a potion of Detonation");
-				(void)set_stun(p_ptr->stun + 75);
-				(void)set_cut(p_ptr->cut + 5000);
+				set_stun(p_ptr->stun + 75);
+				set_cut(p_ptr->cut + 5000);
 				ident = TRUE;
 
 				break;
@@ -2029,7 +2030,7 @@ static bool_ quaff_potion(int tval, int sval, int pval, int pval2)
 				}
 				else
 				{
-					(void)set_fast(p_ptr->fast + 5, 10);
+					set_fast(p_ptr->fast + 5, 10);
 				}
 
 				break;
@@ -2133,18 +2134,18 @@ static bool_ quaff_potion(int tval, int sval, int pval, int pval2)
 				msg_print("You feel life flow through your body!");
 				restore_level();
 				hp_player(5000);
-				(void)set_poisoned(0);
-				(void)set_blind(0);
-				(void)set_confused(0);
-				(void)set_image(0);
-				(void)set_stun(0);
-				(void)set_cut(0);
-				(void)do_res_stat(A_STR, TRUE);
-				(void)do_res_stat(A_CON, TRUE);
-				(void)do_res_stat(A_DEX, TRUE);
-				(void)do_res_stat(A_WIS, TRUE);
-				(void)do_res_stat(A_INT, TRUE);
-				(void)do_res_stat(A_CHR, TRUE);
+				set_poisoned(0);
+				set_blind(0);
+				set_confused(0);
+				set_image(0);
+				set_stun(0);
+				set_cut(0);
+				do_res_stat(A_STR, TRUE);
+				do_res_stat(A_CON, TRUE);
+				do_res_stat(A_DEX, TRUE);
+				do_res_stat(A_WIS, TRUE);
+				do_res_stat(A_INT, TRUE);
+				do_res_stat(A_CHR, TRUE);
 				if (p_ptr->black_breath)
 				{
 					msg_print("The hold of the Black Breath on you is broken!");
@@ -2287,26 +2288,14 @@ static bool_ quaff_potion(int tval, int sval, int pval, int pval2)
 				msg_print("You begin to feel more enlightened...");
 				msg_print(NULL);
 				wiz_lite_extra();
-				(void)do_inc_stat(A_INT);
-				(void)do_inc_stat(A_WIS);
-				(void)detect_traps(DEFAULT_RADIUS);
-				(void)detect_doors(DEFAULT_RADIUS);
-				(void)detect_stairs(DEFAULT_RADIUS);
-				(void)detect_treasure(DEFAULT_RADIUS);
-				(void)detect_objects_gold(DEFAULT_RADIUS);
-				(void)detect_objects_normal(DEFAULT_RADIUS);
+				do_inc_stat(A_INT);
+				do_inc_stat(A_WIS);
+				detect_doors(DEFAULT_RADIUS);
+				detect_stairs(DEFAULT_RADIUS);
+				detect_treasure(DEFAULT_RADIUS);
+				detect_objects_gold(DEFAULT_RADIUS);
+				detect_objects_normal(DEFAULT_RADIUS);
 				identify_pack();
-				self_knowledge(NULL);
-				ident = TRUE;
-
-				break;
-			}
-
-		case SV_POTION_SELF_KNOWLEDGE:
-			{
-				msg_print("You begin to know yourself a little better...");
-				msg_print(NULL);
-				self_knowledge(NULL);
 				ident = TRUE;
 
 				break;
@@ -2326,11 +2315,11 @@ static bool_ quaff_potion(int tval, int sval, int pval, int pval2)
 
 		case SV_POTION_RESISTANCE:
 			{
-				(void)set_oppose_acid(p_ptr->oppose_acid + randint(20) + 20);
-				(void)set_oppose_elec(p_ptr->oppose_elec + randint(20) + 20);
-				(void)set_oppose_fire(p_ptr->oppose_fire + randint(20) + 20);
-				(void)set_oppose_cold(p_ptr->oppose_cold + randint(20) + 20);
-				(void)set_oppose_pois(p_ptr->oppose_pois + randint(20) + 20);
+				set_oppose_acid(p_ptr->oppose_acid + randint(20) + 20);
+				set_oppose_elec(p_ptr->oppose_elec + randint(20) + 20);
+				set_oppose_fire(p_ptr->oppose_fire + randint(20) + 20);
+				set_oppose_cold(p_ptr->oppose_cold + randint(20) + 20);
+				set_oppose_pois(p_ptr->oppose_pois + randint(20) + 20);
 				ident = TRUE;
 
 				break;
@@ -2352,7 +2341,7 @@ static bool_ quaff_potion(int tval, int sval, int pval, int pval2)
 
 		case SV_POTION_INVULNERABILITY:
 			{
-				(void)set_invuln(p_ptr->invuln + randint(7) + 7);
+				set_invuln(p_ptr->invuln + randint(7) + 7);
 				ident = TRUE;
 
 				break;
@@ -2489,8 +2478,10 @@ static bool_ quaff_potion(int tval, int sval, int pval, int pval2)
 /*
  * Quaff a potion (from the pack or the floor)
  */
-void do_cmd_quaff_potion(void)
+void do_cmd_quaff_potion()
 {
+	auto const &k_info = game->edit_data.k_info;
+
 	int ident, lev;
 
 	/* Get an item */
@@ -2507,10 +2498,6 @@ void do_cmd_quaff_potion(void)
 
 	/* Get the item */
 	object_type *o_ptr = get_object(item);
-
-
-	/* Sound */
-	sound(SOUND_QUAFF);
 
 
 	/* Take a turn */
@@ -2552,7 +2539,7 @@ void do_cmd_quaff_potion(void)
 
 
 	/* Potions can feed the player */
-	(void)set_food(p_ptr->food + o_ptr->pval);
+	set_food(p_ptr->food + o_ptr->pval);
 
 
 	/* Destroy potion */
@@ -2563,7 +2550,7 @@ void do_cmd_quaff_potion(void)
 /*
  * Fill an empty bottle
  */
-static void do_cmd_fill_bottle(void)
+static void do_cmd_fill_bottle()
 {
 	cave_type *c_ptr = &cave[p_ptr->py][p_ptr->px];
 
@@ -2649,15 +2636,15 @@ static void do_cmd_fill_bottle(void)
 /*
  * Drink from a fountain
  */
-void do_cmd_drink_fountain(void)
+void do_cmd_drink_fountain()
 {
+	auto const &k_info = game->edit_data.k_info;
+
 	cave_type *c_ptr = &cave[p_ptr->py][p_ptr->px];
 
 	bool_ ident;
 
 	int tval, sval, pval = 0;
-
-	int i;
 
 	char ch;
 
@@ -2695,9 +2682,9 @@ void do_cmd_drink_fountain(void)
 			sval = c_ptr->special - SV_POTION_LAST;
 		}
 
-		for (i = 0; i < max_k_idx; i++)
+		for (auto const &k_ref: k_info)
 		{
-			object_kind *k_ptr = &k_info[i];
+			auto k_ptr = &k_ref;
 
 			if (k_ptr->tval != tval) continue;
 			if (k_ptr->sval != sval) continue;
@@ -2724,7 +2711,7 @@ void do_cmd_drink_fountain(void)
 /*
  * Curse the players armor
  */
-bool_ curse_armor(void)
+bool_ curse_armor()
 {
 	object_type *o_ptr;
 
@@ -2742,7 +2729,7 @@ bool_ curse_armor(void)
 	object_desc(o_name, o_ptr, FALSE, 3);
 
 	/* Attempt a saving throw for artifacts */
-	if (((o_ptr->art_name) || artifact_p(o_ptr)) && (rand_int(100) < 50))
+	if (artifact_p(o_ptr) && (rand_int(100) < 50))
 	{
 		/* Cool */
 		msg_format("A terrible black aura tries to surround your armour, "
@@ -2764,10 +2751,7 @@ bool_ curse_armor(void)
 		o_ptr->ac = 0;
 		o_ptr->dd = 0;
 		o_ptr->ds = 0;
-		o_ptr->art_flags1 = 0;
-		o_ptr->art_flags2 = 0;
-		o_ptr->art_flags3 = 0;
-		o_ptr->art_flags4 = 0;
+		o_ptr->art_flags = object_flag_set();
 
 		/* Curse it */
 		o_ptr->ident |= (IDENT_CURSED);
@@ -2789,7 +2773,7 @@ bool_ curse_armor(void)
 /*
  * Curse the players weapon
  */
-bool_ curse_weapon(void)
+bool_ curse_weapon()
 {
 	object_type *o_ptr;
 
@@ -2807,7 +2791,7 @@ bool_ curse_weapon(void)
 	object_desc(o_name, o_ptr, FALSE, 3);
 
 	/* Attempt a saving throw */
-	if ((artifact_p(o_ptr) || o_ptr->art_name) && (rand_int(100) < 50))
+	if (artifact_p(o_ptr) && (rand_int(100) < 50))
 	{
 		/* Cool */
 		msg_format("A terrible black aura tries to surround your weapon, "
@@ -2829,10 +2813,7 @@ bool_ curse_weapon(void)
 		o_ptr->ac = 0;
 		o_ptr->dd = 0;
 		o_ptr->ds = 0;
-		o_ptr->art_flags1 = 0;
-		o_ptr->art_flags2 = 0;
-		o_ptr->art_flags3 = 0;
-		o_ptr->art_flags4 = 0;
+		o_ptr->art_flags = object_flag_set();
 
 
 		/* Curse it */
@@ -2874,8 +2855,12 @@ static object_filter_t const &item_tester_hook_readable()
  * include scrolls with no effects but recharge or identify, which are
  * cancelled before use.  XXX Reading them still takes a turn, though.
  */
-void do_cmd_read_scroll(void)
+void do_cmd_read_scroll()
 {
+	auto const &d_info = game->edit_data.d_info;
+	auto const &k_info = game->edit_data.k_info;
+	auto &r_info = game->edit_data.r_info;
+
 	/* Check some conditions */
 	if (p_ptr->blind)
 	{
@@ -2942,12 +2927,12 @@ void do_cmd_read_scroll(void)
 				msg_print("You feel the souls of the dead coming back "
 				          "from the Halls of Mandos.");
 
-				for (int k = 0; k < max_r_idx; k++)
+				for (auto &r_ref: r_info)
 				{
-					monster_race *r_ptr = &r_info[k];
+					auto r_ptr = &r_ref;
 
-					if (r_ptr->flags1 & RF1_UNIQUE &&
-					                !(r_ptr->flags9 & RF9_SPECIAL_GENE))
+					if (r_ptr->flags & RF_UNIQUE &&
+							!(r_ptr->flags & RF_SPECIAL_GENE))
 					{
 						r_ptr->max_num = 1;
 					}
@@ -2983,7 +2968,7 @@ void do_cmd_read_scroll(void)
 				}
 
 				msg_format("Recall reset to %s at level %d.",
-					   d_info[p_ptr->recall_dungeon].name,
+					   d_info[p_ptr->recall_dungeon].name.c_str(),
 				           max_dlv[p_ptr->recall_dungeon]);
 
 				ident = TRUE;
@@ -2995,7 +2980,6 @@ void do_cmd_read_scroll(void)
 		case SV_SCROLL_DIVINATION:
 			{
 				int i, count = 0;
-				char buf[120];
 
 				while (count < 1000)
 				{
@@ -3007,8 +2991,7 @@ void do_cmd_read_scroll(void)
 					msg_print("A message appears on the scroll. It says:");
 					msg_print(NULL);
 
-					fate_desc(buf, i);
-					msg_format("%s", buf);
+					msg_format("%s", fate_desc(i).c_str());
 
 					msg_print(NULL);
 					msg_print("The scroll disappears in a puff of smoke!");
@@ -3026,7 +3009,7 @@ void do_cmd_read_scroll(void)
 			{
 				if (!(p_ptr->resist_blind) && !(p_ptr->resist_dark))
 				{
-					(void)set_blind(p_ptr->blind + 3 + randint(5));
+					set_blind(p_ptr->blind + 3 + randint(5));
 				}
 				if (unlite_area(10, 3)) ident = TRUE;
 
@@ -3093,13 +3076,6 @@ void do_cmd_read_scroll(void)
 				break;
 			}
 
-		case SV_SCROLL_TRAP_CREATION:
-			{
-				if (trap_creation()) ident = TRUE;
-
-				break;
-			}
-
 		case SV_SCROLL_PHASE_DOOR:
 			{
 				teleport_player(10);
@@ -3120,7 +3096,7 @@ void do_cmd_read_scroll(void)
 
 		case SV_SCROLL_TELEPORT_LEVEL:
 			{
-				(void)teleport_player_level();
+				teleport_player_level();
 
 				ident = TRUE;
 
@@ -3129,7 +3105,7 @@ void do_cmd_read_scroll(void)
 
 		case SV_SCROLL_WORD_OF_RECALL:
 			{
-				if ((dungeon_flags2 & DF2_ASK_LEAVE) && !get_check("Leave this unique level forever? "))
+				if ((dungeon_flags & DF_ASK_LEAVE) && !get_check("Leave this unique level forever? "))
 				{
 					used_up = FALSE;
 				}
@@ -3174,9 +3150,11 @@ void do_cmd_read_scroll(void)
 
 		case SV_SCROLL_STAR_REMOVE_CURSE:
 			{
-				remove_all_curse();
-
-				ident = TRUE;
+				if (remove_all_curse())
+				{
+					msg_print("You feel as if someone is watching over you.");
+					ident = TRUE;
+				}
 
 				break;
 			}
@@ -3275,13 +3253,6 @@ void do_cmd_read_scroll(void)
 				break;
 			}
 
-		case SV_SCROLL_DETECT_TRAP:
-			{
-				if (detect_traps(DEFAULT_RADIUS)) ident = TRUE;
-
-				break;
-			}
-
 		case SV_SCROLL_DETECT_DOOR:
 			{
 				if (detect_doors(DEFAULT_RADIUS)) ident = TRUE;
@@ -3357,13 +3328,6 @@ void do_cmd_read_scroll(void)
 				break;
 			}
 
-		case SV_SCROLL_TRAP_DOOR_DESTRUCTION:
-			{
-				if (destroy_doors_touch()) ident = TRUE;
-
-				break;
-			}
-
 		case SV_SCROLL_STAR_DESTRUCTION:
 			{
 				/* Prevent destruction of quest levels and town */
@@ -3390,7 +3354,7 @@ void do_cmd_read_scroll(void)
 
 		case SV_SCROLL_GENOCIDE:
 			{
-				(void)genocide(TRUE);
+				genocide(TRUE);
 
 				ident = TRUE;
 
@@ -3399,7 +3363,7 @@ void do_cmd_read_scroll(void)
 
 		case SV_SCROLL_MASS_GENOCIDE:
 			{
-				(void)mass_genocide(TRUE);
+				mass_genocide(TRUE);
 
 				ident = TRUE;
 
@@ -3586,14 +3550,15 @@ void do_cmd_read_scroll(void)
 			cptr q = format("book-%d.txt", o_ptr->sval);
 
 			/* Peruse the help file */
-			(void)show_file(q, NULL, 0, 0);
+			show_file(q, NULL);
 
 			/* Load screen */
 			screen_load();
 
+			/* Inscriptions become known upon reading */
 			if (o_ptr->sval >= 100)
 			{
-				inscription_info[o_ptr->sval - 100].know = TRUE;
+				p_ptr->inscriptions[o_ptr->sval - 100] = TRUE;
 			}
 
 			used_up = FALSE;
@@ -3620,8 +3585,6 @@ void do_cmd_read_scroll(void)
 
 	/* Hack -- allow certain scrolls to be "preserved" */
 	if (!used_up) return;
-
-	sound(SOUND_SCROLL);
 
 	/* Destroy scroll */
 	inc_stack_size(item, -1);
@@ -3694,11 +3657,9 @@ static void activate_stick(object_type *o_ptr, bool_ *obvious, bool_ *use_charge
  *
  * Hack -- staffs of identify can be "cancelled".
  */
-void do_cmd_use_staff(void)
+void do_cmd_use_staff()
 {
 	bool_ obvious, use_charge;
-
-	u32b f1, f2, f3, f4, f5, esp;
 
 	/* No magic */
 	if (p_ptr->antimagic)
@@ -3746,10 +3707,10 @@ void do_cmd_use_staff(void)
 	unset_stick_mode();
 
 	/* Extract object flags */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+	auto const flags = object_flags(o_ptr);
 
 	/* Is it simple to use ? */
-	if (f4 & TR4_EASY_USE)
+	if (flags & TR_EASY_USE)
 	{
 		chance /= 3;
 	}
@@ -3763,24 +3724,20 @@ void do_cmd_use_staff(void)
 	/* Roll for usage */
 	if (magik(chance))
 	{
-		if (flush_failure) flush();
+		flush_on_failure();
 		msg_print("You failed to use the staff properly.");
-		sound(SOUND_FAIL);
 		return;
 	}
 
 	/* Notice empty staffs */
 	if (o_ptr->pval <= 0)
 	{
-		if (flush_failure) flush();
+		flush_on_failure();
 		msg_print("The staff has no charges left.");
 		o_ptr->ident |= (IDENT_EMPTY);
 		return;
 	}
 
-
-	/* Sound */
-	sound(SOUND_ZAP);
 
 	/* Analyze the staff */
 	activate_stick(o_ptr, &obvious, &use_charge);
@@ -3871,12 +3828,9 @@ void do_cmd_use_staff(void)
  * basic "bolt" rods, but the basic "ball" wands do the same damage
  * as the basic "ball" rods.
  */
-void do_cmd_aim_wand(void)
+void do_cmd_aim_wand()
 {
 	bool_ obvious, use_charge;
-
-	u32b f1, f2, f3, f4, f5, esp;
-
 
 	/* No magic */
 	if (p_ptr->antimagic)
@@ -3924,10 +3878,10 @@ void do_cmd_aim_wand(void)
 	unset_stick_mode();
 
 	/* Extract object flags */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+	auto const flags = object_flags(o_ptr);
 
 	/* Is it simple to use ? */
-	if (f4 & TR4_EASY_USE)
+	if (flags & TR_EASY_USE)
 	{
 		chance /= 3;
 	}
@@ -3935,23 +3889,19 @@ void do_cmd_aim_wand(void)
 	/* Roll for usage */
 	if (magik(chance))
 	{
-		if (flush_failure) flush();
+		flush_on_failure();
 		msg_print("You failed to use the wand properly.");
-		sound(SOUND_FAIL);
 		return;
 	}
 
 	/* The wand is already empty! */
 	if (o_ptr->pval <= 0)
 	{
-		if (flush_failure) flush();
+		flush_on_failure();
 		msg_print("The wand has no charges left.");
 		o_ptr->ident |= (IDENT_EMPTY);
 		return;
 	}
-
-	/* Sound */
-	sound(SOUND_ZAP);
 
 	/* Analyze the wand */
 	activate_stick(o_ptr, &obvious, &use_charge);
@@ -4038,12 +3988,6 @@ static bool item_tester_hook_attachable(object_type const *o_ptr)
  */
 void zap_combine_rod_tip(object_type *q_ptr, int tip_item)
 {
-	int item;
-
-	u32b f1, f2, f3, f4, f5, esp;
-	s32b cost;
-
-
 	/* No magic */
 	if (p_ptr->antimagic)
 	{
@@ -4052,6 +3996,7 @@ void zap_combine_rod_tip(object_type *q_ptr, int tip_item)
 	}
 
 	/* Get an item */
+	int item;
 	if (!get_item(&item,
 		      "Attach the rod tip with which rod? ",
 		      "You have no rod to attach to.",
@@ -4065,12 +4010,11 @@ void zap_combine_rod_tip(object_type *q_ptr, int tip_item)
 	object_type *o_ptr = get_object(item);
 
 	/* Examine the rod */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+	auto const flags = object_flags(o_ptr);
 
 	/* Calculate rod tip's mana cost */
-	cost = q_ptr->pval;
-
-	if (f4 & TR4_CHEAPNESS)
+	s32b cost = q_ptr->pval;
+	if (flags & TR_CHEAPNESS)
 	{
 		cost /= 2;
 	}
@@ -4096,17 +4040,15 @@ void zap_combine_rod_tip(object_type *q_ptr, int tip_item)
 /*
  * Zap a rod, or attack a rod tip to a rod
  */
-void do_cmd_zap_rod(void)
+void do_cmd_zap_rod()
 {
+	auto const &k_info = game->edit_data.k_info;
+
 	int item, ident, chance, dir, lev;
 
 	int cost;
 
 	bool_ require_dir;
-
-	object_kind *tip_ptr;
-
-	u32b f1, f2, f3, f4, f5, esp;
 
 	/* Hack -- let perception get aborted */
 	bool_ use_charge = TRUE;
@@ -4161,7 +4103,6 @@ void do_cmd_zap_rod(void)
 	{
 		switch (o_ptr->pval)
 		{
-		case SV_ROD_DETECT_TRAP:
 		case SV_ROD_HAVOC:
 		case SV_ROD_HOME:
 			{
@@ -4188,15 +4129,18 @@ void do_cmd_zap_rod(void)
 	energy_use = 100;
 
 	/* Examine the rod */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+	auto const flags = object_flags(o_ptr);
 
-	if (f4 & TR4_FAST_CAST) energy_use /= 2;
+	if (flags & TR_FAST_CAST)
+	{
+		energy_use /= 2;
+	}
 
 	/* Not identified yet */
 	ident = FALSE;
 
 	/* Extract the item level */
-	tip_ptr = &k_info[lookup_kind(TV_ROD, o_ptr->pval)];
+	auto tip_ptr = &k_info[lookup_kind(TV_ROD, o_ptr->pval)];
 	lev = k_info[lookup_kind(TV_ROD, o_ptr->pval)].level;
 
 	/* Base chance of success */
@@ -4214,7 +4158,7 @@ void do_cmd_zap_rod(void)
 	}
 
 	/* Is it simple to use ? */
-	if (f4 & TR4_EASY_USE)
+	if (flags & TR_EASY_USE)
 	{
 		chance *= 10;
 	}
@@ -4229,12 +4173,10 @@ void do_cmd_zap_rod(void)
 	if ((chance < USE_DEVICE) || (randint(chance) < USE_DEVICE))
 	{
 		/* Flush input if necessary */
-		if (flush_failure) flush();
+		flush_on_failure();
 
 		/* Message */
 		msg_print("You failed to use the rod properly.");
-
-		sound(SOUND_FAIL);
 
 		return;
 	}
@@ -4243,13 +4185,13 @@ void do_cmd_zap_rod(void)
 	cost = tip_ptr->pval;
 
 	/* "Cheapness" ego halven the cost */
-	if (f4 & TR4_CHEAPNESS) cost = cost / 2;
+	if (flags & TR_CHEAPNESS) cost = cost / 2;
 
 	/* A single rod is still charging */
 	if (o_ptr->timeout < cost)
 	{
 		/* Flush input if necessary */
-		if (flush_failure) flush();
+		flush_on_failure();
 
 		/* Message */
 		msg_print("The rod does not have enough mana yet.");
@@ -4260,9 +4202,6 @@ void do_cmd_zap_rod(void)
 	/* Increase the timeout by the rod kind's pval. */
 	o_ptr->timeout -= cost;
 
-	/* Sound */
-	sound(SOUND_ZAP);
-
 	/* Analyze the rod */
 	switch (o_ptr->pval)
 	{
@@ -4271,13 +4210,6 @@ void do_cmd_zap_rod(void)
 			ident = TRUE;
 
 			do_cmd_home_trump();
-
-			break;
-		}
-
-	case SV_ROD_DETECT_TRAP:
-		{
-			if (detect_traps(DEFAULT_RADIUS)) ident = TRUE;
 
 			break;
 		}
@@ -4301,7 +4233,7 @@ void do_cmd_zap_rod(void)
 
 	case SV_ROD_RECALL:
 		{
-			if ((dungeon_flags2 & DF2_ASK_LEAVE) && !get_check("Leave this unique level forever? "))
+			if ((dungeon_flags & DF_ASK_LEAVE) && !get_check("Leave this unique level forever? "))
 			{
 				use_charge = FALSE;
 			}
@@ -4334,15 +4266,6 @@ void do_cmd_zap_rod(void)
 	case SV_ROD_DETECTION:
 		{
 			detect_all(DEFAULT_RADIUS);
-
-			ident = TRUE;
-
-			break;
-		}
-
-	case SV_ROD_PROBING:
-		{
-			probing();
 
 			ident = TRUE;
 
@@ -4391,7 +4314,7 @@ void do_cmd_zap_rod(void)
 			}
 			else
 			{
-				(void)set_fast(p_ptr->fast + 5, 10);
+				set_fast(p_ptr->fast + 5, 10);
 			}
 
 			break;
@@ -4400,13 +4323,6 @@ void do_cmd_zap_rod(void)
 	case SV_ROD_TELEPORT_AWAY:
 		{
 			if (teleport_monster(dir)) ident = TRUE;
-
-			break;
-		}
-
-	case SV_ROD_DISARMING:
-		{
-			if (disarm_trap(dir)) ident = TRUE;
 
 			break;
 		}
@@ -4571,7 +4487,7 @@ static object_filter_t const &item_tester_hook_activate()
 	using namespace object_filter;
 	static auto instance = And(
 		IsKnown(),
-		HasFlag3(TR3_ACTIVATE));
+		HasFlags(TR_ACTIVATE));
 	return instance;
 }
 
@@ -4672,7 +4588,7 @@ int ring_of_power()
 /*
  * Enchant some bolts
  */
-bool_ brand_bolts(void)
+bool_ brand_bolts()
 {
 	int i;
 
@@ -4686,7 +4602,7 @@ bool_ brand_bolts(void)
 		if (o_ptr->tval != TV_BOLT) continue;
 
 		/* Skip artifacts and ego-items */
-		if (o_ptr->art_name || artifact_p(o_ptr) || ego_item_p(o_ptr)) continue;
+		if (artifact_p(o_ptr) || ego_item_p(o_ptr)) continue;
 
 		/* Skip cursed/broken items */
 		if (cursed_p(o_ptr)) continue;
@@ -4711,7 +4627,7 @@ bool_ brand_bolts(void)
 	}
 
 	/* Flush */
-	if (flush_failure) flush();
+	flush_on_failure();
 
 	/* Fail */
 	msg_print("The fiery enchantment failed.");
@@ -4878,13 +4794,12 @@ static void activate_valaroma()
  * Note that it always takes a turn to activate an object, even if
  * the user hits "escape" at the "direction" prompt.
  */
-void do_cmd_activate(void)
+void do_cmd_activate()
 {
+	auto const &k_info = game->edit_data.k_info;
+	auto const &a_info = game->edit_data.a_info;
+
 	int item, lev, chance;
-
-	char ch, spell_choice;
-
-	u32b f1, f2, f3, f4, f5, esp;
 
 	/* Get an item */
 	command_wrk = USE_EQUIP;
@@ -4901,10 +4816,10 @@ void do_cmd_activate(void)
 	object_type *o_ptr = get_object(item);
 
 	/* Extract object flags */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+	auto const flags = object_flags(o_ptr);
 
 	/* Wearable items have to be worn */
-	if (!(f5 & TR5_ACTIVATE_NO_WIELD))
+	if (!(flags & TR_ACTIVATE_NO_WIELD))
 	{
 		if (item < INVEN_WIELD)
 		{
@@ -4924,7 +4839,7 @@ void do_cmd_activate(void)
 	{
 		if (o_ptr->tval == TV_RANDART)
 		{
-			lev = random_artifacts[o_ptr->sval].level;
+			lev = game->random_artifacts[o_ptr->sval].level;
 		}
 		else
 		{
@@ -4947,7 +4862,7 @@ void do_cmd_activate(void)
 	}
 
 	/* Is it simple to use ? */
-	if (f4 & TR4_EASY_USE)
+	if (flags & TR_EASY_USE)
 	{
 		chance *= 10;
 	}
@@ -4961,24 +4876,16 @@ void do_cmd_activate(void)
 	/* Roll for usage */
 	if ((chance < USE_DEVICE) || (randint(chance) < USE_DEVICE))
 	{
-		if (flush_failure) flush();
+		flush_on_failure();
 		msg_print("You failed to activate it properly.");
-		sound(SOUND_FAIL);
 		return;
 	}
 
 	/* Check the recharge */
 	if (o_ptr->timeout)
 	{
-		/* Mage Staff of Spells -- Have another timeout in xtra2 */
-		if (is_ego_p(o_ptr, EGO_MSTAFF_SPELL) && o_ptr->xtra2)
-		{
-			msg_print("It whines, glows and fades...");
-			return;
-		}
-
 		/* Monster eggs */
-		else if (o_ptr->tval == TV_EGG)
+		if (o_ptr->tval == TV_EGG)
 		{
 			msg_print("You resume the development of the egg.");
 			o_ptr->timeout = 0;
@@ -5002,69 +4909,11 @@ void do_cmd_activate(void)
 	/* Activate the item */
 	msg_print("You activate it...");
 
-	/* Sound */
-	sound(SOUND_ZAP);
-
 	/* New mostly unified activation code
 	   This has to be early to allow artifacts to override normal items -- neil */
 
 	if ( activation_aux(o_ptr, TRUE, item) == NULL )
 	{
-		/* Window stuff */
-		p_ptr->window |= (PW_INVEN | PW_EQUIP);
-
-		/* Success */
-		return;
-	}
-
-	/* Mage Staff of Spells */
-	if (is_ego_p(o_ptr, EGO_MSTAFF_SPELL))
-	{
-		while (TRUE)
-		{
-			if (!get_com("Use Spell [1] or [2]?", &ch))
-			{
-				return;
-			}
-
-			if (ch == '1')
-			{
-				spell_choice = 1;
-				break;
-			}
-
-			if (ch == '2')
-			{
-				spell_choice = 2;
-				break;
-			}
-		}
-
-		if (spell_choice == 1)
-		{
-			/* Still need to check timeouts because there is another counter */
-			if (o_ptr->timeout)
-			{
-				msg_print("The first spell is still charging!");
-				return;
-			}
-
-			/* Cast spell 1 */
-			activate_spell(o_ptr, spell_choice);
-		}
-		else if (spell_choice == 2)
-		{
-			/* Still need to check timeouts because there is another counter */
-			if (o_ptr->xtra2)
-			{
-				msg_print("The second spell is still charging!");
-				return;
-			}
-
-			/* Cast spell 2 */
-			activate_spell(o_ptr, spell_choice);
-		}
-
 		/* Window stuff */
 		p_ptr->window |= (PW_INVEN | PW_EQUIP);
 
@@ -5108,6 +4957,10 @@ void do_cmd_activate(void)
 
 const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 {
+	auto const &k_info = game->edit_data.k_info;
+	auto const &a_info = game->edit_data.a_info;
+	auto const &e_info = game->edit_data.e_info;
+
 	int plev = get_skill(SKILL_DEVICE);
 
 	int i = 0, ii = 0, ij = 0, k, dir, dummy = 0;
@@ -5125,7 +4978,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		spell = a_info[o_ptr->name1].activate;
 
 	/* Random Artifacts */
-	if (!spell && o_ptr->art_name)
+	if (!spell && (!o_ptr->artifact_name.empty()))
 		spell = o_ptr->xtra2;
 
 	/* Ego Items */
@@ -5227,67 +5080,6 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			break;
 		}
 
-	case ACT_NUMENOR:
-		{
-			/* Give full knowledge */
-			/* Hack -- Maximal info */
-			monster_race *r_ptr;
-			cave_type *c_ptr;
-			int x, y, m;
-
-			if (!doit) return "analyze monster every 500+d200 turns";
-
-			if (!tgt_pt(&x, &y)) break;
-
-			c_ptr = &cave[y][x];
-			if (!c_ptr->m_idx) break;
-
-			r_ptr = &r_info[c_ptr->m_idx];
-
-			/* Observe "maximal" attacks */
-			for (m = 0; m < 4; m++)
-			{
-				/* Examine "actual" blows */
-				if (r_ptr->blow[m].effect || r_ptr->blow[m].method)
-				{
-					/* Hack -- maximal observations */
-					r_ptr->r_blows[m] = MAX_UCHAR;
-				}
-			}
-
-			/* Hack -- maximal drops */
-			r_ptr->r_drop_gold = r_ptr->r_drop_item =
-			                             (((r_ptr->flags1 & (RF1_DROP_4D2)) ? 8 : 0) +
-			                              ((r_ptr->flags1 & (RF1_DROP_3D2)) ? 6 : 0) +
-			                              ((r_ptr->flags1 & (RF1_DROP_2D2)) ? 4 : 0) +
-			                              ((r_ptr->flags1 & (RF1_DROP_1D2)) ? 2 : 0) +
-			                              ((r_ptr->flags1 & (RF1_DROP_90)) ? 1 : 0) +
-			                              ((r_ptr->flags1 & (RF1_DROP_60)) ? 1 : 0));
-
-			/* Hack -- but only "valid" drops */
-			if (r_ptr->flags1 & (RF1_ONLY_GOLD)) r_ptr->r_drop_item = 0;
-			if (r_ptr->flags1 & (RF1_ONLY_ITEM)) r_ptr->r_drop_gold = 0;
-
-			/* Hack -- observe many spells */
-			r_ptr->r_cast_inate = MAX_UCHAR;
-			r_ptr->r_cast_spell = MAX_UCHAR;
-
-			/* Hack -- know all the flags */
-			r_ptr->r_flags1 = r_ptr->flags1;
-			r_ptr->r_flags2 = r_ptr->flags2;
-			r_ptr->r_flags3 = r_ptr->flags3;
-			r_ptr->r_flags4 = r_ptr->flags4;
-			r_ptr->r_flags5 = r_ptr->flags5;
-			r_ptr->r_flags6 = r_ptr->flags6;
-			r_ptr->r_flags7 = r_ptr->flags7;
-			r_ptr->r_flags8 = r_ptr->flags8;
-			r_ptr->r_flags9 = r_ptr->flags9;
-
-			o_ptr->timeout = rand_int(200) + 500;
-
-			break;
-		}
-
 	case ACT_KNOWLEDGE:
 		{
 			if (!doit) return "whispers from beyond(sanity drain) every 100+d200 turns";
@@ -5305,12 +5097,12 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			msg_print("The phial wells with dark light...");
 			unlite_area(damroll(2, 15), 3);
 			take_hit(damroll(10, 10), "activating The Phial of Undeath");
-			(void)dec_stat(A_DEX, 25, STAT_DEC_PERMANENT);
-			(void)dec_stat(A_WIS, 25, STAT_DEC_PERMANENT);
-			(void)dec_stat(A_CON, 25, STAT_DEC_PERMANENT);
-			(void)dec_stat(A_STR, 25, STAT_DEC_PERMANENT);
-			(void)dec_stat(A_CHR, 25, STAT_DEC_PERMANENT);
-			(void)dec_stat(A_INT, 25, STAT_DEC_PERMANENT);
+			dec_stat(A_DEX, 25, STAT_DEC_PERMANENT);
+			dec_stat(A_WIS, 25, STAT_DEC_PERMANENT);
+			dec_stat(A_CON, 25, STAT_DEC_PERMANENT);
+			dec_stat(A_STR, 25, STAT_DEC_PERMANENT);
+			dec_stat(A_CHR, 25, STAT_DEC_PERMANENT);
+			dec_stat(A_INT, 25, STAT_DEC_PERMANENT);
 
 			o_ptr->timeout = rand_int(10) + 10;
 
@@ -5332,7 +5124,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "dispel small life every 55+d55 turns";
 			msg_print("You exterminate small life.");
-			(void)dispel_monsters(4);
+			dispel_monsters(4);
 
 			o_ptr->timeout = rand_int(55) + 55;
 
@@ -5345,11 +5137,11 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			msg_print("The ring glows brightly...");
 			if (!p_ptr->fast)
 			{
-				(void)set_fast(randint(75) + 75, 10);
+				set_fast(randint(75) + 75, 10);
 			}
 			else
 			{
-				(void)set_fast(p_ptr->fast + 5, 10);
+				set_fast(p_ptr->fast + 5, 10);
 			}
 
 			o_ptr->timeout = rand_int(150) + 150;
@@ -5428,7 +5220,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			msg_print("The stone reveals hidden mysteries...");
 			if (!ident_spell()) break;
 
-			if (has_ability(AB_PERFECT_CASTING))
+			if (p_ptr->has_ability(AB_PERFECT_CASTING))
 			{
 				/* Sufficient mana */
 				if (20 <= p_ptr->csp)
@@ -5450,10 +5242,10 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 					msg_print("You are too weak to control the stone!");
 
 					/* Hack -- Bypass free action */
-					(void)set_paralyzed(randint(5 * oops + 1));
+					set_paralyzed(randint(5 * oops + 1));
 
 					/* Confusing. */
-					(void)set_confused(p_ptr->confused +
+					set_confused(p_ptr->confused +
 					                   randint(5 * oops + 1));
 				}
 
@@ -5466,7 +5258,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			/* Confusing. */
 			if (rand_int(5) == 0)
 			{
-				(void)set_confused(p_ptr->confused + randint(10));
+				set_confused(p_ptr->confused + randint(10));
 			}
 
 			/* Exercise a little care... */
@@ -5508,15 +5300,15 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			msg_print("You breathe the elements.");
 			fire_ball(GF_MISSILE, dir, 300, 4);
 			msg_print("Your armor glows many colours...");
-			(void)set_afraid(0);
-			(void)set_shero(p_ptr->shero + randint(50) + 50);
-			(void)hp_player(30);
-			(void)set_blessed(p_ptr->blessed + randint(50) + 50);
-			(void)set_oppose_acid(p_ptr->oppose_acid + randint(50) + 50);
-			(void)set_oppose_elec(p_ptr->oppose_elec + randint(50) + 50);
-			(void)set_oppose_fire(p_ptr->oppose_fire + randint(50) + 50);
-			(void)set_oppose_cold(p_ptr->oppose_cold + randint(50) + 50);
-			(void)set_oppose_pois(p_ptr->oppose_pois + randint(50) + 50);
+			set_afraid(0);
+			set_shero(p_ptr->shero + randint(50) + 50);
+			hp_player(30);
+			set_blessed(p_ptr->blessed + randint(50) + 50);
+			set_oppose_acid(p_ptr->oppose_acid + randint(50) + 50);
+			set_oppose_elec(p_ptr->oppose_elec + randint(50) + 50);
+			set_oppose_fire(p_ptr->oppose_fire + randint(50) + 50);
+			set_oppose_cold(p_ptr->oppose_cold + randint(50) + 50);
+			set_oppose_pois(p_ptr->oppose_pois + randint(50) + 50);
 
 			o_ptr->timeout = 400;
 
@@ -5527,13 +5319,13 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return ("heal (777), curing and heroism every 300 turns");
 			msg_print("A heavenly choir sings...");
-			(void)set_poisoned(0);
-			(void)set_cut(0);
-			(void)set_stun(0);
-			(void)set_confused(0);
-			(void)set_blind(0);
-			(void)set_hero(p_ptr->hero + randint(25) + 25);
-			(void)hp_player(777);
+			set_poisoned(0);
+			set_cut(0);
+			set_stun(0);
+			set_confused(0);
+			set_blind(0);
+			set_hero(p_ptr->hero + randint(25) + 25);
+			hp_player(777);
 
 			o_ptr->timeout = 300;
 
@@ -5554,11 +5346,11 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "resistance (20+d20 turns) every 111 turns";
 			msg_print("Your cloak glows many colours...");
-			(void)set_oppose_acid(p_ptr->oppose_acid + randint(20) + 20);
-			(void)set_oppose_elec(p_ptr->oppose_elec + randint(20) + 20);
-			(void)set_oppose_fire(p_ptr->oppose_fire + randint(20) + 20);
-			(void)set_oppose_cold(p_ptr->oppose_cold + randint(20) + 20);
-			(void)set_oppose_pois(p_ptr->oppose_pois + randint(20) + 20);
+			set_oppose_acid(p_ptr->oppose_acid + randint(20) + 20);
+			set_oppose_elec(p_ptr->oppose_elec + randint(20) + 20);
+			set_oppose_fire(p_ptr->oppose_fire + randint(20) + 20);
+			set_oppose_cold(p_ptr->oppose_cold + randint(20) + 20);
+			set_oppose_pois(p_ptr->oppose_pois + randint(20) + 20);
 
 			o_ptr->timeout = 111;
 
@@ -5608,7 +5400,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			case 11:
 			case 12:
 				{
-					(void)stair_creation();
+					stair_creation();
 
 					break;
 				}
@@ -5654,7 +5446,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "summon the Legion of the Dawn every 500+d500 turns";
 			msg_print("You summon the Legion of the Dawn.");
-			(void)summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_DAWN, TRUE);
+			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_DAWN, TRUE);
 
 			o_ptr->timeout = 500 + randint(500);
 
@@ -5689,7 +5481,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "fire branding of bolts every 999 turns";
 			msg_print("Your crossbow glows deep red...");
-			(void)brand_bolts();
+			brand_bolts();
 
 			o_ptr->timeout = 999;
 
@@ -5760,9 +5552,8 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			if (!doit) return "clairvoyance every 100+d100 turns";
 			msg_print("The stone glows a deep green...");
 			wiz_lite_extra();
-			(void)detect_traps(DEFAULT_RADIUS);
-			(void)detect_doors(DEFAULT_RADIUS);
-			(void)detect_stairs(DEFAULT_RADIUS);
+			detect_doors(DEFAULT_RADIUS);
+			detect_stairs(DEFAULT_RADIUS);
 
 			o_ptr->timeout = rand_int(100) + 100;
 
@@ -5847,11 +5638,11 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			if (!doit) return "berserker and +10 to speed (50) every 100+d200 turns";
 			if (!p_ptr->fast)
 			{
-				(void)set_fast(randint(50) + 50, 10);
+				set_fast(randint(50) + 50, 10);
 			}
 			else
 			{
-				(void)set_fast(p_ptr->fast + 5, 10);
+				set_fast(p_ptr->fast + 5, 10);
 			}
 			hp_player(30);
 			set_afraid(0);
@@ -5927,7 +5718,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "detect orcs every 10 turns";
 			msg_print("Your weapon glows brightly...");
-			(void)detect_monsters_xxx(RF3_ORC, DEFAULT_RADIUS);
+			detect_monsters_orcs(DEFAULT_RADIUS);
 
 			o_ptr->timeout = 10;
 
@@ -6306,7 +6097,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "teleport away every 200 turns";
 			if (!get_aim_dir(&dir)) break;
-			(void)fire_beam(GF_AWAY_ALL, dir, plev);
+			fire_beam(GF_AWAY_ALL, dir, plev);
 
 			o_ptr->timeout = 200;
 
@@ -6330,7 +6121,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "genocide every 500 turns";
 			msg_print("It glows deep blue...");
-			(void)genocide(TRUE);
+			genocide(TRUE);
 
 			o_ptr->timeout = 500;
 
@@ -6341,7 +6132,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "mass genocide every 1000 turns";
 			msg_print("It lets out a long, shrill note...");
-			(void)mass_genocide(TRUE);
+			mass_genocide(TRUE);
 
 			o_ptr->timeout = 1000;
 
@@ -6354,7 +6145,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "charm animal every 300 turns";
 			if (!get_aim_dir(&dir)) break;
-			(void) charm_animal(dir, plev);
+			charm_animal(dir, plev);
 
 			o_ptr->timeout = 300;
 
@@ -6365,7 +6156,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "enslave undead every 333 turns";
 			if (!get_aim_dir(&dir)) break;
-			(void)control_one_undead(dir, plev);
+			control_one_undead(dir, plev);
 
 			o_ptr->timeout = 333;
 
@@ -6376,7 +6167,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "charm monster every 400 turns";
 			if (!get_aim_dir(&dir)) break;
-			(void) charm_monster(dir, plev);
+			charm_monster(dir, plev);
 
 			o_ptr->timeout = 400;
 
@@ -6386,7 +6177,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_CHARM_ANIMALS:
 		{
 			if (!doit) return "animal friendship every 500 turns";
-			(void) charm_animals(plev * 2);
+			charm_animals(plev * 2);
 
 			o_ptr->timeout = 500;
 
@@ -6406,7 +6197,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_SUMMON_ANIMAL:
 		{
 			if (!doit) return "summon animal every 200+d300 turns";
-			(void)summon_specific_friendly(p_ptr->py, p_ptr->px, plev, SUMMON_ANIMAL_RANGER, TRUE);
+			summon_specific_friendly(p_ptr->py, p_ptr->px, plev, SUMMON_ANIMAL_RANGER, TRUE);
 
 			o_ptr->timeout = 200 + randint(300);
 
@@ -6417,7 +6208,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "summon phantasmal servant every 200+d200 turns";
 			msg_print("You summon a phantasmal servant.");
-			(void)summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_PHANTOM, TRUE);
+			summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_PHANTOM, TRUE);
 
 			o_ptr->timeout = 200 + randint(200);
 
@@ -6509,8 +6300,8 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_CURE_LW:
 		{
 			if (!doit) return format("cure light wounds every %d turns", (is_junkart ? 50 : 10));
-			(void)set_afraid(0);
-			(void)hp_player(30);
+			set_afraid(0);
+			hp_player(30);
 
 			o_ptr->timeout = 10;
 
@@ -6522,7 +6313,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			if (!doit) return format("cure serious wounds every %s turns", (is_junkart? "75" : "3+d3"));
 			msg_print("It radiates deep purple...");
 			hp_player(damroll(4, 8));
-			(void)set_cut((p_ptr->cut / 2) - 50);
+			set_cut((p_ptr->cut / 2) - 50);
 
 			o_ptr->timeout = rand_int(3) + 3;
 
@@ -6533,8 +6324,8 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "remove fear and cure poison every 5 turns";
 			msg_print("It glows deep blue...");
-			(void)set_afraid(0);
-			(void)set_poisoned(0);
+			set_afraid(0);
+			set_poisoned(0);
 
 			o_ptr->timeout = 5;
 
@@ -6556,13 +6347,13 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return format("restore stats and life levels every %d turns", (is_junkart ? 200 : 750));
 			msg_print("It glows a deep green...");
-			(void)do_res_stat(A_STR, TRUE);
-			(void)do_res_stat(A_INT, TRUE);
-			(void)do_res_stat(A_WIS, TRUE);
-			(void)do_res_stat(A_DEX, TRUE);
-			(void)do_res_stat(A_CON, TRUE);
-			(void)do_res_stat(A_CHR, TRUE);
-			(void)restore_level();
+			do_res_stat(A_STR, TRUE);
+			do_res_stat(A_INT, TRUE);
+			do_res_stat(A_WIS, TRUE);
+			do_res_stat(A_DEX, TRUE);
+			do_res_stat(A_CON, TRUE);
+			do_res_stat(A_CHR, TRUE);
+			restore_level();
 
 			o_ptr->timeout = 750;
 
@@ -6574,8 +6365,8 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			if (!doit) return format("heal 700 hit points every %d turns", (is_junkart ? 100 : 250));
 			msg_print("It glows deep blue...");
 			msg_print("You feel a warm tingling inside...");
-			(void)hp_player(700);
-			(void)set_cut(0);
+			hp_player(700);
+			set_cut(0);
 
 			o_ptr->timeout = 250;
 
@@ -6587,8 +6378,8 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			if (!doit) return "heal 1000 hit points every 888 turns";
 			msg_print("It glows a bright white...");
 			msg_print("You feel much better...");
-			(void)hp_player(1000);
-			(void)set_cut(0);
+			hp_player(1000);
+			set_cut(0);
 
 			o_ptr->timeout = 888;
 
@@ -6598,7 +6389,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_ESP:
 		{
 			if (!doit) return "temporary ESP (dur 25+d30) every 200 turns";
-			(void)set_tim_esp(p_ptr->tim_esp + randint(30) + 25);
+			set_tim_esp(p_ptr->tim_esp + randint(30) + 25);
 
 			o_ptr->timeout = 200;
 
@@ -6608,8 +6399,8 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_BERSERK:
 		{
 			if (!doit) return "heroism and berserk (dur 50+d50) every 100+d100 turns";
-			(void)set_shero(p_ptr->shero + randint(50) + 50);
-			(void)set_blessed(p_ptr->blessed + randint(50) + 50);
+			set_shero(p_ptr->shero + randint(50) + 50);
+			set_blessed(p_ptr->blessed + randint(50) + 50);
 
 			o_ptr->timeout = 100 + randint(100);
 
@@ -6621,7 +6412,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			if (!doit) return "protection from evil (dur level*3 + d25) every 225+d225 turns";
 			msg_print("It lets out a shrill wail...");
 			k = 3 * p_ptr->lev;
-			(void)set_protevil(p_ptr->protevil + randint(25) + k);
+			set_protevil(p_ptr->protevil + randint(25) + k);
 
 			o_ptr->timeout = rand_int(225) + 225;
 
@@ -6632,11 +6423,11 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "resist elements (dur 40+d40) every 200 turns";
 			msg_print("It glows many colours...");
-			(void)set_oppose_acid(p_ptr->oppose_acid + randint(40) + 40);
-			(void)set_oppose_elec(p_ptr->oppose_elec + randint(40) + 40);
-			(void)set_oppose_fire(p_ptr->oppose_fire + randint(40) + 40);
-			(void)set_oppose_cold(p_ptr->oppose_cold + randint(40) + 40);
-			(void)set_oppose_pois(p_ptr->oppose_pois + randint(40) + 40);
+			set_oppose_acid(p_ptr->oppose_acid + randint(40) + 40);
+			set_oppose_elec(p_ptr->oppose_elec + randint(40) + 40);
+			set_oppose_fire(p_ptr->oppose_fire + randint(40) + 40);
+			set_oppose_cold(p_ptr->oppose_cold + randint(40) + 40);
+			set_oppose_pois(p_ptr->oppose_pois + randint(40) + 40);
 
 			o_ptr->timeout = 200;
 
@@ -6649,11 +6440,11 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			msg_print("It glows bright green...");
 			if (!p_ptr->fast)
 			{
-				(void)set_fast(randint(20) + 20, 10);
+				set_fast(randint(20) + 20, 10);
 			}
 			else
 			{
-				(void)set_fast(p_ptr->fast + 5, 10);
+				set_fast(p_ptr->fast + 5, 10);
 			}
 
 			o_ptr->timeout = 250;
@@ -6667,11 +6458,11 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			msg_print("It glows brightly...");
 			if (!p_ptr->fast)
 			{
-				(void)set_fast(randint(75) + 75, 10);
+				set_fast(randint(75) + 75, 10);
 			}
 			else
 			{
-				(void)set_fast(p_ptr->fast + 5, 10);
+				set_fast(p_ptr->fast + 5, 10);
 			}
 
 			o_ptr->timeout = rand_int(200) + 200;
@@ -6692,7 +6483,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_INVULN:
 		{
 			if (!doit) return "invulnerability (dur 8+d8) every 1000 turns";
-			(void)set_invuln(p_ptr->invuln + randint(8) + 8);
+			set_invuln(p_ptr->invuln + randint(8) + 8);
 
 			o_ptr->timeout = 1000;
 
@@ -6738,10 +6529,9 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 
 	case ACT_DETECT_XTRA:
 		{
-			if (!doit) return "detection, probing and identify true every 1000 turns";
+			if (!doit) return "detection and identify true every 1000 turns";
 			msg_print("It glows brightly...");
 			detect_all(DEFAULT_RADIUS);
-			probing();
 			identify_fully();
 
 			o_ptr->timeout = 1000;
@@ -6795,7 +6585,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_SATIATE:
 		{
 			if (!doit) return "satisfy hunger every 200 turns";
-			(void)set_food(PY_FOOD_MAX - 1);
+			set_food(PY_FOOD_MAX - 1);
 
 			o_ptr->timeout = 200;
 
@@ -6839,7 +6629,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		{
 			if (!doit) return "alchemy every 500 turns";
 			msg_print("It glows bright yellow...");
-			(void) alchemy();
+			alchemy();
 
 			o_ptr->timeout = 500;
 
@@ -6849,7 +6639,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_DIM_DOOR:
 		{
 			if (!doit) return "dimension door every 100 turns";
-			if (dungeon_flags2 & DF2_NO_TELEPORT)
+			if (dungeon_flags & DF_NO_TELEPORT)
 			{
 				msg_print("Not on special levels!");
 				break;
@@ -6892,7 +6682,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 
 	case ACT_RECALL:
 		{
-			if (!(dungeon_flags2 & DF2_ASK_LEAVE) || ((dungeon_flags2 & DF2_ASK_LEAVE) && !get_check("Leave this unique level forever? ")))
+			if (!(dungeon_flags & DF_ASK_LEAVE) || ((dungeon_flags & DF_ASK_LEAVE) && !get_check("Leave this unique level forever? ")))
 			{
 				if (!doit) return "word of recall every 200 turns";
 				msg_print("It glows soft white...");
@@ -6920,12 +6710,12 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			msg_print("Your nerves and muscles feel weak and lifeless!");
 
 			take_hit(damroll(10, 10), "activating Ruination");
-			(void)dec_stat(A_DEX, 25, TRUE);
-			(void)dec_stat(A_WIS, 25, TRUE);
-			(void)dec_stat(A_CON, 25, TRUE);
-			(void)dec_stat(A_STR, 25, TRUE);
-			(void)dec_stat(A_CHR, 25, TRUE);
-			(void)dec_stat(A_INT, 25, TRUE);
+			dec_stat(A_DEX, 25, TRUE);
+			dec_stat(A_WIS, 25, TRUE);
+			dec_stat(A_CON, 25, TRUE);
+			dec_stat(A_STR, 25, TRUE);
+			dec_stat(A_CHR, 25, TRUE);
+			dec_stat(A_INT, 25, TRUE);
 
 			/* Timeout is set before return */
 
@@ -6945,7 +6735,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_UNINT:
 		{
 			if (!doit) return "decreasing Intelligence";
-			(void)dec_stat(A_INT, 25, FALSE);
+			dec_stat(A_INT, 25, FALSE);
 
 			/* Timeout is set before return */
 
@@ -6955,7 +6745,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_UNSTR:
 		{
 			if (!doit) return "decreasing Strength";
-			(void)dec_stat(A_STR, 25, FALSE);
+			dec_stat(A_STR, 25, FALSE);
 
 			/* Timeout is set before return */
 
@@ -6965,7 +6755,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_UNCON:
 		{
 			if (!doit) return "decreasing Constitution";
-			(void)dec_stat(A_CON, 25, FALSE);
+			dec_stat(A_CON, 25, FALSE);
 
 			/* Timeout is set before return */
 
@@ -6975,7 +6765,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_UNCHR:
 		{
 			if (!doit) return "decreasing Charisma";
-			(void)dec_stat(A_CHR, 25, FALSE);
+			dec_stat(A_CHR, 25, FALSE);
 
 			/* Timeout is set before return */
 
@@ -6985,7 +6775,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_UNDEX:
 		{
 			if (!doit) return "decreasing Dexterity";
-			(void)dec_stat(A_DEX, 25, FALSE);
+			dec_stat(A_DEX, 25, FALSE);
 
 			/* Timeout is set before return */
 
@@ -6995,7 +6785,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_UNWIS:
 		{
 			if (!doit) return "decreasing Wisdom";
-			(void)dec_stat(A_WIS, 25, FALSE);
+			dec_stat(A_WIS, 25, FALSE);
 
 			/* Timeout is set before return */
 
@@ -7005,12 +6795,12 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_STATLOSS:
 		{
 			if (!doit) return "stat loss";
-			(void)dec_stat(A_STR, 15, FALSE);
-			(void)dec_stat(A_INT, 15, FALSE);
-			(void)dec_stat(A_WIS, 15, FALSE);
-			(void)dec_stat(A_DEX, 15, FALSE);
-			(void)dec_stat(A_CON, 15, FALSE);
-			(void)dec_stat(A_CHR, 15, FALSE);
+			dec_stat(A_STR, 15, FALSE);
+			dec_stat(A_INT, 15, FALSE);
+			dec_stat(A_WIS, 15, FALSE);
+			dec_stat(A_DEX, 15, FALSE);
+			dec_stat(A_CON, 15, FALSE);
+			dec_stat(A_CHR, 15, FALSE);
 
 			/* Timeout is set before return */
 
@@ -7020,12 +6810,12 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_HISTATLOSS:
 		{
 			if (!doit) return "high stat loss";
-			(void)dec_stat(A_STR, 25, FALSE);
-			(void)dec_stat(A_INT, 25, FALSE);
-			(void)dec_stat(A_WIS, 25, FALSE);
-			(void)dec_stat(A_DEX, 25, FALSE);
-			(void)dec_stat(A_CON, 25, FALSE);
-			(void)dec_stat(A_CHR, 25, FALSE);
+			dec_stat(A_STR, 25, FALSE);
+			dec_stat(A_INT, 25, FALSE);
+			dec_stat(A_WIS, 25, FALSE);
+			dec_stat(A_DEX, 25, FALSE);
+			dec_stat(A_CON, 25, FALSE);
+			dec_stat(A_CHR, 25, FALSE);
 
 			/* Timeout is set before return */
 
@@ -7095,7 +6885,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_HUNGER:
 		{
 			if (!doit) return "create hunger";
-			(void)set_food(PY_FOOD_WEAK);
+			set_food(PY_FOOD_WEAK);
 
 			/* Timeout is set before return */
 
@@ -7196,7 +6986,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 	case ACT_CURE_HUNGER:
 		{
 			if (!doit) return "satisfy hunger every 100 turns";
-			(void)set_food(PY_FOOD_MAX - 1);
+			set_food(PY_FOOD_MAX - 1);
 
 			/* Timeout is set before return */
 
@@ -7373,8 +7163,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 						c_ptr->info &= ~(CAVE_GLOW);
 
 						/* Hack -- Forget "boring" grids */
-						if (cave_plain_floor_grid(c_ptr) &&
-						                !(c_ptr->info & (CAVE_TRDT)))
+						if (cave_plain_floor_grid(c_ptr))
 						{
 							/* Forget the grid */
 							c_ptr->info &= ~(CAVE_MARK);
@@ -7561,7 +7350,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			if (!get_aim_dir(&dir)) break;
 
 			fire_ball(GF_COLD, dir, 50, 2);
-			(void)set_oppose_cold(p_ptr->oppose_cold + randint(20) + 20);
+			set_oppose_cold(p_ptr->oppose_cold + randint(20) + 20);
 
 			o_ptr->timeout = rand_int(50) + 50;
 
@@ -7575,7 +7364,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			if (!get_aim_dir(&dir)) break;
 
 			fire_ball(GF_FIRE, dir, 50, 2);
-			(void)set_oppose_fire(p_ptr->oppose_fire + randint(20) + 20);
+			set_oppose_fire(p_ptr->oppose_fire + randint(20) + 20);
 
 			o_ptr->timeout = rand_int(50) + 50;
 
@@ -7588,7 +7377,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			if (!get_aim_dir(&dir)) break;
 
 			fire_ball(GF_ACID, dir, 50, 2);
-			(void)set_oppose_acid(p_ptr->oppose_acid + randint(20) + 20);
+			set_oppose_acid(p_ptr->oppose_acid + randint(20) + 20);
 
 			o_ptr->timeout = rand_int(50) + 50;
 
@@ -7602,7 +7391,7 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 			if (!get_aim_dir(&dir)) break;
 
 			fire_ball(GF_ELEC, dir, 50, 2);
-			(void)set_oppose_elec(p_ptr->oppose_elec + randint(20) + 20);
+			set_oppose_elec(p_ptr->oppose_elec + randint(20) + 20);
 
 			o_ptr->timeout = rand_int(50) + 50;
 
@@ -7891,38 +7680,4 @@ const char *activation_aux(object_type * o_ptr, bool_ doit, int item)
 		o_ptr->timeout = activation_info[o_ptr->pval2].cost / 10;
 
 	return NULL;
-}
-
-
-static bool_ activate_spell(object_type * o_ptr, byte choice)
-{
-	int mana = 0, gf = 0, mod = 0;
-
-	rune_spell s_ptr;
-
-
-	if (choice == 1)
-	{
-		gf = o_ptr->pval & 0xFFFF;
-		mod = o_ptr->pval3 & 0xFFFF;
-		mana = o_ptr->pval2 & 0xFF;
-	}
-	else if (choice == 2)
-	{
-		gf = o_ptr->pval >> 16;
-		mod = o_ptr->pval3 >> 16;
-		mana = o_ptr->pval2 >> 8;
-	}
-
-	s_ptr.type = gf;
-	s_ptr.rune2 = 1 << mod;
-	s_ptr.mana = mana;
-
-	/* Execute */
-	rune_exec(&s_ptr, 0);
-
-	if (choice == 1) o_ptr->timeout = mana * 5;
-	if (choice == 2) o_ptr->xtra2 = mana * 5;
-
-	return (TRUE);
 }

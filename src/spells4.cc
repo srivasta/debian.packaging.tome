@@ -210,7 +210,6 @@ void init_school_books()
 	push_spell(TOME_TRANSLOCATION, RECALL);
 	push_spell(TOME_TRANSLOCATION, TELEAWAY);
 	push_spell(TOME_TRANSLOCATION, TELEPORT);
-	push_spell(TOME_TRANSLOCATION, DISARM);
 	push_spell(TOME_TRANSLOCATION, BLINK);
 
 	/* Create the book of the tree */
@@ -512,10 +511,7 @@ void lua_cast_school_spell(s32b s, bool_ no_cost)
 
 			/* failures are dangerous; we'll flush the input buffer
 			   so it isn't missed. */
-			if (flush_failure)
-			{
-				flush();
-			}
+			flush_on_failure();
 
 			msg_print("You failed to get the spell off!");
 		}

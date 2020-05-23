@@ -36,10 +36,9 @@
 #define SKILL_NECROMANCY        31
 #define SKILL_MIMICRY           32
 #define SKILL_ANTIMAGIC         33
-#define SKILL_RUNECRAFT         34
-#define SKILL_SNEAK             35
+/* XXX */
 #define SKILL_STEALTH           36
-#define SKILL_DISARMING         37
+/* XXX */
 #define SKILL_STEALING          40
 #define SKILL_SORCERY           41
 #define SKILL_HAND              42
@@ -60,4 +59,3 @@
 #define SKILL_STUN              57
 #define SKILL_BOULDER           58
 #define SKILL_GEOMANCY          59
-#define MAX_SKILLS              200

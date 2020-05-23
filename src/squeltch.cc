@@ -11,6 +11,7 @@
 
 #include "cave_type.hpp"
 #include "files.hpp"
+#include "game.hpp"
 #include "loadsave.hpp"
 #include "lua_bind.hpp"
 #include "object1.hpp"
@@ -30,11 +31,11 @@
 #include "variable.h"
 #include "variable.hpp"
 
-#include <jansson.h>
 #include <algorithm>
-#include <memory>
 #include <deque>
+#include <fmt/format.h>
 #include <list>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -57,8 +58,10 @@ using squelch::StatusCondition;
 
 static squelch::Automatizer *automatizer = nullptr;
 
-void squeltch_grid(void)
+void squeltch_grid()
 {
+	auto const &k_info = game->edit_data.k_info;
+
 	if (!automatizer_enabled)
 	{
 		return;
@@ -84,7 +87,7 @@ void squeltch_grid(void)
 	}
 }
 
-void squeltch_inventory(void)
+void squeltch_inventory()
 {
 	if (!automatizer_enabled)
 	{
@@ -118,18 +121,14 @@ void squeltch_inventory(void)
 
 static int create_new_rule()
 {
-	char name[20] = { '\0' };
-	int wid = 0, hgt = 0;
+	std::string name = "No name";
 
-	Term_get_size(&wid, &hgt);
-
-	sprintf(name, "%s", "No name");
-	if (!input_box("Name?", hgt / 2, wid / 2, name, sizeof(name)))
+	if (!input_box_auto("Name?", &name, 20))
 	{
 		return -1;
 	}
 
-	char typ = lua_msg_box("[D]estroy, [P]ickup, [I]nscribe?");
+	char typ = msg_box_auto("[D]estroy, [P]ickup, [I]nscribe?");
 
 	std::shared_ptr<Rule> rule;
 	switch (typ)
@@ -147,15 +146,13 @@ static int create_new_rule()
 	case 'i':
 	case 'I':
 	{
-		cptr i = lua_input_box("Inscription?", 79);
-		if ((i == nullptr) || (strlen(i) == 0))
+		auto s = input_box_auto("Inscription?", 79);
+		if (s.empty())
 		{
 			return -1;
 		}
 
-		rule = std::make_shared<InscribeRule>(
-			name, game_module_idx, nullptr, std::string(i));
-
+		rule = std::make_shared<InscribeRule>(name, game_module_idx, nullptr, s);
 		break;
 	}
 
@@ -168,28 +165,41 @@ static int create_new_rule()
 
 static void automatizer_save_rules()
 {
-	char name[30] = { '\0' };
 	char buf[1025];
 	char ch;
 	int hgt, wid;
 
 	Term_get_size(&wid, &hgt);
 
-	sprintf(name, "%s.atm", player_name);
+	std::string name = fmt::format("{}.atm", game->player_name);
 
-	if (!input_box("Save name?", hgt / 2, wid / 2, name, sizeof(name)))
+	if (!input_box_auto("Save name?", &name, 30))
 	{
 		return;
 	}
 
+	// Function for showing a message
+	auto show_message = [hgt, wid](std::string text) {
+		auto n = std::max<std::size_t>(text.size(), 28);
+		while (text.size() < n)
+		{
+			text += ' ';
+		}
+		c_put_str(TERM_WHITE, text.c_str(), hgt/2, wid/2 - 14);
+	};
+
+	// Function for showing an error message
+	auto error = [show_message]() {
+		show_message("Saving rules FAILED!");
+		inkey();
+	};
+
 	// Build the filename
-	path_build(buf, 1024, ANGBAND_DIR_USER, name);
+	path_build(buf, 1024, ANGBAND_DIR_USER, name.c_str());
 		
-	if (file_exist(buf))
+	if (boost::filesystem::exists(buf))
 	{
-		c_put_str(TERM_WHITE, "File exists, continue?[y/n]",
-			  hgt / 2,
-			  wid / 2 - 14);
+		show_message("File exists, continue? [y/n]");
 		ch = inkey();
 		if ((ch != 'Y') && (ch != 'y'))
 		{
@@ -197,44 +207,42 @@ static void automatizer_save_rules()
 		}
 	}
 
-	// Write to file
+	// Pretty-printing options
+	jsoncons::output_format format;
+	format.indent(2);
+
+	// Convert to a JSON document
+	auto rules_document = automatizer->to_json();
+
+	// Open output stream
+	std::ofstream of(buf, std::ios_base::out | std::ios_base::binary);
+	if (of.fail())
 	{
-		auto rules_json = automatizer->to_json();
-
-		int status = json_dump_file(rules_json.get(), buf,
-					    JSON_INDENT(2) |
-					    JSON_SORT_KEYS);
-		if (status == 0)
-		{
-			c_put_str(TERM_WHITE, "Saved rules in file        ",
-				  hgt / 2,
-				  wid / 2 - 14);
-		}
-		else
-		{
-			c_put_str(TERM_WHITE, "Saving rules failed!       ",
-				  hgt / 2,
-				  wid / 2 - 14);
-		}
-
-		// Wait for keypress
-		inkey();
+		error();
+		return;
 	}
+
+	// Write JSON to output
+	of << jsoncons::pretty_print(rules_document, format);
+	if (of.fail())
+	{
+		error();
+		return;
+	}
+
+	// Success
+	show_message("Saved rules in file");
+	inkey();
 }
 
 static void rename_rule(Rule *rule)
 {
-	char name[16];
-	int wid, hgt;
-
 	assert(rule != nullptr);
 
-	Term_get_size(&wid, &hgt);
-
-	sprintf(name, "%s", rule->get_name());
-	if (input_box("New name?", hgt / 2, wid / 2, name, sizeof(name)))
+	std::string name = rule->get_name();
+	if (input_box_auto("New name?", &name, 16))
 	{
-		rule->set_name(name);
+		rule->set_name(name.c_str());
 	}
 }
 
@@ -242,18 +250,15 @@ static void rename_rule(Rule *rule)
 #define ACTIVE_RULE     1
 void do_cmd_automatizer()
 {
-	int wid = 0, hgt = 0;
 	int active = ACTIVE_LIST;
 	cptr keys;
 	cptr keys2;
 	cptr keys3;
 	std::vector<cptr> rule_names;
 
-	Term_get_size(&wid, &hgt);
-
 	if (!automatizer_enabled)
 	{
-		if (msg_box("Automatizer is currently disabled, enable it? (y/n)", hgt / 2, wid / 2) == 'y')
+		if (msg_box_auto("Automatizer is currently disabled, enable it? (y/n)") == 'y')
 		{
 			automatizer_enabled = TRUE;
 		}
@@ -268,11 +273,13 @@ void do_cmd_automatizer()
 	while (1)
 	{
 		Term_clear();
+
+		int wid, hgt;
 		Term_get_size(&wid, &hgt);
 
-		automatizer->get_rule_names(&rule_names);
+		auto rule_names = automatizer->get_rule_names();
 
-		display_list(0, 0, hgt - 1, 15, "Rules", rule_names.data(), automatizer->rules_count(), automatizer->rules_begin(), automatizer->selected_rule(), (active == ACTIVE_LIST) ? TERM_L_GREEN : TERM_GREEN);
+		display_list(0, 0, hgt - 1, 15, "Rules", rule_names, automatizer->rules_begin(), automatizer->selected_rule(), (active == ACTIVE_LIST) ? TERM_L_GREEN : TERM_GREEN);
 
 		draw_box(0, 15, hgt - 4, wid - 1 - 15);
 		if (active == ACTIVE_RULE)
@@ -301,7 +308,7 @@ void do_cmd_automatizer()
 			if (c == '?')
 			{
 				screen_save();
-				show_file("automat.txt", "Automatizer help", 0, 0);
+				show_file("automat.txt", "Automatizer help");
 				screen_load();
 			}
 			else if (c == '8')
@@ -375,7 +382,7 @@ void do_cmd_automatizer()
 			if (c == '?')
 			{
 				screen_save();
-				show_file("automat.txt", "Automatizer help", 0, 0);
+				show_file("automat.txt", "Automatizer help");
 				screen_load();
 			}
 			else if (c == '8')
@@ -574,20 +581,21 @@ bool automatizer_load(boost::filesystem::path const &path)
 		return false; // Not fatal; just skip
 	}
 
-	// Parse file
-	json_error_t error;
-	std::shared_ptr<json_t> rules_json(
-		json_load_file(path.c_str(), 0, &error),
-		&json_decref);
-	if (rules_json == nullptr)
+	// Parse into memory
+	jsoncons::json rules_json;
+	try
+	{
+		rules_json = jsoncons::json::parse_file(path.string());
+	}
+	catch (jsoncons::json_exception const &exc)
 	{
 		msg_format("Error parsing automatizer rules from '%s'.", path.c_str());
-		msg_format("Line %d, Column %d", error.line, error.column);
-		msg_print(nullptr);
+		msg_print(exc.what());
 		return false;
 	}
 
-	// Load rules
-	automatizer->load_json(rules_json.get());
+	// We didn't return directly via an exception, so let's extract
+	// the rules.
+	automatizer->load_json(rules_json);
 	return true;
 }

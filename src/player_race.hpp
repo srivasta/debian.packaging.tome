@@ -2,82 +2,45 @@
 
 #include "h-basic.h"
 #include "body.hpp"
+#include "object_flag_set.hpp"
+#include "object_proto.hpp"
 #include "player_defs.hpp"
-#include "skills_defs.hpp"
+#include "player_level_flag.hpp"
+#include "player_race_ability_type.hpp"
+#include "player_race_flag_set.hpp"
+#include "player_shared.hpp"
+#include "skill_modifiers.hpp"
+
+#include <array>
+#include <string>
+#include <vector>
+
 
 /**
  * Player racial descriptior.
  */
 struct player_race
 {
-	const char *title;              /* Type of race */
-	char *desc;
+	std::string title;                                      /* Type of race */
+	std::string desc;
 
-	s16b r_adj[6];                  /* Racial stat bonuses */
+	char luck = '\0';                                       /* Luck */
 
-	char luck;                      /* Luck */
+	player_shared ps;
 
-	s16b r_dis;			/* disarming */
-	s16b r_dev;			/* magic devices */
-	s16b r_sav;			/* saving throw */
-	s16b r_stl;			/* stealth */
-	s16b r_srh;			/* search ability */
-	s16b r_fos;			/* search frequency */
-	s16b r_thn;			/* combat (normal) */
-	s16b r_thb;			/* combat (shooting) */
+	byte infra = 0;                                         /* Infra-vision range */
 
-	byte r_mhp;			/* Race hit-dice modifier */
-	u16b r_exp;                     /* Race experience factor */
+	u32b choice[2] { };                                     /* Legal class choices */
 
-	byte b_age;			/* base age */
-	byte m_age;			/* mod age */
+	byte body_parts[BODY_MAX] { };                          /* To help to decide what to use when body changing */
 
-	byte m_b_ht;		/* base height (males) */
-	byte m_m_ht;		/* mod height (males) */
-	byte m_b_wt;		/* base weight (males) */
-	byte m_m_wt;		/* mod weight (males) */
+	player_race_flag_set flags;
 
-	byte f_b_ht;		/* base height (females) */
-	byte f_m_ht;		/* mod height (females)	  */
-	byte f_b_wt;		/* base weight (females) */
-	byte f_m_wt;		/* mod weight (females) */
+	std::array<player_level_flag, PY_MAX_LEVEL+1> lflags;
 
-	byte infra;             /* Infra-vision range */
+	struct skill_modifiers skill_modifiers;
 
-	u32b choice[2];            /* Legal class choices */
+	std::vector<object_proto> object_protos;
 
-	s16b powers[4];         /* Powers of the race */
-
-	byte body_parts[BODY_MAX];      /* To help to decide what to use when body changing */
-
-	s16b chart;             /* Chart history */
-
-	u32b flags1;
-	u32b flags2;            /* flags */
-
-	u32b oflags1[PY_MAX_LEVEL + 1];
-	u32b oflags2[PY_MAX_LEVEL + 1];
-	u32b oflags3[PY_MAX_LEVEL + 1];
-	u32b oflags4[PY_MAX_LEVEL + 1];
-	u32b oflags5[PY_MAX_LEVEL + 1];
-	u32b oesp[PY_MAX_LEVEL + 1];
-	s16b opval[PY_MAX_LEVEL + 1];
-
-	char skill_basem[MAX_SKILLS];
-	u32b skill_base[MAX_SKILLS];
-	char skill_modm[MAX_SKILLS];
-	s16b skill_mod[MAX_SKILLS];
-
-	s16b obj_tval[5];
-	s16b obj_sval[5];
-	s16b obj_pval[5];
-	s16b obj_dd[5];
-	s16b obj_ds[5];
-	s16b obj_num;
-
-	struct
-	{
-		s16b    ability;
-		s16b    level;
-	} abilities[10];                /* Abilitiers to be gained by level(doesnt take prereqs in account) */
+	std::vector<player_race_ability_type> abilities;        /* Abilities to be gained by level; ignores prereqs */
 };

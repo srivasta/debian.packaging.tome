@@ -1,6 +1,6 @@
 #pragma once
 
-extern void do_cmd_power();
+void do_cmd_power();
 
 /*
  * Powers (mutation, activations, ...)
@@ -64,7 +64,6 @@ extern void do_cmd_power();
 #define PWR_UNHYPNO                     53
 #define PWR_INCARNATE                   54
 #define PWR_MAGIC_MAP                   55
-#define PWR_LAY_TRAP                    56
 #define PWR_COMPANION                   58
 #define PWR_BEAR                        59
 #define PWR_DODGE                       60

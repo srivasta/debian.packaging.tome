@@ -2,6 +2,8 @@
 
 #include "cave.hpp"
 #include "cave_type.hpp"
+#include "dungeon_flag.hpp"
+#include "game.hpp"
 #include "hook_quest_finish_in.hpp"
 #include "hooks.hpp"
 #include "init1.hpp"
@@ -20,18 +22,23 @@
 
 #define cquest (quest[QUEST_THIEVES])
 
-static bool_ quest_thieves_gen_hook(void *, void *, void *)
+static bool quest_thieves_gen_hook(void *, void *, void *)
 {
 	int x, y;
 	int xstart = 2;
 	int ystart = 2;
 	bool_ again = TRUE;
 
-	if (p_ptr->inside_quest != QUEST_THIEVES) return FALSE;
+	if (p_ptr->inside_quest != QUEST_THIEVES)
+	{
+		return false;
+	}
 
 	/* Just in case we didnt talk the the mayor */
 	if (cquest.status == QUEST_STATUS_UNTAKEN)
+	{
 		cquest.status = QUEST_STATUS_TAKEN;
+	}
 
 	/* Start with perm walls */
 	for (y = 0; y < cur_hgt; y++)
@@ -52,7 +59,7 @@ static bool_ quest_thieves_gen_hook(void *, void *, void *)
 
 	init_flags = INIT_CREATE_DUNGEON;
 	process_dungeon_file("thieves.map", &ystart, &xstart, cur_hgt, cur_wid, TRUE, FALSE);
-	dungeon_flags2 |= DF2_NO_GENO;
+	dungeon_flags |= DF_NO_GENO;
 
 	/* Rip the inventory from the player */
 	cmsg_print(TERM_YELLOW, "You feel a vicious blow on your head.");
@@ -63,9 +70,15 @@ static bool_ quest_thieves_gen_hook(void *, void *, void *)
 		{
 			object_type *o_ptr = &p_ptr->inventory[x];
 
-			if (!o_ptr->k_idx) continue;
+			if (!o_ptr->k_idx)
+			{
+				continue;
+			}
 
-			if ((x >= INVEN_WIELD) && cursed_p(o_ptr)) continue;
+			if ((x >= INVEN_WIELD) && cursed_p(o_ptr))
+			{
+				continue;
+			}
 
 			inven_drop(x, 99, 4, 24, TRUE);
 
@@ -81,11 +94,14 @@ static bool_ quest_thieves_gen_hook(void *, void *, void *)
 	return TRUE;
 }
 
-static bool_ quest_thieves_hook(void *, void *, void *)
+static bool quest_thieves_hook(void *, void *, void *)
 {
 	int i, mcnt = 0;
 
-	if (p_ptr->inside_quest != QUEST_THIEVES) return FALSE;
+	if (p_ptr->inside_quest != QUEST_THIEVES)
+	{
+		return false;
+	}
 
 	/* ALARM !!! */
 	if ((cave[17][22].feat == FEAT_OPEN) ||
@@ -130,17 +146,22 @@ static bool_ quest_thieves_hook(void *, void *, void *)
 		process_hooks_restart = TRUE;
 
 		cmsg_print(TERM_YELLOW, "You stopped the thieves and saved Bree!");
-		return (FALSE);
+		return false;
 	}
-	return FALSE;
+	return false;
 }
 
-static bool_ quest_thieves_finish_hook(void *, void *in_, void *)
+static bool quest_thieves_finish_hook(void *, void *in_, void *)
 {
+	auto const &s_info = game->s_info;
+
 	struct hook_quest_finish_in *in = static_cast<struct hook_quest_finish_in *>(in_);
 	s32b q_idx = in->q_idx;
 
-	if (q_idx != QUEST_THIEVES) return FALSE;
+	if (q_idx != QUEST_THIEVES)
+	{
+		return false;
+	}
 
 	c_put_str(TERM_YELLOW, "Thank you for killing the band of thieves!", 8, 0);
 	c_put_str(TERM_YELLOW, "You can use the hideout as your house as a reward.", 9, 0);
@@ -155,21 +176,28 @@ static bool_ quest_thieves_finish_hook(void *, void *in_, void *)
 	else
 	{
 		if (s_info[SKILL_COMBAT].value > s_info[SKILL_MAGIC].value)
+		{
 			*(quest[q_idx].plot) = QUEST_TROLL;
+		}
 		else
+		{
 			*(quest[q_idx].plot) = QUEST_WIGHT;
+		}
 	}
-	quest[*(quest[q_idx].plot)].init(*(quest[q_idx].plot));
+	quest[*(quest[q_idx].plot)].init();
 
 	del_hook_new(HOOK_QUEST_FINISH, quest_thieves_finish_hook);
 	process_hooks_restart = TRUE;
 
-	return TRUE;
+	return true;
 }
 
-static bool_ quest_thieves_feeling_hook(void *, void *, void *)
+static bool quest_thieves_feeling_hook(void *, void *, void *)
 {
-	if (p_ptr->inside_quest != QUEST_THIEVES) return FALSE;
+	if (p_ptr->inside_quest != QUEST_THIEVES)
+	{
+		return false;
+	}
 
 	msg_print("You wake up in a prison cell.");
 	msg_print("All your possessions have been stolen!");
@@ -177,10 +205,10 @@ static bool_ quest_thieves_feeling_hook(void *, void *, void *)
 	del_hook_new(HOOK_FEELING, quest_thieves_feeling_hook);
 	process_hooks_restart = TRUE;
 
-	return TRUE;
+	return true;
 }
 
-bool_ quest_thieves_init_hook(int q_idx)
+void quest_thieves_init_hook()
 {
 	if ((cquest.status >= QUEST_STATUS_UNTAKEN) && (cquest.status < QUEST_STATUS_FINISHED))
 	{
@@ -189,5 +217,4 @@ bool_ quest_thieves_init_hook(int q_idx)
 		add_hook_new(HOOK_GEN_QUEST,    quest_thieves_gen_hook,     "thieves_geb",      NULL);
 		add_hook_new(HOOK_FEELING,      quest_thieves_feeling_hook, "thieves_feel",     NULL);
 	}
-	return (FALSE);
 }
