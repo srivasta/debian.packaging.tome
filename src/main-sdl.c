@@ -38,7 +38,7 @@
 /*************************************************
  GLOBAL SDL-ToME PROPERTIES
  *************************************************/
- 
+
 /* Default window properties - used if none are available
 from other places*/
 #define DEF_SCREEN_WIDTH  800
@@ -58,6 +58,10 @@ static int arg_bpp = DEF_SCREEN_BPP;
 These properties are the size and also default font to load. */
 #define DEF_FONT_SIZE 14
 #define DEF_FONT_FILE "VeraMono.ttf"
+
+#ifndef PATH_MAX
+#define PATH_MAX        4096        /* # chars in a path name including nul */
+#endif
 
 /* The font properties that may perhaps be changed at runtime,
 due to environmental variables, preference files, or in-program
@@ -109,7 +113,7 @@ can be stored up before doing an update. This
 should cut down on screen flicker */
 static bool_ suspendUpdate = FALSE;
 
-/* some helper surfaces that are used for rendering 
+/* some helper surfaces that are used for rendering
 characters */
 static SDL_Surface *worksurf;
 static SDL_Surface *crayon;
@@ -132,7 +136,7 @@ int t_width = 0, t_height = 0;
 /*************************************************
  COLOR SETUP
  *************************************************/
- 
+
 /* Simple black, mapped using the format of the main screen */
 int screen_black;
 
@@ -190,15 +194,15 @@ struct _term_data
 							/* this rectangle is in screen coordinates */
 
 	int border_thick;		/* thickness of border to draw around window */
-	int border_color;		/* current color of the border */	
+	int border_color;		/* current color of the border */
 	uint cushion_x_top, cushion_x_bot, cushion_y_top, cushion_y_bot;
 							/* empty space cushion between border and tiles */
-	
+
 	uint tile_width;		/* the width of each tile (graphic or otherwise)*/
 	uint tile_height;		/* the height of each tile (graphic or otherwise)*/
 
 	SDL_Surface	*surf;		/* the surface that graphics for this screen are
-								rendered to before blitting to main screen */	
+								rendered to before blitting to main screen */
 	int black,white,purple;	/* basic colors keyed to this terminal's surface */
 
 };
@@ -253,14 +257,14 @@ whenever a rect needs updated */
 /* A complete screen redraw macro */
 #define SDL_REDRAW_SCREEN \
 	SDL_UpdateRect(screen,0,0,arg_width,arg_height)
-	
+
 /*************************************************
  QUITTING
  *************************************************/
 
 /* function prototype */
 void dumpWindowSettings(void);
-	
+
 /* SDL Quitting function... declare a few functions first.*/
 void killFontAndAlphabet(void);
 static void sdl_quit(cptr string)
@@ -273,11 +277,11 @@ static void sdl_quit(cptr string)
 		TTF_Quit();
 	/* Then exit SDL */
 	SDL_Quit();
-	
+
 	/* Dump the window properties, if available */
 	if (window_properties_set)
 		dumpWindowSettings();
-	
+
 	/* And now for the default quit behavior */
 	quit_aux = 0;
 	quit(string);
@@ -311,7 +315,7 @@ void killFontAndAlphabet(void)
 			text[i] = NULL;
 		}
 	}
-}	
+}
 
 /* loadAndRenderFont is responsible for loading and initializing
 a font. First, SDL_ttf calls are made to load and set the style
@@ -347,7 +351,7 @@ void loadAndRenderFont(char *fname, int size)
 	t_height = TTF_FontHeight(font);
 	/* position of the y=0 line in each tile */
 	midline = TTF_FontAscent(font);
-	
+
 	/* now... render each of the individual characters */
 	for (i=0;i<128;i++)
 	{
@@ -460,7 +464,7 @@ void handleEvent(SDL_Event *event)
 					 *
 					 * All of the things that happen are defined in pref-sdl.prf
 					 */
-					
+
 					KEYPRESS_STRING("\[");	/*Output the first part... */
 					/* See if a control key is down */
 					if (event->key.keysym.mod & KMOD_CTRL)
@@ -578,13 +582,13 @@ static errr Term_xtra_sdl(int n, int v)
 			 */
 
 			/* If terminal display has been held for any reason,
-			then update the whole thing now!*/			
+			then update the whole thing now!*/
 			DB("TERM_XTRA_FRESH");
 			if (suspendUpdate)
 			{
 				DB("  update WAS suspended... updating now");
 				td = (term_data*)(Term->data);
-				suspendUpdate = FALSE;				
+				suspendUpdate = FALSE;
 				drawTermStuff(td,NULL);
 			}
 			return (0);
@@ -685,12 +689,12 @@ SDL_Surface *createSurface(int width, int height)
 {
 	SDL_Surface *surf;
 	int surface_type;
-	
+
 	if (videoInfo->hw_available)
 		surface_type = SDL_HWSURFACE;
 	else
 		surface_type = SDL_SWSURFACE;
-	
+
 	/* XXX need to make RGBA masks correspond to system pixel format! */
 	switch (arg_bpp)
 	{
@@ -725,10 +729,10 @@ SDL_Surface *createSurface(int width, int height)
 			break;
 		}
 	}
-	
+
 	if (surf == NULL)
 		sdl_quit("Bad Surface Creation!");
-	
+
 	return surf;
 }
 
@@ -740,7 +744,7 @@ void term_to_screen(SDL_Rect *termrect, term_data *td)
 	termrect->y += td->rect.y;
 }
 
-/* Do the opposite, take a rectangle in screen coordinates and transform 
+/* Do the opposite, take a rectangle in screen coordinates and transform
 it into the terminal coordinates of the given term_data */
 void screen_to_term(SDL_Rect *scrrect, term_data *td)
 {
@@ -759,7 +763,7 @@ void screen_to_term(SDL_Rect *scrrect, term_data *td)
   ( (r1.y > (r2.y+r2.h)) | (r2.y > (r1.y+r1.h)) ) )
 
 /* A function to calculate the intersection of two rectangles. Takes base
-rectangle and then updates it to include only the rectangles that intersect 
+rectangle and then updates it to include only the rectangles that intersect
 with the test rectangle. If there is an intersection, the function returns
 TRUE and base now contains the intersecting rectangle. If there is no
 intersection, then the function returns FALSE */
@@ -773,7 +777,7 @@ bool_ intersectRects(SDL_Rect *base, SDL_Rect *test)
 			base->w -= test->x - base->x;
 			base->x = test->x;
 		}
-		/* Scoot the x-coordinates for the right side*/		
+		/* Scoot the x-coordinates for the right side*/
 		if ( (test->x + test->w) < (base->x + base->w) )
 		{
 			base->w = test->x + test->w - base->x;
@@ -784,7 +788,7 @@ bool_ intersectRects(SDL_Rect *base, SDL_Rect *test)
 			base->h -= test->y - base->y;
 			base->y = test->y;
 		}
-		/* Scoot the lower y-coordinates */		
+		/* Scoot the lower y-coordinates */
 		if ( (test->y + test->h) < (base->y + base->h) )
 		{
 			base->h = test->y + test->h - base->y;
@@ -802,7 +806,7 @@ changed to the joined rectangle */
 SDL_Rect joinRects(SDL_Rect *r1, SDL_Rect *r2)
 {
 	SDL_Rect out = {0,0,0,0};
-	
+
 	if ( (r1 != NULL) & (r2 != NULL) )
 	{
 		/* Lower x-coordinate */
@@ -827,7 +831,7 @@ SDL_Rect joinRects(SDL_Rect *r1, SDL_Rect *r2)
 	}
 	return out;
 }
-			
+
 /* Given a term_data (and its associated screen) and a rectangle in terminal
 coordinates (with NULL signifying to take the whole terminal surface), blit
 graphics from the term_data surface to the screen, using the term_data's rect
@@ -853,7 +857,7 @@ void drawTermStuff(term_data *td, SDL_Rect *rect)
 		}
 		if (n == MAX_CONSOLE_COUNT)
 			printf("Could not find terminal in display list...\n");
-		/* now loop through and see if any terminals completely occlude 
+		/* now loop through and see if any terminals completely occlude
 		the desired spot; if num=0, note that this will be skipped */
 		if (rect == NULL)
 		{
@@ -906,7 +910,7 @@ void drawTermStuff(term_data *td, SDL_Rect *rect)
 						/* this terminal intersects... re-blit */
 						/* first, convert to term coordinates */
 						isect_term.x = isect_scr.x; isect_term.y = isect_scr.y;
-						isect_term.w = isect_scr.w; isect_term.h = isect_scr.h;						
+						isect_term.w = isect_scr.w; isect_term.h = isect_scr.h;
 						screen_to_term(&isect_term,term_order[n]);
 						/* blit from term coordinates to screen coordinates */
 						SDL_BlitSurface(term_order[n]->surf,&isect_term,\
@@ -920,7 +924,7 @@ void drawTermStuff(term_data *td, SDL_Rect *rect)
 		}
 	}
 }
-		
+
 /* utility routine for creating and setting the color of the cursor;
 it could be useful for setting a new cursor color if desired.
 Could later be expanded to do other stuff with the cursor,
@@ -933,10 +937,10 @@ void createCursor(byte r, byte g, byte b, byte a)
 
 	/* and create it anew! (or the first time) */
 	cursor = createSurface(t_width,t_height);
-	
+
 	/* be sure to use alpha channel when blitting! */
 	SDL_SetAlpha(cursor,SDL_SRCALPHA,0);
-	
+
 	/* just set the color for now - drawing rectangles
 	needs surface locking for some setups */
 	cursor_color = SDL_MapRGBA(cursor->format,r,g,b,a);
@@ -957,7 +961,7 @@ static errr Term_curs_sdl(int x, int y)
 	base.y = td->surf->clip_rect.y + y*t_height;
 	base.w = t_width;
 	base.h = t_height;
-	
+
 	/* blit the cursor over top of the given spot;
 	note that surface should not be locked
 	(see note in Term_text_sdl() below) */
@@ -978,21 +982,21 @@ void eraseTerminal(void)
 	/* temporarily remove clipping rectangle */
 	SDL_SetClipRect(td->surf,NULL);
 
-	SDL_LOCK(td->surf);	
+	SDL_LOCK(td->surf);
 	/* flood terminal with border color */
 	SDL_FillRect(td->surf,NULL,td->border_color);
-	
+
 	/* get smaller rectangle to hollow out window */
 	base.x = td->border_thick;
 	base.y = td->border_thick;
 	base.w = td->rect.w - 2*td->border_thick;
 	base.h = td->rect.h - 2*td->border_thick;
-	
+
 	/* hollow out terminal */
 	SDL_FillRect(td->surf,&base,td->black);
 
 	SDL_UNLOCK(screen);
-	
+
 	/* reset clipping rectangle */
 	base.x += td->cushion_x_top;
 	base.y += td->cushion_y_top;
@@ -1002,7 +1006,7 @@ void eraseTerminal(void)
 	printf("Clip rect: %d %d %d %d\n",base.x,base.y,base.w,base.h);
 	/* And... UPDATE the whole thing */
 	drawTermStuff(td,NULL);
-	
+
 }
 
 /*
@@ -1153,7 +1157,7 @@ Details to follow below! */
 void resizeTerminal(int width, int height)
 {
 	term_data *td = (term_data*)(Term->data);
-	
+
 	/* First of all, bound the input width and height to satisfy
 	these conditions:
 	- The main ToME window should be at least 80 cols, 24 rows
@@ -1190,39 +1194,39 @@ void resizeTerminal(int width, int height)
 			BOUND(height,1,MAX_HEIGHT(td));
 		}
 	}
-	
-	/* Okay, now make sure that something has ACTUALLY changed 
+
+	/* Okay, now make sure that something has ACTUALLY changed
 	before doing anything */
 	if ((width != td->cols) || (height != td->rows))
 	{
-		
+
 		/* Now, ask zterm to please resize the term structure! */
 		Term_resize(width,height);
 
 		/* Reactivate, since Term_resize seems to activate the
 		main window again...*/
 		Term_activate(&td->t);
-		
+
 		/* It might not have resized completely to the new
 		size we wanted (some windows have size limits it seems,
 		like the message window). So, update our structure with
 		the size that were actually obtained.*/
 		td->cols = Term->wid;
 		td->rows = Term->hgt;
-		
+
 		/* And recalculate the sizes */
-		UPDATE_SIZE(td);		
-		
+		UPDATE_SIZE(td);
+
 		/* Create a new surface that can hold the updated size */
 		SDL_FreeSurface(td->surf);
 		td->surf = createSurface(td->rect.w,td->rect.h);
 
 		/* Now we should be in business for a complete redraw! */
 		Term_redraw();
-		
+
 		/* Re-blit everything so it looks good */
 		recompose();
-		
+
 		/* That's it! */
 	}
 }
@@ -1232,7 +1236,7 @@ just changing the pos_x/pos_y values and redrawing!*/
 void moveTerminal(int x, int y)
 {
 	term_data *td = (term_data*)(Term->data);
-	
+
 	/* Now, the window is being shifted about... much simpler
 	situation to handle! But of course, the window must not
 	drift too far or else parts will be hanging off the screen
@@ -1247,7 +1251,7 @@ void moveTerminal(int x, int y)
 	{
 		BOUND(y,0,MAX_Y(td));
 	}
-	
+
 	/* Okay, now make sure that something changed before doing
 	anything */
 	if ((x != td->rect.x) || (y != td->rect.y))
@@ -1255,10 +1259,10 @@ void moveTerminal(int x, int y)
 		/* Now update OUR structure */
 		td->rect.x = x;
 		td->rect.y = y;
-		
+
 		/* Then do a reblit to see the results */
 		recompose();
-		
+
 		/* That's it! */
 	}
 }
@@ -1269,17 +1273,17 @@ void bringToTop(int current)
 	term_data *td;
 	int n = 0;
 	int i;
-	
+
 	/* Get the pointer to the desired term_data from the data structure */
 	td = &data[current];
-	
+
 	printf("Current stack: \n");
 	for (i=0;i<arg_console_count;i++)
 	{
 		printf("  %d: %p\n",i,term_order[i]);
 	}
 	printf("\n");
-	
+
 	/* Find the number in the term_order stack */
 	while ((term_order[n] != td) & (n < MAX_CONSOLE_COUNT))
 	{
@@ -1287,9 +1291,9 @@ void bringToTop(int current)
 	}
 	if (n == MAX_CONSOLE_COUNT)
 		printf("Could not find terminal in display list...\n");
-	
+
 	printf("Order is %d\n",n);
-	
+
 	/* Now move all lower-indexed pointers up one index */
 	while (n)
 	{
@@ -1301,14 +1305,14 @@ void bringToTop(int current)
 	}
 	/* And stick this term_data pointer on top */
 	term_order[0] = td;
-	
+
 	printf("Final stack: \n");
 	for (i=0;i<arg_console_count;i++)
 	{
 		printf("  %d: %p\n",i,term_order[i]);
 	}
 	printf("\n");
-	
+
 }
 
 /* This utility routine will cycle the active term to the
@@ -1322,14 +1326,14 @@ int cycleTerminal(int current)
 	border */
 	data[current].border_color = data[current].white;
 	Term_redraw();
-	
+
 	/* increment the terminal number*/
 	current++;
-	/* now do a little modulo cycle action and 
+	/* now do a little modulo cycle action and
 	activate the next term! */
 	current %= arg_console_count;
 	Term_activate(&(data[current].t));
-	
+
 	/* before redrawing, set the border color to purple to
 	indicate that this terminal is being manipulated*/
 	data[current].border_color = data[current].purple;
@@ -1337,10 +1341,10 @@ int cycleTerminal(int current)
 	/* then bring this terminal to the top of the order, so it is drawn on
 	top during manipulation mode */
 	bringToTop(current);
-	
+
 	/* and do a complete redraw */
 	Term_redraw();
-	
+
 	/* return the current terminal... */
 	return current;
 }
@@ -1354,13 +1358,13 @@ void recompose(void)
 	SDL_LOCK(screen);
 	SDL_FillRect(screen,NULL,screen_black);
 	SDL_UNLOCK(screen);
-	
+
 	/* cycle through the term_order */
 	while (i--)
 	{
 		SDL_BlitSurface(term_order[i]->surf,NULL,screen,&(term_order[i]->rect));
 	}
-	
+
 	/* Update everything */
 	SDL_REDRAW_SCREEN;
 }
@@ -1384,14 +1388,14 @@ void redrawAllTerminals(void)
 		/* Re-order the terminals */
 		term_order[i] = &data[i];
 	}
-	
+
 	i = arg_console_count;
 	/* cycle down through each terminal */
 	while (i--)
 	{
 		/* Activate this terminal */
 		Term_activate(&(data[i].t));
-		
+
 		/* Make its border white since manipulation mode is over */
 		data[i].border_color = data[i].white;
 
@@ -1406,7 +1410,7 @@ void redrawAllTerminals(void)
 		printf("  %d: %p\n",i,term_order[i]);
 	}
 	printf("\n");
-	
+
 	/* now update the screen completely, just in case*/
 	SDL_REDRAW_SCREEN;
 }
@@ -1447,18 +1451,18 @@ void manipulationMode(void)
 
 	/* start with the main terminal */
 	current_term = 0;
-	
+
 	/* get the pointer */
 	td = &data[0];
-	
+
 	/* before redrawing, set the border color to purple to
 	indicate that this terminal is being manipulated*/
 	td->border_color = td->purple;
-	
+
 	/* and do a complete redraw */
 	DB("Term_redraw");
 	Term_redraw();
-	
+
 	/* Now keep looping until Esc has been pressed. */
 	while (!done)
 	{
@@ -1487,10 +1491,10 @@ void manipulationMode(void)
 					/* Return... cycle the terminals!
 					update the current_term appropriately*/
 					current_term = cycleTerminal(current_term);
-					
+
 					/* Get the new term_data */
 					td = &data[current_term];
-					
+
 					break;
 				}
 				case SDLK_RIGHT:
@@ -1511,10 +1515,10 @@ void manipulationMode(void)
 						/* control is down... multiply by 10 */
 						value *= 10;
 					}
-					
+
 					/* Now, behavior depends on which key was pressed
 					and whether we are in moveMode resize mode... */
-					
+
 					/* First, set the delta_x/y based on key */
 					if (event.key.keysym.sym == SDLK_RIGHT)
 					{
@@ -1536,8 +1540,8 @@ void manipulationMode(void)
 						delta_x = 0;
 						delta_y = -1;
 					}
-					
-					/* Now either moveTerminal() or 
+
+					/* Now either moveTerminal() or
 					resizeTerminal() based on value of
 					moveMode! */
 					if (moveMode)
@@ -1568,11 +1572,11 @@ void manipulationMode(void)
 		{
 			/* Mouse is moving... maybe move or resize the window, based
 			on the state of the mouse buttons */
-			
+
 			/* To keep the motion quick, temporarily ignore all mouse motion
 			events until window moving is complete */
 			SDL_EventState(SDL_MOUSEMOTION,SDL_IGNORE);
-			
+
 			if(event.motion.state & SDL_BUTTON(1))
 			{
 				/* the left mouse button is down, move the window,
@@ -1582,12 +1586,12 @@ void manipulationMode(void)
 				/* save the most current mouse location */
 				SDL_GetMouseState(&mouse_x,&mouse_y);
 			}
-			
+
 			if(event.motion.state & SDL_BUTTON(3))
 			{
 				/* the right mouse button is down, so resize the window;
 				do a differential, but divide the number by the tile sizes */
-				
+
 				/* see if at least one whole tile width/height has been
 				reached */
 				int delta_cols, delta_rows;
@@ -1604,10 +1608,10 @@ void manipulationMode(void)
 					SDL_GetMouseState(&mouse_x,&mouse_y);
 				}
 			}
-			
+
 			/* Deal with mouse motion again */
 			SDL_EventState(SDL_MOUSEMOTION,SDL_ENABLE);
-			
+
 		}
 	}
 	/* Perform the last redraw to take all changes
@@ -1625,11 +1629,11 @@ static errr term_data_init(term_data *td, int i)
 	char env_var[80];
 	cptr val;
 
-	
+
 	/***** load position, size information */
-	
-	int cols, rows, x, y;	
-	
+
+	int cols, rows, x, y;
+
 	/* grab the column and row counts from
 	environmental variables for now */
 	sprintf(env_var,"TOME_NUM_COLS_%d",i);
@@ -1686,7 +1690,7 @@ static errr term_data_init(term_data *td, int i)
 	/* store these values in the term_data structure */
 	td->rows = rows;
 	td->cols = cols;
-	
+
 	/* the position will be loaded from environmental
 	variables as well - for the time being*/
 	/* x-location */
@@ -1722,10 +1726,10 @@ static errr term_data_init(term_data *td, int i)
 	/* and store these values into the structure */
 	td->rect.x = x;
 	td->rect.y = y;
-	
+
 	/*********** term structure initializing */
-	
-	/* Initialize the term 
+
+	/* Initialize the term
 	 gets: pointer to address, number of columns, number of rows, number
 	   of keypresses to queue up (guess 24?)*/
 	term_init(t, cols, rows, 24);
@@ -1745,7 +1749,7 @@ static errr term_data_init(term_data *td, int i)
 	Term_activate(t);
 
 	/************* finish term_data intializing */
-	
+
 	/* name of this term window */
 	td->name = angband_term_name[i];
 
@@ -1757,7 +1761,7 @@ static errr term_data_init(term_data *td, int i)
 	td->cushion_x_bot = 1;
 	td->cushion_y_top = 1;
 	td->cushion_y_bot = 1;
-	
+
 	/* Now calculate the total width and height*/
 	UPDATE_SIZE(td);
 
@@ -1768,8 +1772,8 @@ static errr term_data_init(term_data *td, int i)
 	/* Key some colors to this surface */
 	td->black  = SDL_MapRGB(td->surf->format,  0,  0,  0);
 	td->white  = SDL_MapRGB(td->surf->format,255,255,255);
-	td->purple = SDL_MapRGB(td->surf->format,255,  0,255);	
-		
+	td->purple = SDL_MapRGB(td->surf->format,255,  0,255);
+
 	/* Turn on a border, thickness specified by BORDER_THICKNESS */
 	td->border_thick = BORDER_THICKNESS;
 
@@ -1784,14 +1788,14 @@ static errr term_data_init(term_data *td, int i)
 }
 
 /* dumpWindowSettings is responsible for exporting all current
-values of the window positions, etc. to the screen, so that 
+values of the window positions, etc. to the screen, so that
 the user can see what the final values were after tweaking */
 void dumpWindowSettings(void)
 {
 	char name[80];
 	char value[8];
 	int i;
-	
+
 	DB("Dumping settings");
 	printf("---------------------------\n");
 	/* cycle through each available terminal */
@@ -1805,15 +1809,15 @@ void dumpWindowSettings(void)
 
 		sprintf(name,"TOME_Y_POS_%d",i);
 		sprintf(value,"%d",data[i].rect.y);
-		printf("%s=%s\n",name,value);		
+		printf("%s=%s\n",name,value);
 
 		sprintf(name,"TOME_NUM_COLS_%d",i);
 		sprintf(value,"%d",data[i].cols);
-		printf("%s=%s\n",name,value);		
+		printf("%s=%s\n",name,value);
 
 		sprintf(name,"TOME_NUM_ROWS_%d",i);
 		sprintf(value,"%d",data[i].rows);
-		printf("%s=%s\n",name,value);		
+		printf("%s=%s\n",name,value);
 
 		/* Simple! */
 		printf("\n");
@@ -1829,13 +1833,13 @@ int init_sdl(int argc, char **argv)
 	char filename[PATH_MAX + 1];
 	const char file_sep = '.';
 	/* Flags to pass to SDL_SetVideoMode */
-	int videoFlags;	
+	int videoFlags;
 
 	/* Before sdl_quit could possible be called, need to make sure that the text
 	array is zeroed, so that sdl_quit->killFontAndAlphabet() doesn't try to free
 	SDL_Surfaces that don't exist ! */
 	memset(text,0,sizeof(text));
-	
+
 	/* Also, clear out the term order array */
 	memset(term_order,0,sizeof(term_order));
 
@@ -1849,7 +1853,7 @@ int init_sdl(int argc, char **argv)
 	/* get video info, to be used for determining if hardware acceleration is
 	 available, pixel format, etc.... */
 	videoInfo = SDL_GetVideoInfo();
-	
+
 	/* Environment calls to retrieve specific settings...
 	Note that these can be overridden by the command-line
 	arguments that are handled below */
@@ -1863,7 +1867,7 @@ int init_sdl(int argc, char **argv)
 		arg_bpp = atoi(getenv("TOME_SCREEN_BPP"));
 	if(getenv("TOME_FONT_SIZE"))
 		arg_font_size = atoi(getenv("TOME_FONT_SIZE"));
-	
+
 	/* Argument handling routine;
 	the argv pointer is already pointing at the '--'
 	argument, so just start from there, parsing each
@@ -1879,7 +1883,7 @@ int init_sdl(int argc, char **argv)
 				printf("Argument missing for option -n\n");
 				return -1;
 			}
-			
+
 			arg_console_count = atoi(argv[i]);
 			if (arg_console_count <= 0 || \
 				arg_console_count > MAX_CONSOLE_COUNT)
@@ -1896,7 +1900,7 @@ int init_sdl(int argc, char **argv)
 				printf("Argument missing for option -w\n");
 				return -1;
 			}
-			
+
 			arg_width = atoi(argv[i]);
 		}
 		/* Set the SDL window/screen height in pixels */
@@ -1907,7 +1911,7 @@ int init_sdl(int argc, char **argv)
 				printf("Argument missing for option -h\n");
 				return -1;
 			}
-		
+
 			arg_height = atoi(argv[i]);
 		}
 		/* Set the SDL window/screen color depth
@@ -1919,7 +1923,7 @@ int init_sdl(int argc, char **argv)
 				printf("Argument missing for option -bpp\n");
 				return -1;
 			}
-			
+
 			arg_bpp = atoi(argv[i]);
 			if ( (arg_bpp != 8) && (arg_bpp != 16) \
 				&& (arg_bpp != 24) && (arg_bpp != 32) )
@@ -1943,7 +1947,7 @@ int init_sdl(int argc, char **argv)
 				printf("Please specify font size!\n");
 				return -1;
 			}
-			
+
 			arg_font_size = atoi(argv[i]);
 		}
 		/* change the font to use */
@@ -1959,23 +1963,23 @@ int init_sdl(int argc, char **argv)
 				printf("Please specify a true-type font found in /lib/xtra/font!\n");
 				return -1;
 			}
-			
+
 			/* tokenize the font name so that no .ttf extension
 			is required */
 			strcpy(arg_font_name,\
 				strtok(argv[i],&file_sep));
-			
+
 			/* and append the extension */
 			strcat(arg_font_name,".ttf");
 
 			/* print a little debug message, so
 			user sees what font was actually selected */
 			printf("\tUsing font: %s\n",arg_font_name);
-			
+
 			/* maybe check to see if file is even
 			existant in /lib/xtra/font */
 		}
-		
+
 	} /* end argument handling */
 
 	/* Make sure that the engine will shutdown SDL properly*/
@@ -2004,11 +2008,11 @@ int init_sdl(int argc, char **argv)
 	}
 
 	DB("Video Mode Set!");
-	
+
 	/* now switch into full screen if asked for */
 	if (arg_full_screen)
 		SDL_WM_ToggleFullScreen(screen);
-	
+
 	DB("SDL Window Created!");
 
 	/* Now ready the fonts! */
@@ -2029,7 +2033,7 @@ int init_sdl(int argc, char **argv)
 
 	worksurf = createSurface(t_width,t_height);
 	crayon = createSurface(t_width,t_height);
-	
+
 	/* The working surface will blit using alpha values... */
 	SDL_SetAlpha(worksurf,SDL_SRCALPHA,0);
 
@@ -2068,12 +2072,12 @@ int init_sdl(int argc, char **argv)
 
 		/* Save global entry */
 		angband_term[i] = Term;
-		
+
 		/* Add into term_order */
 		term_order[i] = td;
-		
+
 	}
-	
+
 	/* And setup the basic screen colors -- these are keyed to the format of
 	the main terminal surface */
 	screen_black  = SDL_MapRGB(screen->format,  0,  0,  0);
@@ -2081,14 +2085,14 @@ int init_sdl(int argc, char **argv)
 	suspendUpdate = FALSE; /* now draw everything */
 	redrawAllTerminals();
 	/*SDL_REDRAW_SCREEN;*/
-	
+
 	/* now that the windows have been set, their settings can
 	be dumped upon quit! */
 	window_properties_set = TRUE;
 
 	/* Enable UNICODE keysyms - needed for current eventHandling routine */
 	SDL_EnableUNICODE(1);
-	
+
 	/* Enable key repeat! */
 	SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY,SDL_DEFAULT_REPEAT_INTERVAL);
 

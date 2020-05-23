@@ -1,14 +1,16 @@
 Source: tome
-VCS-Git: https://anonscm.debian.org/git/users/srivasta/debian/tome.git
-VCS-Browser: https://anonscm.debian.org/gitweb/?p=users/srivasta/debian/tome.git;a=summary
+VCS-Git: https://salsa.debian.org/srivasta/tome.git
+VCS-Browser: https://salsa.debian.org/srivasta/tome
 Section: non-free/games
 Priority: optional
 Maintainer: Manoj Srivastava <srivasta@debian.org>
 Homepage: https://github.com/tome2/tome2
-Build-Depends: debhelper (>= 9.0.0), libjansson-dev, cmake,
+Build-Depends: debhelper-compat (= 12), libjansson-dev, cmake,
  libncurses5-dev | libncurses-dev | ncurses-dev, libboost-all-dev,
- libsdl-image1.2-dev, libsdl-ttf2.0-dev, libx11-dev, dpkg-dev (>= 1.16.0)
-Standards-Version: 3.9.6
+ libsdl-image1.2-dev, libsdl-ttf2.0-dev, libx11-dev, libgtk2.0-dev,
+ dpkg-dev (>= 1.16.0)
+XS-Autobuild: yes
+Standards-Version: 4.3.0
 
 Package: tome
 Architecture: any
