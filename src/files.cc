@@ -15,6 +15,7 @@
 #include "cmd3.hpp"
 #include "dungeon_info_type.hpp"
 #include "feature_type.hpp"
+#include "game.hpp"
 #include "hiscore.hpp"
 #include "hook_chardump_in.hpp"
 #include "hooks.hpp"
@@ -23,18 +24,23 @@
 #include "loadsave.h"
 #include "loadsave.hpp"
 #include "mimic.hpp"
+#include "monoid.hpp"
 #include "monster2.hpp"
 #include "monster3.hpp"
 #include "monster_ego.hpp"
 #include "monster_race.hpp"
+#include "monster_race_flag.hpp"
 #include "monster_type.hpp"
 #include "notes.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
+#include "object_flag_meta.hpp"
 #include "object_kind.hpp"
 #include "options.hpp"
 #include "player_class.hpp"
 #include "player_race.hpp"
+#include "player_race_flag.hpp"
 #include "player_race_mod.hpp"
 #include "player_spec.hpp"
 #include "player_type.hpp"
@@ -44,7 +50,6 @@
 #include "store_type.hpp"
 #include "tables.hpp"
 #include "town_type.hpp"
-#include "trap_type.hpp"
 #include "util.hpp"
 #include "util.h"
 #include "variable.h"
@@ -54,6 +59,12 @@
 #include "xtra1.hpp"
 #include "z-rand.hpp"
 
+#include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
+#include <iostream>
+#include <fmt/format.h>
+#include <fstream>
+#include <limits>
 #include <memory>
 #include <unordered_set>
 
@@ -204,6 +215,13 @@ s16b tokenize(char *buf, s16b num, char **tokens, char delim1, char delim2)
  */
 errr process_pref_file_aux(char *buf)
 {
+	auto &race_mod_info = game->edit_data.race_mod_info;
+	auto &st_info = game->edit_data.st_info;
+	auto &re_info = game->edit_data.re_info;
+	auto &r_info = game->edit_data.r_info;
+	auto &f_info = game->edit_data.f_info;
+	auto &k_info = game->edit_data.k_info;
+
 	int i, j, n1, n2;
 
 	char *zz[16];
@@ -235,17 +253,26 @@ errr process_pref_file_aux(char *buf)
 	{
 		if (tokenize(buf + 2, 3, zz, ':', '/') == 3)
 		{
-			monster_race *r_ptr;
-			i = (huge)strtol(zz[0], NULL, 0);
+			std::size_t i = strtoul(zz[0], NULL, 0);
 			n1 = strtol(zz[1], NULL, 0);
 			n2 = strtol(zz[2], NULL, 0);
-			if (i >= max_r_idx) return (1);
-			r_ptr = &r_info[i];
-			if (n1) r_ptr->x_attr = n1;
+
+			if (i >= r_info.size())
+			{
+				return (1);
+			}
+
+			auto r_ptr = &r_info[i];
+
+			if (n1)
+			{
+				r_ptr->x_attr = n1;
+			}
 			if (n2)
 			{
 				r_ptr->x_char = n2;
 			}
+
 			return (0);
 		}
 	}
@@ -259,18 +286,27 @@ errr process_pref_file_aux(char *buf)
 		{
 			if (tokenize(buf + 4, 3, zz, ':', '/') == 3)
 			{
-				monster_ego *re_ptr;
-				i = (huge)strtol(zz[0], NULL, 0);
+				std::size_t i = strtoul(zz[0], NULL, 0);
 				n1 = strtol(zz[1], NULL, 0);
 				n2 = strtol(zz[2], NULL, 0);
-				if (i >= max_re_idx) return (1);
-				re_ptr = &re_info[i];
-				if (n1) re_ptr->g_attr = n1;
+
+				if (i >= re_info.size())
+				{
+					return 1;
+				}
+
+				auto re_ptr = &re_info[i];
+
+				if (n1)
+				{
+					re_ptr->g_attr = n1;
+				}
 				if (n2)
 				{
 					re_ptr->g_char = n2;
 				}
-				return (0);
+
+				return 0;
 			}
 		}
 
@@ -283,32 +319,12 @@ errr process_pref_file_aux(char *buf)
 				i = (huge)strtol(zz[0], NULL, 0);
 				n1 = strtol(zz[1], NULL, 0);
 				n2 = strtol(zz[2], NULL, 0);
-				if (i >= max_rmp_idx) return (1);
+				if (i >= static_cast<int>(race_mod_info.size())) return (1);
 				rmp_ptr = &race_mod_info[i];
 				if (n1) rmp_ptr->g_attr = n1;
 				if (n2)
 				{
 					rmp_ptr->g_char = n2;
-				}
-				return (0);
-			}
-		}
-
-		/* Process "G:T:<num>:<a>/<c>" -- attr/char for traps */
-		if (buf[2] == 'T')
-		{
-			if (tokenize(buf + 4, 3, zz, ':', '/') == 3)
-			{
-				trap_type *t_ptr;
-				i = (huge)strtol(zz[0], NULL, 0);
-				n1 = strtol(zz[1], NULL, 0);
-				n2 = strtol(zz[2], NULL, 0);
-				if (i >= max_t_idx) return (1);
-				t_ptr = &t_info[i];
-				if (n1) t_ptr->g_attr = n1;
-				if (n2)
-				{
-					t_ptr->g_char = n2;
 				}
 				return (0);
 			}
@@ -321,13 +337,21 @@ errr process_pref_file_aux(char *buf)
 	{
 		if (tokenize(buf + 2, 3, zz, ':', '/') == 3)
 		{
-			object_kind *k_ptr;
-			i = (huge)strtol(zz[0], NULL, 0);
+			std::size_t i = strtoul(zz[0], NULL, 0);
 			n1 = strtol(zz[1], NULL, 0);
 			n2 = strtol(zz[2], NULL, 0);
-			if (i >= max_k_idx) return (1);
-			k_ptr = &k_info[i];
-			if (n1) k_ptr->x_attr = n1;
+
+			if (i >= k_info.size())
+			{
+				return (1);
+			}
+
+			auto k_ptr = &k_info[i];
+
+			if (n1)
+			{
+				k_ptr->x_attr = n1;
+			}
 			if (n2)
 			{
 				k_ptr->x_char = n2;
@@ -342,13 +366,18 @@ errr process_pref_file_aux(char *buf)
 	{
 		if (tokenize(buf + 2, 3, zz, ':', '/') == 3)
 		{
-			feature_type *f_ptr;
-			i = (huge)strtol(zz[0], NULL, 0);
+			std::size_t f_idx = strtoul(zz[0], NULL, 0);
 			n1 = strtol(zz[1], NULL, 0);
 			n2 = strtol(zz[2], NULL, 0);
-			if (i >= max_f_idx) return (1);
-			f_ptr = &f_info[i];
-			if (n1) f_ptr->x_attr = n1;
+
+			if (f_idx >= f_info.size()) return (1);
+
+			auto f_ptr = &f_info[f_idx];
+
+			if (n1)
+			{
+				f_ptr->x_attr = n1;
+			}
 			if (n2)
 			{
 				f_ptr->x_char = n2;
@@ -362,12 +391,13 @@ errr process_pref_file_aux(char *buf)
 	{
 		if (tokenize(buf + 2, 3, zz, ':', '/') == 3)
 		{
-			store_info_type *st_ptr;
-			i = (huge)strtol(zz[0], NULL, 0);
+			std::size_t i = std::stoul(zz[0], 0, 0);
 			n1 = strtol(zz[1], NULL, 0);
 			n2 = strtol(zz[2], NULL, 0);
-			if (i >= max_st_idx) return (1);
-			st_ptr = &st_info[i];
+
+			if (i >= st_info.size()) return (1);
+
+			auto st_ptr = &st_info[i];
 			if (n1) st_ptr->x_attr = n1;
 			if (n2) st_ptr->x_char = n2;
 			return (0);
@@ -393,16 +423,23 @@ errr process_pref_file_aux(char *buf)
 	{
 		if (tokenize(buf + 2, 3, zz, ':', '/') == 3)
 		{
-			j = (huge)strtol(zz[0], NULL, 0);
+			j = strtoul(zz[0], NULL, 0);
 			n1 = strtol(zz[1], NULL, 0);
 			n2 = strtol(zz[2], NULL, 0);
-			for (i = 1; i < max_k_idx; i++)
+
+			for (auto &k_ref: k_info)
 			{
-				object_kind *k_ptr = &k_info[i];
+				auto k_ptr = &k_ref;
 				if (k_ptr->tval == j)
 				{
-					if (n1) k_ptr->d_attr = n1;
-					if (n2) k_ptr->d_char = n2;
+					if (n1)
+					{
+						k_ref.d_attr = n1;
+					}
+					if (n2)
+					{
+						k_ref.d_char = n2;
+					}
 				}
 			}
 			return (0);
@@ -585,14 +622,12 @@ errr process_pref_file_aux(char *buf)
 	/* Process "X:<str>" -- turn option off */
 	else if (buf[0] == 'X')
 	{
-		for (i = 0; option_info[i].o_desc; i++)
+		for (auto const &option: options->standard_options)
 		{
-			if (option_info[i].o_var &&
-			                option_info[i].o_text &&
-			                streq(option_info[i].o_text, buf + 2))
+			if (option.o_var && streq(option.o_text, buf + 2))
 			{
-				(*option_info[i].o_var) = FALSE;
-				return (0);
+				*option.o_var = FALSE;
+				return 0;
 			}
 		}
 	}
@@ -600,14 +635,12 @@ errr process_pref_file_aux(char *buf)
 	/* Process "Y:<str>" -- turn option on */
 	else if (buf[0] == 'Y')
 	{
-		for (i = 0; option_info[i].o_desc; i++)
+		for (auto const &option: options->standard_options)
 		{
-			if (option_info[i].o_var &&
-			                option_info[i].o_text &&
-			                streq(option_info[i].o_text, buf + 2))
+			if (option.o_var && streq(option.o_text, buf + 2))
 			{
-				(*option_info[i].o_var) = TRUE;
-				return (0);
+				*option.o_var = TRUE;
+				return 0;
 			}
 		}
 	}
@@ -885,13 +918,13 @@ static cptr process_pref_file_expr(char **sp, char *fp)
 			/* Race */
 			else if (streq(b + 1, "RACE"))
 			{
-				v = rp_ptr->title;
+				v = rp_ptr->title.c_str(); // The string SHOULD be stable enough for this
 			}
 
 			/* Race */
 			else if (streq(b + 1, "RACEMOD"))
 			{
-				v = rmp_ptr->title;
+				v = rmp_ptr->title.c_str(); // The string SHOULD be stable enough for this
 			}
 
 			/* Class */
@@ -903,7 +936,7 @@ static cptr process_pref_file_expr(char **sp, char *fp)
 			/* Player */
 			else if (streq(b + 1, "PLAYER"))
 			{
-				v = player_base;
+				v = game->player_base.c_str(); // The string SHOULD be stable enough for this
 			}
 		}
 
@@ -1012,7 +1045,7 @@ errr process_pref_file(cptr name)
 		if (buf[0] == '%')
 		{
 			/* Process that file if allowed */
-			(void)process_pref_file(buf + 2);
+			process_pref_file(buf + 2);
 
 			/* Continue */
 			continue;
@@ -1055,7 +1088,7 @@ static void prt_lnum(cptr header, s32b num, int row, int col, byte color)
 	char out_val[32];
 
 	put_str(header, row, col);
-	(void)sprintf(out_val, "%9ld", (long)num);
+	sprintf(out_val, "%9ld", (long)num);
 	c_put_str(color, out_val, row, col + len);
 }
 
@@ -1071,7 +1104,7 @@ static void prt_num(cptr header, int num, int row, int col, byte color,
 
 	put_str(header, row, col);
 	put_str(space, row, col + len);
-	(void)sprintf(out_val, "%6ld", (long)num);
+	sprintf(out_val, "%6ld", (long)num);
 	c_put_str(color, out_val, row, col + len + strlen(space));
 }
 
@@ -1086,7 +1119,7 @@ static void prt_str(cptr header, cptr str, int row, int col, byte color)
 
 	put_str(header, row, col);
 	put_str("   ", row, col + len);
-	(void)sprintf(out_val, "%6s", str);
+	sprintf(out_val, "%6s", str);
 	c_put_str(color, out_val, row, col + len + 3);
 }
 
@@ -1097,7 +1130,7 @@ static void prt_str(cptr header, cptr str, int row, int col, byte color)
  * For this to look right, the following should be spaced the
  * same as in the prt_lnum code... -CFT
  */
-static void display_player_middle(void)
+static void display_player_middle()
 {
 	int show_tohit = p_ptr->dis_to_h;
 	int show_todam = p_ptr->dis_to_d;
@@ -1145,7 +1178,7 @@ static void display_player_middle(void)
 
 	prt_lnum("Max Exp    ", p_ptr->max_exp, 11, 28, TERM_L_GREEN);
 
-	if ((p_ptr->lev >= PY_MAX_LEVEL) || (p_ptr->lev >= max_plev))
+	if (p_ptr->lev >= PY_MAX_LEVEL)
 	{
 		put_str("Exp to Adv.", 12, 28);
 		c_put_str(TERM_L_GREEN, "    *****", 12, 28 + 11);
@@ -1166,7 +1199,7 @@ static void display_player_middle(void)
 		{
 			color = TERM_L_BLUE;
 		}
-		else if (p_ptr->chp > (p_ptr->mhp * hitpoint_warn) / 10)
+		else if (p_ptr->chp > (p_ptr->mhp * options->hitpoint_warn) / 10)
 		{
 			color = TERM_VIOLET;
 		}
@@ -1174,10 +1207,10 @@ static void display_player_middle(void)
 		{
 			color = TERM_L_RED;
 		}
-		(void)sprintf(num, "%6ld", (long)p_ptr->chp);
+		sprintf(num, "%6ld", (long)p_ptr->chp);
 		c_put_str(color, num, 9, 65);
 		put_str("/", 9, 71);
-		(void)sprintf(num, "%6ld", (long)p_ptr->mhp);
+		sprintf(num, "%6ld", (long)p_ptr->mhp);
 		c_put_str(TERM_L_BLUE, num, 9, 72);
 	}
 	else
@@ -1187,7 +1220,7 @@ static void display_player_middle(void)
 		{
 			color = TERM_L_GREEN;
 		}
-		else if (p_ptr->chp > (p_ptr->mhp * hitpoint_warn) / 10)
+		else if (p_ptr->chp > (p_ptr->mhp * options->hitpoint_warn) / 10)
 		{
 			color = TERM_YELLOW;
 		}
@@ -1195,10 +1228,10 @@ static void display_player_middle(void)
 		{
 			color = TERM_RED;
 		}
-		(void)sprintf(num, "%6ld", (long)p_ptr->chp);
+		sprintf(num, "%6ld", (long)p_ptr->chp);
 		c_put_str(color, num, 9, 65);
 		put_str("/", 9, 71);
-		(void)sprintf(num, "%6ld", (long)p_ptr->mhp);
+		sprintf(num, "%6ld", (long)p_ptr->mhp);
 		c_put_str(TERM_L_GREEN, num, 9, 72);
 	}
 
@@ -1207,7 +1240,7 @@ static void display_player_middle(void)
 	{
 		color = TERM_L_GREEN;
 	}
-	else if (p_ptr->csp > (p_ptr->msp * hitpoint_warn) / 10)
+	else if (p_ptr->csp > (p_ptr->msp * options->hitpoint_warn) / 10)
 	{
 		color = TERM_YELLOW;
 	}
@@ -1215,10 +1248,10 @@ static void display_player_middle(void)
 	{
 		color = TERM_RED;
 	}
-	(void)sprintf(num, "%6ld", (long)p_ptr->csp);
+	sprintf(num, "%6ld", (long)p_ptr->csp);
 	c_put_str(color, num, 10, 65);
 	put_str("/", 10, 71);
-	(void)sprintf(num, "%6ld", (long)p_ptr->msp);
+	sprintf(num, "%6ld", (long)p_ptr->msp);
 	c_put_str(TERM_L_GREEN, num, 10, 72);
 
 	put_str("Sanity       ", 11, 52);
@@ -1226,7 +1259,7 @@ static void display_player_middle(void)
 	{
 		color = TERM_L_GREEN;
 	}
-	else if (p_ptr->csane > (p_ptr->msane * hitpoint_warn) / 10)
+	else if (p_ptr->csane > (p_ptr->msane * options->hitpoint_warn) / 10)
 	{
 		color = TERM_YELLOW;
 	}
@@ -1234,10 +1267,10 @@ static void display_player_middle(void)
 	{
 		color = TERM_RED;
 	}
-	(void)sprintf(num, "%6ld", (long)p_ptr->csane);
+	sprintf(num, "%6ld", (long)p_ptr->csane);
 	c_put_str(color, num, 11, 65);
 	put_str("/", 11, 71);
-	(void)sprintf(num, "%6ld", (long)p_ptr->msane);
+	sprintf(num, "%6ld", (long)p_ptr->msane);
 	c_put_str(TERM_L_GREEN, num, 11, 72);
 
 	if (p_ptr->pgod != GOD_NONE)
@@ -1247,18 +1280,16 @@ static void display_player_middle(void)
 
 	put_str("Speed           ", 13, 52);
 	speed = p_ptr->pspeed;
-	/* Hack -- Visually "undo" the Search Mode Slowdown */
-	if (p_ptr->searching) speed += 10;
 	if (speed > 110)
 	{
 		char s[11];
-		(void)sprintf(s, "Fast (+%d)", speed - 110);
+		sprintf(s, "Fast (+%d)", speed - 110);
 		c_put_str(TERM_L_GREEN, s, 13, (speed >= 120) ? 68 : 69);
 	}
 	else if (speed < 110)
 	{
 		char s[11];
-		(void)sprintf(s, "Slow (-%d)", 110 - speed);
+		sprintf(s, "Slow (-%d)", 110 - speed);
 		c_put_str(TERM_L_UMBER, s, 13, (speed <= 100) ? 68 : 69);
 	}
 	else
@@ -1361,11 +1392,13 @@ static cptr likert(int x, int y)
  *
  * This code is "imitated" elsewhere to "dump" a character sheet.
  */
-static void display_player_various(void)
+static void display_player_various()
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	int tmp, tmp2, damdice, damsides, dambonus, blows;
-	int xthn, xthb, xfos, xsrh;
-	int xdis, xdev, xsav, xstl;
+	int xthn, xthb;
+	int xdev, xsav, xstl;
 	cptr desc;
 	int i;
 
@@ -1387,12 +1420,9 @@ static void display_player_various(void)
 	blows = p_ptr->num_blow;
 
 	/* Basic abilities */
-	xdis = p_ptr->skill_dis;
 	xdev = p_ptr->skill_dev;
 	xsav = p_ptr->skill_sav;
 	xstl = p_ptr->skill_stl;
-	xsrh = p_ptr->skill_srh;
-	xfos = p_ptr->skill_fos;
 
 
 	put_str("Fighting    :", 16, 1);
@@ -1412,21 +1442,9 @@ static void display_player_various(void)
 	c_put_str(likert_color, desc, 19, 15);
 
 
-	put_str("Perception  :", 16, 28);
-	desc = likert(xfos, 6);
-	c_put_str(likert_color, desc, 16, 42);
-
-	put_str("Searching   :", 17, 28);
-	desc = likert(xsrh, 6);
-	c_put_str(likert_color, desc, 17, 42);
-
-	put_str("Disarming   :", 18, 28);
-	desc = likert(xdis, 8);
-	c_put_str(likert_color, desc, 18, 42);
-
-	put_str("Magic Device:", 19, 28);
+	put_str("Magic Device:", 20, 1);
 	desc = likert(xdev, 6);
-	c_put_str(likert_color, desc, 19, 42);
+	c_put_str(likert_color, desc, 20, 15);
 
 
 	put_str("Blows/Round:", 16, 55);
@@ -1473,7 +1491,7 @@ static void display_player_various(void)
 	}
 	else if (!r_info[p_ptr->body_monster].body_parts[BODY_WEAPON])
 	{
-		if (r_info[p_ptr->body_monster].flags1 & RF1_NEVER_BLOW)
+		if (r_info[p_ptr->body_monster].flags & RF_NEVER_BLOW)
 			desc = "nil!";
 		else
 		{
@@ -1542,29 +1560,38 @@ static void display_player_various(void)
  * Obtain the "flags" of the wielded symbiote
  */
 
-void wield_monster_flags(u32b *f1, u32b *f2, u32b *f3, u32b *f4, u32b *f5, u32b *esp)
+static object_flag_set wield_monster_flags()
 {
-	object_type *o_ptr;
-	monster_race *r_ptr;
+	auto const &r_info = game->edit_data.r_info;
 
-	/* Clear */
-	(*f1) = (*f2) = (*f3) = (*f4) = (*f5) = (*esp) = 0L;
+	object_flag_set flags;
 
 	/* Get the carried monster */
-	o_ptr = &p_ptr->inventory[INVEN_CARRY];
-
+	auto o_ptr = &p_ptr->inventory[INVEN_CARRY];
 	if (o_ptr->k_idx)
 	{
-		r_ptr = &r_info[o_ptr->pval];
+		auto r_ptr = &r_info[o_ptr->pval];
 
-		if (r_ptr->flags2 & RF2_INVISIBLE)
-			(*f2) |= TR2_INVIS;
-		if (r_ptr->flags2 & RF2_REFLECTING)
-			(*f2) |= TR2_REFLECT;
-		if (r_ptr->flags7 & RF7_CAN_FLY)
-			(*f3) |= TR3_FEATHER;
-		if (r_ptr->flags7 & RF7_AQUATIC)
-			(*f5) |= TR5_WATER_BREATH;
+		if (r_ptr->flags & RF_INVISIBLE)
+			flags |= TR_INVIS;
+		if (r_ptr->flags & RF_REFLECTING)
+			flags |= TR_REFLECT;
+		if (r_ptr->flags & RF_CAN_FLY)
+			flags |= TR_FEATHER;
+		if (r_ptr->flags & RF_AQUATIC)
+			flags |= TR_WATER_BREATH;
+	}
+
+	return flags;
+}
+
+
+template<class LF>
+static void apply_lflags(LF const &lflags, object_flag_set *f)
+{
+	for (int i = 1; i <= p_ptr->lev; i++)
+	{
+		(*f) |= lflags[i].oflags;
 	}
 }
 
@@ -1572,607 +1599,620 @@ void wield_monster_flags(u32b *f1, u32b *f2, u32b *f3, u32b *f4, u32b *f5, u32b 
 /*
  * Obtain the "flags" for the player as if he was an item
  */
-void player_flags(u32b *f1, u32b *f2, u32b *f3, u32b *f4, u32b *f5, u32b *esp)
+object_flag_set player_flags()
 {
-	int i;
+	auto const &r_info = game->edit_data.r_info;
 
 	/* Clear */
-	(*f1) = (*f2) = (*f3) = (*f4) = (*f5) = (*esp) = 0L;
+	object_flag_set f;
 
 	/* Astral chars */
 	if (p_ptr->astral)
 	{
-		(*f3) |= TR3_WRAITH;
+		f |= TR_WRAITH;
 	}
 
 /* Skills */
-	if (get_skill(SKILL_DAEMON) > 20) (*f2) |= TR2_RES_CONF;
-	if (get_skill(SKILL_DAEMON) > 30) (*f2) |= TR2_RES_FEAR;
-	if (get_skill(SKILL_MINDCRAFT) >= 40) (*esp) |= ESP_ALL;
+	if (get_skill(SKILL_DAEMON) > 20) f |= TR_RES_CONF;
+	if (get_skill(SKILL_DAEMON) > 30) f |= TR_RES_FEAR;
+	if (get_skill(SKILL_MINDCRAFT) >= 40) f |= ESP_ALL;
 	if (p_ptr->melee_style == SKILL_HAND && get_skill(SKILL_HAND) > 24 && !monk_heavy_armor())
-		(*f2) |= TR2_FREE_ACT;
-/* Hack - from Lua */
-	if (get_skill(SKILL_MANA) >= 35) (*f1) |= TR1_MANA;
-	if (get_skill(SKILL_AIR) >= 50) (*f5) |= (TR5_MAGIC_BREATH | TR5_WATER_BREATH);
-	if (get_skill(SKILL_WATER) >= 30) (*f5) |= TR5_WATER_BREATH;
+	{
+		f |= TR_FREE_ACT;
+	}
+	if (get_skill(SKILL_MANA) >= 35) f |= TR_MANA;
+	if (get_skill(SKILL_AIR) >= 50) f |= (TR_MAGIC_BREATH | TR_WATER_BREATH);
+	if (get_skill(SKILL_WATER) >= 30) f |= TR_WATER_BREATH;
 
 /* Gods */
 	if (p_ptr->pgod == GOD_ERU)
 	{
-		if ((p_ptr->grace >= 100) || (p_ptr->grace <= -100))  (*f1) |= TR1_MANA;
-		if (p_ptr->grace > 10000) (*f1) |= TR1_WIS;
+		if ((p_ptr->grace >= 100) || (p_ptr->grace <= -100))  f |= TR_MANA;
+		if (p_ptr->grace > 10000) f |= TR_WIS;
 	}
 
 	if (p_ptr->pgod == GOD_MELKOR)
 	{
-		(*f2) |= TR2_RES_FIRE;
-		if (p_ptr->melkor_sacrifice > 0) (*f2) |= TR2_LIFE;
-		if (p_ptr->grace > 10000) (*f1) |= (TR1_STR | TR1_CON | TR1_INT | TR1_WIS | TR1_CHR);
+		f |= TR_RES_FIRE;
+		if (p_ptr->melkor_sacrifice > 0) f |= TR_LIFE;
+		if (p_ptr->grace > 10000) f |= (TR_STR | TR_CON | TR_INT | TR_WIS | TR_CHR);
 		if (p_ptr->praying)
 		{
-			if (p_ptr->grace > 5000)  (*f2) |= TR2_INVIS;
-			if (p_ptr->grace > 15000) (*f2) |= TR2_IM_FIRE;
+			if (p_ptr->grace > 5000)  f |= TR_INVIS;
+			if (p_ptr->grace > 15000) f |= TR_IM_FIRE;
 		}
 	}
 
 	if (p_ptr->pgod == GOD_MANWE)
 	{
-		if (p_ptr->grace >= 2000) (*f3) |= TR3_FEATHER;
+		if (p_ptr->grace >= 2000) f |= TR_FEATHER;
 		if (p_ptr->praying)
 		{
-			if (p_ptr->grace >= 7000)  (*f2) |= TR2_FREE_ACT;
-			if (p_ptr->grace >= 15000) (*f4) |= TR4_FLY;
-			if ((p_ptr->grace >= 5000) || (p_ptr->grace <= -5000)) (*f1) |= TR1_SPEED;
+			if (p_ptr->grace >= 7000)  f |= TR_FREE_ACT;
+			if (p_ptr->grace >= 15000) f |= TR_FLY;
+			if ((p_ptr->grace >= 5000) || (p_ptr->grace <= -5000)) f |= TR_SPEED;
 		}
 	}
 
 	if (p_ptr->pgod == GOD_TULKAS)
 	{
-		if (p_ptr->grace > 5000)  (*f1) |= TR1_CON;
-		if (p_ptr->grace > 10000) (*f1) |= TR1_STR;
+		if (p_ptr->grace > 5000)  f |= TR_CON;
+		if (p_ptr->grace > 10000) f |= TR_STR;
 	}
 
 	if (p_ptr->pgod == GOD_AULE)
 	{
 		if (p_ptr->grace > 5000)
 		{
-			(*f2) |= TR2_RES_FIRE;
+			f |= TR_RES_FIRE;
 		}
 	}
 
 	if (p_ptr->pgod == GOD_MANDOS)
 	{
-		(*f2) |= TR2_RES_NETHER;
+		f |= TR_RES_NETHER;
 
 		if ((p_ptr->grace > 10000) &&
 		    (p_ptr->praying == TRUE))
 		{
-			(*f3) |= TR3_NO_TELE;
+			f |= TR_NO_TELE;
 		}
 
 		if ((p_ptr->grace > 20000) &&
 		    (p_ptr->praying == TRUE))
 		{
-			(*f4) |= TR4_IM_NETHER;
+			f |= TR_IM_NETHER;
 		}
 	}
 
 	if (p_ptr->pgod == GOD_ULMO)
 	{
-		(*f5) |= TR5_WATER_BREATH;
+		f |= TR_WATER_BREATH;
 
 		if ((p_ptr->grace > 1000) &&
 		    (p_ptr->praying == TRUE))
 		{
-			(*f2) |= TR2_RES_POIS;
+			f |= TR_RES_POIS;
 		}
 
 		if ((p_ptr->grace > 15000) &&
 		    (p_ptr->praying == TRUE))
 		{
-			(*f5) |= TR5_MAGIC_BREATH;
+			f |= TR_MAGIC_BREATH;
 		}
 	}
 
 	/* Classes */
-	for (i = 1; i <= p_ptr->lev; i++)
-	{
-		(*f1) |= cp_ptr->oflags1[i];
-		(*f2) |= cp_ptr->oflags2[i];
-		(*f3) |= cp_ptr->oflags3[i];
-		(*f4) |= cp_ptr->oflags4[i];
-		(*f5) |= cp_ptr->oflags5[i];
-		(*esp) |= cp_ptr->oesp[i];
-	}
+	apply_lflags(cp_ptr->lflags, &f);
 
 	/* Races */
 	if ((!p_ptr->mimic_form) && (!p_ptr->body_monster))
 	{
-		for (i = 1; i <= p_ptr->lev; i++)
-		{
-			(*f1) |= rp_ptr->oflags1[i];
-			(*f2) |= rp_ptr->oflags2[i];
-			(*f3) |= rp_ptr->oflags3[i];
-			(*f4) |= rp_ptr->oflags4[i];
-			(*f5) |= rp_ptr->oflags5[i];
-			(*esp) |= rp_ptr->oesp[i];
-
-			(*f1) |= rmp_ptr->oflags1[i];
-			(*f2) |= rmp_ptr->oflags2[i];
-			(*f3) |= rmp_ptr->oflags3[i];
-			(*f4) |= rmp_ptr->oflags4[i];
-			(*f5) |= rmp_ptr->oflags5[i];
-			(*esp) |= rmp_ptr->oesp[i];
-		}
+		apply_lflags(rp_ptr->lflags, &f);
+		apply_lflags(rmp_ptr->lflags, &f);
 	}
 	else
 	{
-		monster_race *r_ptr = &r_info[p_ptr->body_monster];
+		auto &r_ref = r_info[p_ptr->body_monster];
 
-		if (r_ptr->flags2 & RF2_REFLECTING) (*f2) |= TR2_REFLECT;
-		if (r_ptr->flags2 & RF2_REGENERATE) (*f3) |= TR3_REGEN;
-		if (r_ptr->flags2 & RF2_AURA_FIRE) (*f3) |= TR3_SH_FIRE;
-		if (r_ptr->flags2 & RF2_AURA_ELEC) (*f3) |= TR3_SH_ELEC;
-		if (r_ptr->flags2 & RF2_PASS_WALL) (*f3) |= TR3_WRAITH;
-		if (r_ptr->flags3 & RF3_SUSCEP_FIRE) (*f2) |= TR2_SENS_FIRE;
-		if (r_ptr->flags3 & RF3_IM_ACID) (*f2) |= TR2_RES_ACID;
-		if (r_ptr->flags3 & RF3_IM_ELEC) (*f2) |= TR2_RES_ELEC;
-		if (r_ptr->flags3 & RF3_IM_FIRE) (*f2) |= TR2_RES_FIRE;
-		if (r_ptr->flags3 & RF3_IM_POIS) (*f2) |= TR2_RES_POIS;
-		if (r_ptr->flags3 & RF3_IM_COLD) (*f2) |= TR2_RES_COLD;
-		if (r_ptr->flags3 & RF3_RES_NETH) (*f2) |= TR2_RES_NETHER;
-		if (r_ptr->flags3 & RF3_RES_NEXU) (*f2) |= TR2_RES_NEXUS;
-		if (r_ptr->flags3 & RF3_RES_DISE) (*f2) |= TR2_RES_DISEN;
-		if (r_ptr->flags3 & RF3_NO_FEAR) (*f2) |= TR2_RES_FEAR;
-		if (r_ptr->flags3 & RF3_NO_SLEEP) (*f2) |= TR2_FREE_ACT;
-		if (r_ptr->flags3 & RF3_NO_CONF) (*f2) |= TR2_RES_CONF;
-		if (r_ptr->flags7 & RF7_CAN_FLY) (*f3) |= TR3_FEATHER;
+		if (r_ref.flags & RF_REFLECTING) f |= TR_REFLECT;
+		if (r_ref.flags & RF_REGENERATE) f |= TR_REGEN;
+		if (r_ref.flags & RF_AURA_FIRE) f |= TR_SH_FIRE;
+		if (r_ref.flags & RF_AURA_ELEC) f |= TR_SH_ELEC;
+		if (r_ref.flags & RF_PASS_WALL) f |= TR_WRAITH;
+		if (r_ref.flags & RF_SUSCEP_FIRE) f |= TR_SENS_FIRE;
+		if (r_ref.flags & RF_IM_ACID) f |= TR_RES_ACID;
+		if (r_ref.flags & RF_IM_ELEC) f |= TR_RES_ELEC;
+		if (r_ref.flags & RF_IM_FIRE) f |= TR_RES_FIRE;
+		if (r_ref.flags & RF_IM_POIS) f |= TR_RES_POIS;
+		if (r_ref.flags & RF_IM_COLD) f |= TR_RES_COLD;
+		if (r_ref.flags & RF_RES_NETH) f |= TR_RES_NETHER;
+		if (r_ref.flags & RF_RES_NEXU) f |= TR_RES_NEXUS;
+		if (r_ref.flags & RF_RES_DISE) f |= TR_RES_DISEN;
+		if (r_ref.flags & RF_NO_FEAR) f |= TR_RES_FEAR;
+		if (r_ref.flags & RF_NO_SLEEP) f |= TR_FREE_ACT;
+		if (r_ref.flags & RF_NO_CONF) f |= TR_RES_CONF;
+		if (r_ref.flags & RF_CAN_FLY) f |= TR_FEATHER;
 	}
 
-	(*f1) |= p_ptr->xtra_f1;
-	(*f2) |= p_ptr->xtra_f2;
-	(*f3) |= p_ptr->xtra_f3;
-	(*f4) |= p_ptr->xtra_f4;
-	(*f5) |= p_ptr->xtra_f5;
-	(*esp) |= p_ptr->xtra_esp;
+	f |= p_ptr->xtra_flags;
 
 	if (p_ptr->black_breath)
 	{
-		(*f4) |= TR4_BLACK_BREATH;
+		f |= TR_BLACK_BREATH;
 	}
 
 	if (p_ptr->hp_mod != 0)
 	{
-		(*f2) |= TR2_LIFE;
+		f |= TR_LIFE;
+	}
+
+	return f;
+}
+
+namespace { // <anonymous>
+
+/*
+ * Build an return a (static) index of all the object_flag_meta
+ * information indexed by page->column->row.
+ */
+static std::vector<object_flag_meta const *> const &object_flag_metas_by_pcr(int page, int column, int row)
+{
+	static std::vector<std::vector<std::vector<std::vector<object_flag_meta const *>>>> instance;
+
+	if (instance.empty())
+	{
+		// Find number of pages, columns and rows.
+		std::size_t n_pages = 0;
+		std::size_t n_columns = 0;
+		std::size_t n_rows = 0;
+
+		for (auto const &object_flag_meta: object_flags_meta())
+		{
+			n_pages = std::max<std::size_t>(n_pages, object_flag_meta->c_page + 1);
+			n_columns = std::max<std::size_t>(n_columns, object_flag_meta->c_column + 1);
+			n_rows = std::max<std::size_t>(n_rows, object_flag_meta->c_row + 1);
+		}
+
+		// Sanity check; we should always have enough data.
+		assert(n_pages > 0);
+		assert(n_columns > 0);
+		assert(n_rows > 0);
+
+		// Build the scaffolding structure without the actual data.
+		instance.reserve(n_pages);
+		for (std::size_t i = 0; i < n_pages; i++)
+		{
+			std::vector<std::vector<std::vector<object_flag_meta const *>>> page;
+			page.reserve(n_columns);
+
+			for (std::size_t j = 0; j < n_columns; j++)
+			{
+				std::vector<std::vector<object_flag_meta const *>> column;
+				column.reserve(n_rows);
+
+				for (std::size_t k = 0; k < n_rows; k++)
+				{
+					std::vector<object_flag_meta const *> row;
+					column.push_back(row);
+				}
+
+				page.push_back(column);
+			}
+
+			instance.push_back(page);
+		}
+
+		// Insert all the data.
+		for (auto const object_flag_meta: object_flags_meta())
+		{
+			// Ignore if not mapped to any page.
+			if (!object_flag_meta->c_name)
+			{
+				continue;
+			}
+
+			// Find the row
+			auto &row = instance
+			        .at(object_flag_meta->c_page)
+			        .at(object_flag_meta->c_column)
+			        .at(object_flag_meta->c_row);
+
+			// Insert
+			row.push_back(object_flag_meta);
+		}
+	}
+
+	return instance.at(page).at(column).at(row);
+}
+
+
+/**
+ * Convert a number to a digit, capping at '9'. Ignores the sign of the number.
+ */
+static char number_to_digit(int n) {
+	// Throw away sign.
+	n = std::abs(n);
+	// Convert to digit or '*'
+	return (n > 9 ? '*' : I2D(n));
+};
+
+
+/**
+ * Check that two object_flag types are compatible.
+ */
+static bool object_flag_types_are_compatible(char type_a, char type_b)
+{
+	switch (type_a)
+	{
+	case 'n':
+		return (type_b == 'n');
+	case 'b':
+		return (type_b == 'b');
+	case '+':
+	case '*':
+		return (type_b == '+') || (type_b == '*');
+	case 'f':
+		return (type_b == 'f');
+	case '\0':
+		return true;
+	default:
+		abort();
 	}
 }
 
-/*
- * Object flag names
+/**
+ * Object flag data for calculating cells on the character sheet.
  */
-static cptr object_flag_names[192] =
-{
-	"Add Str",
-	"Add Int",
-	"Add Wis",
-	"Add Dex",
-	"Add Con",
-	"Add Chr",
-	"Mul Mana",
-	"Mul SPower",
-	"Add Stea.",
-	"Add Sear.",
-	"Add Infra",
-	"Add Tun..",
-	"Add Speed",
-	"Add Blows",
-	"Chaotic",
-	"Vampiric",
-	"Slay Anim.",
-	"Slay Evil",
-	"Slay Und.",
-	"Slay Demon",
-	"Slay Orc",
-	"Slay Troll",
-	"Slay Giant",
-	"Slay Drag.",
-	"Kill Drag.",
-	"Sharpness",
-	"Impact",
-	"Poison Brd",
-	"Acid Brand",
-	"Elec Brand",
-	"Fire Brand",
-	"Cold Brand",
+struct object_flag_cell {
+	/**
+	 * Type designator for the cell, if any.
+	 */
+	char type;
 
-	"Sust Str",
-	"Sust Int",
-	"Sust Wis",
-	"Sust Dex",
-	"Sust Con",
-	"Sust Chr",
-	"Invisible",
-	"Mul life",
-	"Imm Acid",
-	"Imm Elec",
-	"Imm Fire",
-	"Imm Cold",
-	"Sens Fire",
-	"Reflect",
-	"Free Act",
-	"Hold Life",
-	"Res Acid",
-	"Res Elec",
-	"Res Fire",
-	"Res Cold",
-	"Res Pois",
-	"Res Fear",
-	"Res Light",
-	"Res Dark",
-	"Res Blind",
-	"Res Conf",
-	"Res Sound",
-	"Res Shard",
-	"Res Neth",
-	"Res Nexus",
-	"Res Chaos",
-	"Res Disen",
+	/**
+	 * Associated PVAL, if any.
+	 */
+	int pval;
 
+	/**
+	 * Label for the cell, given its current contents.
+	 */
+	const char *label;
 
+	/**
+	 * Create object_flag_cell from object_flag_meta.
+	 */
+	static object_flag_cell from_object_flag_meta(object_flag_meta const &object_flag_meta, int pval)
+	{
+		// The FIXED type flags require special handling.
+		if ((object_flag_meta.c_type == '1') || (object_flag_meta.c_type == '2') || (object_flag_meta.c_type == '3'))
+		{
+			return object_flag_cell {
+				'f',
+				D2I(object_flag_meta.c_type),
+				object_flag_meta.c_name
+			};
+		}
+		else
+		{
+			return object_flag_cell {
+				object_flag_meta.c_type,
+				pval,
+				object_flag_meta.c_name
+			};
+		}
+	}
 
-	"Aura Fire",
-	"Aura Elec",
-	"Auto Curse",
-	NULL,
-	"NoTeleport",
-	"AntiMagic",
-	"WraithForm",
-	"EvilCurse",
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	"Levitate",
-	"Lite",
-	"See Invis",
-	NULL,
-	"Digestion",
-	"Regen",
-	"Xtra Might",
-	"Xtra Shots",
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	"Activate",
-	"Drain Exp",
-	"Teleport",
-	"Aggravate",
-	"Blessed",
-	"Cursed",
-	"Hvy Curse",
-	"Prm Curse",
-
-	"No blows",
-	"Precogn.",
-	"B.Breath",
-	"Recharge",
-	"Fly",
-	"Mrg.Curse",
-	NULL,
-	NULL,
-	"Sentient",
-	"Clone",
-	NULL,
-	"Climb",
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	"Imm Neth",
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-
-	"Orc.ESP",
-	"Troll.ESP",
-	"Dragon.ESP",
-	"Giant.ESP",
-	"Demon.ESP",
-	"Undead.ESP",
-	"Evil.ESP",
-	"Animal.ESP",
-	"TLord.ESP",
-	"Good.ESP",
-	"Nlive.ESP",
-	"Unique.ESP",
-	"Spider ESP",
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	"Full ESP",
 };
+
+namespace detail { // "hide" from surrounding scope; should only be accessed through the monoid
+
+static object_flag_cell object_flag_cell_append(object_flag_cell const &a, object_flag_cell const &b)
+{
+	// The "empty" value automatically gets swallowed, whatever
+	// "side" of the append it's on.
+	if (a.type == '\0')
+	{
+		return b;
+	}
+
+	if (b.type == '\0')
+	{
+		return a;
+	}
+
+	// The rest of the code assumes compatible types, so we
+	// assert this to a) avoid over-complicated logic, and
+	// b) breaking under 'unexpected' changes to the object
+	// flag list.
+	if (!object_flag_types_are_compatible(a.type, b.type))
+	{
+		abort();
+	}
+
+	// Any boolean flag which is "set" overrides the previous
+	// flag. (If the flag was already set we won't lose any
+	// information.)
+	if (b.type == 'b')
+	{
+		return b;
+	}
+
+	// Flags with a numerical value get added together.
+	if (b.type == 'n')  // (a.type == 'n') by symmetry and object_flag_types_are_compatible()
+	{
+		// Arbitrary choice of label -- the labels *should* be the same, by definition
+		return object_flag_cell { 'n', a.pval + b.pval, a.label };
+	}
+
+	// Fixed-value flags.
+	if (a.type == 'f')   // (b.type == 'f') by symmetry and object_flag_types_are_compatible()
+	{
+		// Arbitrary choice of label -- the labels *should* be the same, by definition
+		return object_flag_cell { 'f', a.pval + b.pval, a.label };
+	}
+
+	// Flags of the TERNARY variety have a "supercedes" rule
+	// where immunity supercedes resistance.
+	if (a.type == '*')
+	{
+		return object_flag_cell { '*', 0, a.label };
+	}
+	else if (b.type == '*')
+	{
+		return object_flag_cell { '*', 0, b.label };
+	}
+	else  // Both must be '+'
+	{
+		// Arbitrary choice of label -- the labels *should* be the same, by definition
+		return object_flag_cell { '+', 0, a.label };
+	}
+}
+
+constexpr object_flag_cell object_flag_cell_empty { '\0', 0, nullptr };
+
+} // namespace "detail"
+
+using object_flag_cell_monoid = monoid<object_flag_cell, detail::object_flag_cell_append, detail::object_flag_cell_empty>;
+
+} // namespace <anonymous>
+
+namespace { // <anonymous>
+
+static object_flag_meta const *get_lowest_priority_object_flag_meta(std::vector<object_flag_meta const *> const &object_flag_metas)
+{
+	object_flag_meta const *found = nullptr;
+
+	for (auto object_flag_meta: object_flag_metas)
+	{
+		if ((!found) || (found->c_priority > object_flag_meta->c_priority))
+		{
+			found = object_flag_meta;
+		}
+	}
+
+	return found;
+}
+
+
+static std::tuple<char, int> object_flag_cell_to_char(object_flag_cell const &object_flag_cell)
+{
+	switch (object_flag_cell.type)
+	{
+	case 'n':
+	case 'f':
+		// If we have no pval, we use a simple '+'. This applies
+		// to the 'player' slot.
+		if (object_flag_cell.pval == 0)
+		{
+			return std::make_tuple('+', 1);
+		}
+		else
+		{
+			return std::make_tuple(
+			        number_to_digit(object_flag_cell.pval),
+			        (object_flag_cell.pval >= 0) ? 1 : -1);
+		}
+		break;
+
+	case 'b':
+	case '+':
+		return std::make_tuple('+', 1);
+		break;
+
+	case '*':
+		return std::make_tuple('*', 1);
+		break;
+
+	default:
+		return std::make_tuple('.', 0);
+		break;
+	}
+
+	abort();
+}
+
+
+/*
+ * Output a slot
+ */
+static void display_flag_row(
+        int y,
+        int x0,
+        std::vector<std::tuple<char, int, object_flag_set>> const &slots,
+        std::vector<object_flag_meta const *> const &object_flag_metas_at_pcr)
+{
+	assert(!object_flag_metas_at_pcr.empty());
+
+	// Accumulated value of all of the slots
+	auto acc = object_flag_cell_monoid::empty;
+
+	// Go through each slot
+	for (std::size_t i = 0; i < slots.size(); i++)
+	{
+		object_flag_cell combined = object_flag_cell_monoid::empty;
+
+		// Go through all flags that are actually set for this 'cell'.
+		{
+			auto const &slot = slots[i];
+			auto const pval = std::get<1>(slot);
+			auto const flags = std::get<2>(slot);
+
+			for (auto const object_flag_meta: object_flag_metas_at_pcr)
+			{
+				if (object_flag_meta->flag_set & flags)
+				{
+					combined = object_flag_cell_monoid::append(
+					        combined,
+					        object_flag_cell::from_object_flag_meta(*object_flag_meta, pval));
+				}
+			}
+		}
+
+		// Accumulate into the global accumulator
+		acc = object_flag_cell_monoid::append(acc, combined);
+
+		// Write the cell's value.
+		auto const char_and_rating = object_flag_cell_to_char(combined);
+		auto const ch = std::get<0>(char_and_rating);
+		auto const rating = std::get<1>(char_and_rating);
+
+		// Convert good flag into a color.
+		byte a;
+		if (rating == 0)
+		{
+			a = (i & 0x02) ? TERM_GREEN : TERM_SLATE;
+		}
+		else if (rating < 0)
+		{
+			a = TERM_RED;
+		}
+		else
+		{
+			a = TERM_L_GREEN;
+		}
+
+		// Output the flag
+		Term_putch(x0 + 11 + i, y, a, ch);
+	}
+
+	// Extract the label. If the flag isn't set at all then we don't have
+	// an actual label, so we'll use the one from the meta-level object
+	// flag definition. Note that the prioritization is crucial for the
+	// labeling to work properly; e.g. IMM_FIRE comes *before* the
+	// RES_FIRE flag in the object flag list, but we don't want the *label*
+	// from IMM_FIRE to be used when the flag is not set at all.
+	auto const label = (acc.label != nullptr)
+	        ? acc.label
+	        : get_lowest_priority_object_flag_meta(object_flag_metas_at_pcr)->c_name;
+
+	// Get the "rating" for the label.
+	auto const rating = std::get<1>(object_flag_cell_to_char(acc));
+
+	byte label_attr;
+	if (rating == 0) {
+		label_attr = TERM_WHITE;
+	} else if (rating < 0) {
+		label_attr = TERM_RED;
+	} else {
+		label_attr = TERM_L_GREEN;
+	}
+
+	Term_putch(x0 + 10, y, TERM_WHITE, ':');
+	Term_putstr(x0, y, -1, label_attr, label);
+}
 
 /*
  * Summarize resistances
  */
-static void display_player_ben_one(int mode)
+static void display_player_ben_one(int page)
 {
-	int i, n, x, y, z, dispx, modetemp, xtemp;
+	// Slots of flags to show.
+	std::vector<std::tuple<char, int, object_flag_set>> slots;
+	slots.reserve(INVEN_TOTAL - INVEN_WIELD + 1);
 
-	object_type *o_ptr;
-
-	char dummy[80], c;
-
-	u32b f1, f2, f3, f4, f5, esp;
-
-	u16b b[INVEN_TOTAL - INVEN_WIELD + 1][10];
-
-	int d[INVEN_TOTAL - INVEN_WIELD + 1];
-
-	bool_ got;
-
-	byte a;
-
-	cptr name;
-
-	/* Scan equipment */
-	for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
+	// Scan equipment
+	for (std::size_t i = INVEN_WIELD; i < INVEN_TOTAL; i++)
 	{
-		/* Index */
-		n = (i - INVEN_WIELD);
+		// Skip inventory slots that don't exist on the body.
+		auto n = i - INVEN_WIELD;
+		if ((n < INVEN_TOTAL - INVEN_WIELD) && (!p_ptr->body_parts[n])) continue;
 
-		/* Object */
-		o_ptr = &p_ptr->inventory[i];
-
-		/* Known object flags */
-		object_flags_known(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-
-		/* Incorporate */
-		b[n][0] = (u16b)(f1 & 0xFFFF);
-		b[n][1] = (u16b)(f1 >> 16);
-		b[n][2] = (u16b)(f2 & 0xFFFF);
-		b[n][3] = (u16b)(f2 >> 16);
-		b[n][4] = (u16b)(f3 & 0xFFFF);
-		b[n][5] = (u16b)(f3 >> 16);
-		b[n][6] = (u16b)(f4 & 0xFFFF);
-		b[n][7] = (u16b)(f4 >> 16);
-		b[n][8] = (u16b)(esp & 0xFFFF);
-		b[n][9] = (u16b)(esp >> 16);
-		d[n] = o_ptr->pval;
+		// Extract object flags
+		auto const o_ptr = &p_ptr->inventory[i];
+		auto const flags = object_flags_known(o_ptr);
+		// Add slot
+		slots.emplace_back(
+		        std::make_tuple('a' + i - INVEN_WIELD, o_ptr->pval, flags));
 	}
 
-	/* Carried symbiote */
-	n = INVEN_CARRY - INVEN_WIELD;
-
-	/* Player flags */
-	wield_monster_flags(&f1, &f2, &f3, &f4, &f5, &esp);
-
-	/* Incorporate */
-	b[n][0] = (u16b)(f1 & 0xFFFF);
-	b[n][1] = (u16b)(f1 >> 16);
-	b[n][2] = (u16b)(f2 & 0xFFFF);
-	b[n][3] = (u16b)(f2 >> 16);
-	b[n][4] = (u16b)(f3 & 0xFFFF);
-	b[n][5] = (u16b)(f3 >> 16);
-	b[n][6] = (u16b)(f4 & 0xFFFF);
-	b[n][7] = (u16b)(f4 >> 16);
-	b[n][8] = (u16b)(esp & 0xFFFF);
-	b[n][9] = (u16b)(esp >> 16);
-
-	/* Index */
-	n = INVEN_TOTAL - INVEN_WIELD;
-
-	/* Player flags */
-	player_flags(&f1, &f2, &f3, &f4, &f5, &esp);
-
-	/* Incorporate */
-	b[n][0] = (u16b)(f1 & 0xFFFF);
-	b[n][1] = (u16b)(f1 >> 16);
-	b[n][2] = (u16b)(f2 & 0xFFFF);
-	b[n][3] = (u16b)(f2 >> 16);
-	b[n][4] = (u16b)(f3 & 0xFFFF);
-	b[n][5] = (u16b)(f3 >> 16);
-	b[n][6] = (u16b)(f4 & 0xFFFF);
-	b[n][7] = (u16b)(f4 >> 16);
-	b[n][8] = (u16b)(esp & 0xFFFF);
-	b[n][9] = (u16b)(esp >> 16);
-
-	/* Generate the equip chars */
-	sprintf(dummy, " ");
-	for (i = 0; i < INVEN_TOTAL - INVEN_WIELD; i++)
+	// Carried symbiote
 	{
-		/* If you have that body part then show it */
-		if (p_ptr->body_parts[i])
+		// Extract flags
+		auto const flags = wield_monster_flags();
+		// Add slot
+		slots.emplace_back(
+		        std::make_tuple('z', 0, flags));
+	}
+
+	// Player
+	slots.emplace_back(
+	        std::make_tuple('@', 0, player_flags()));
+
+	// Go through each column
+	for (int col = 0; col < 2; col++)
+	{
+		// Base coordinate for output
+		const auto x0 = col * 40;
+		const auto y0 = 3;
+
+		// Add slot headings.
 		{
-			strcat(dummy, format("%c", i + 'a'));
+			std::string buf;
+			buf.reserve(slots.size());
+
+			for (auto const &slot: slots)
+			{
+				buf += std::get<0>(slot);
+			}
+
+			Term_putstr(x0 + 11, y0, -1, TERM_WHITE, buf.c_str());
 		}
-	}
-	strcat(dummy, "@");
 
-	/* Scan cols */
-	for (x = 1; x > -1; x--)
-	{
-		/* Label */
-		Term_putstr(x * 40 + 11, 3, -1, TERM_WHITE, dummy);
-
-		/* Scan rows */
-		for (y = 0; y < 16; y++)
+		// Scan rows
+		for (int row = 0; row < 16; row++)
 		{
-			if (mode == 3 && x == 1)
+			// Extract the flag metadata for the current page/col/row
+			auto const object_flag_metas_at_pcr =
+			        object_flag_metas_by_pcr(page, col, row);
+
+			// Ignore flags which we don't actually map to anything.
+			if (object_flag_metas_at_pcr.empty())
 			{
-				modetemp = 4;
-				xtemp = 0;
-			}
-			else
-			{
-				modetemp = mode;
-				xtemp = x;
+				continue;
 			}
 
-			for (z = mode; z <= modetemp; z++)
-			{
-				if (mode == 3 && x == 1 && z == modetemp) xtemp = 1;
-				name = object_flag_names[32 * modetemp + 16 * xtemp + y];
-				got = FALSE;
+			// Y coordinate for the row
+			auto const y = y0 + 1 + row;
 
-				/* No name */
-				if (!name) continue;
-
-				/* Dump colon */
-				if (!(modetemp == 1 && x == 0 && y > 7 && y < 12))
-				{
-					Term_putch(x * 40 + 10, y + 4, TERM_WHITE, ':');
-				}
-
-				/* Check flags */
-				dispx = 0;
-				for (n = 0; n < INVEN_TOTAL - INVEN_WIELD + 1; n++)
-				{
-					/* Change colour every two columns */
-					bool_ is_green = (dispx & 0x02);
-					a = (is_green ? TERM_GREEN : TERM_SLATE);
-					c = '.';
-
-					/* If the body part doesn't exists then skip it :) */
-					if ((n < INVEN_TOTAL - INVEN_WIELD) && (!p_ptr->body_parts[n])) continue;
-
-					/* Increment the drawing coordinates */
-					dispx++;
-
-					/* Check flag */
-					if (b[n][2 * modetemp + xtemp] & (1 << y))
-					{
-						a = (is_green ? TERM_L_GREEN : TERM_WHITE);
-						if (modetemp == 1 && x == 0 && y > 7 && y < 12)
-						{
-							c = '*';
-						}
-						else if (modetemp == 0 && x == 0 && y < 14 && (y < 6 || y > 7))
-						{
-							if (n == INVEN_TOTAL - INVEN_WIELD)
-							{
-								c = '+';
-							}
-							else
-							{
-								c = d[n];
-								if (c < 0)
-								{
-									c = -c;
-									a = TERM_RED;
-								}
-								c = (c > 9 ? '*' : I2D(c));
-							}
-						}
-						else
-						{
-							c = '+';
-						}
-						got = TRUE;
-					}
-
-					/* HACK - Check for nether immunity and
-					   apply to Res Neth line */
-					if (modetemp == 1 && x == 1 && y == 12)
-					{
-						if (b[n][7] & (1 << 6))
-						{
-							a = (is_green ? TERM_L_GREEN : TERM_WHITE);
-							c = '*';
-							got = TRUE;
-						}
-					}
-
-					/* Dump flag */
-					if (modetemp == 1 && x == 0 && y > 7 && y < 12)
-					{
-						if (c == '*') Term_putch(40 + 11 + dispx, y - 4, a, c);
-					}
-					else
-					{
-						Term_putch(x * 40 + 11 + dispx, y + 4, a, c);
-					}
-				}
-
-				a = TERM_WHITE;
-				if (got)
-				{
-					if (modetemp == 1 && x == 0 && y > 7 && y < 12)
-					{
-						a = TERM_L_GREEN;
-					}
-					else if (modetemp != 0)
-					{
-						a = TERM_GREEN;
-					}
-				}
-
-				/* HACK - Check for nether immunity and change "Res Neth" */
-				if (modetemp == 1 && x == 1 && y == 12 && p_ptr->immune_neth)
-				{
-					name = "Imm Neth";
-					a = TERM_L_GREEN;
-				}
-
-				/* Dump name */
-				if (modetemp == 1 && x == 0 && y > 7 && y < 12)
-				{
-					if (got) Term_putstr(40, y - 4, -1, a, name);
-				}
-				else
-				{
-					Term_putstr(x * 40, y + 4, -1, a, name);
-				}
-			}
+			// Show the row
+			display_flag_row(y, x0, slots, object_flag_metas_at_pcr);
 		}
 	}
 }
 
+} // namespace <anonymous>
 
 /*
- * Display the character on the screen (various modes)
- *
- * The top two and bottom two lines are left blank.
- *
- * Mode 0 = standard display with skills
- * Mode 1 = standard display with history
- * Mode 2 = current flags (part 1)
- * Mode 3 = current flags (part 2)
- * Mode 4 = current flags (part 3)
- * Mode 5 = current flags (part 4)
- * Mode 6 = current flags (part 5 -- esp)
+ * Display the character on the screen
  */
 void display_player(int mode)
 {
-	int i;
+	auto const &r_info = game->edit_data.r_info;
+
+	assert(mode >= 0);
+	assert(mode < 5);
 
 	char buf[80];
 
@@ -2181,47 +2221,29 @@ void display_player(int mode)
 	clear_from(0);
 
 	/* Standard */
-	if ((mode == 0) || (mode == 1))
+	if (mode == 0)
 	{
-		monster_race *r_ptr = &r_info[p_ptr->body_monster];
+		auto r_ptr = &r_info[p_ptr->body_monster];
 
 		/* Name, Sex, Race, Class */
 		put_str("Name  :", 2, 1);
-		put_str("Sex   :", 3, 1);
-		put_str("Race  :", 4, 1);
-		put_str("Class :", 5, 1);
-		put_str("Body  :", 6, 1);
-		put_str("God   :", 7, 1);
-		c_put_str(TERM_L_BLUE, player_name, 2, 9);
-		if (p_ptr->body_monster != 0)
-		{
-			monster_race *r_ptr = &r_info[p_ptr->body_monster];
-			char tmp[12];
+		c_put_str(TERM_L_BLUE, game->player_name.c_str(), 2, 9);
 
-			if ((r_ptr->flags1 & RF1_MALE) != 0)
-				strcpy(tmp, "Male");
-			else if ((r_ptr->flags1 & RF1_FEMALE) != 0)
-				strcpy(tmp, "Female");
-			else
-				strcpy(tmp, "Neuter");
-			c_put_str(TERM_L_BLUE, tmp, 3, 9);
-		}
-		else
-			c_put_str(TERM_L_BLUE, sp_ptr->title, 3, 9);
-		sprintf(buf, "%s", get_player_race_name(p_ptr->prace, p_ptr->pracem));
-		c_put_str(TERM_L_BLUE, buf, 4, 9);
-		c_put_str(TERM_L_BLUE, spp_ptr->title, 5, 9);
-		c_put_str(TERM_L_BLUE, r_ptr->name, 6, 9);
-		c_put_str(TERM_L_BLUE, deity_info[p_ptr->pgod].name, 7, 9);
+		put_str("Race  :", 3, 1);
+		auto const player_race_name = get_player_race_name(p_ptr->prace, p_ptr->pracem);
+		c_put_str(TERM_L_BLUE, player_race_name.c_str(), 3, 9);
 
-		/* Age, Height, Weight, Social */
-		prt_num("Age          ", (int)p_ptr->age + bst(YEAR, turn), 2, 32, TERM_L_BLUE, "   ");
-		prt_num("Height       ", (int)p_ptr->ht, 3, 32, TERM_L_BLUE, "   ");
-		prt_num("Weight       ", (int)p_ptr->wt, 4, 32, TERM_L_BLUE, "   ");
-		prt_num("Social Class ", (int)p_ptr->sc, 5, 32, TERM_L_BLUE, "   ");
+		put_str("Class :", 4, 1);
+		c_put_str(TERM_L_BLUE, spp_ptr->title, 4, 9);
+
+		put_str("Body  :", 5, 1);
+		c_put_str(TERM_L_BLUE, r_ptr->name, 5, 9);
+
+		put_str("God   :", 6, 1);
+		c_put_str(TERM_L_BLUE, deity_info[p_ptr->pgod].name, 6, 9);
 
 		/* Display the stats */
-		for (i = 0; i < 6; i++)
+		for (int i = 0; i < 6; i++)
 		{
 			char punctuation = p_ptr->stat_max[i] == 18 + 100 ? '!' : ':';
 			/* Special treatment of "injured" stats */
@@ -2274,30 +2296,15 @@ void display_player(int mode)
 		/* Extra info */
 		display_player_middle();
 
-		/* Display "history" info */
-		if (mode == 1)
-		{
-			put_str("(Character Background)", 15, 25);
-
-			for (i = 0; i < 4; i++)
-			{
-				put_str(history[i], i + 16, 10);
-			}
-		}
-
 		/* Display "various" info */
-		else
-		{
-			put_str("(Miscellaneous Abilities)", 15, 25);
-
-			display_player_various();
-		}
+		put_str("(Miscellaneous Abilities)", 15, 25);
+		display_player_various();
 	}
 
 	/* Special */
 	else
 	{
-		display_player_ben_one(mode - 2);
+		display_player_ben_one(mode - 1);
 	}
 }
 
@@ -2307,25 +2314,29 @@ void display_player(int mode)
  * Describe the player's location -- either by dungeon level, town, or in
  * wilderness with landmark reference.
  */
-cptr describe_player_location()
+std::string describe_player_location()
 {
-	int i;
-	static char desc[80];
+	auto const &wilderness = game->wilderness;
+	auto const &d_info = game->edit_data.d_info;
+	auto const &wf_info = game->edit_data.wf_info;
+
+	std::string desc;
+
 	int pwx = (p_ptr->wild_mode ? p_ptr->px : p_ptr->wilderness_x);
 	int pwy = (p_ptr->wild_mode ? p_ptr->py : p_ptr->wilderness_y);
-	int feat = wild_map[pwy][pwx].feat;
+	int feat = wilderness(pwx, pwy).feat;
 
 	if (dungeon_type != DUNGEON_WILDERNESS && dun_level > 0)
 	{
-		sprintf(desc, "on level %d of %s", dun_level, d_info[dungeon_type].name);
+		desc += fmt::format("on level {:d} of {}", dun_level, d_info[dungeon_type].name);
 	}
 	else if (wf_info[feat].terrain_idx == TERRAIN_TOWN)
 	{
-		sprintf(desc, "in the town of %s", wf_info[feat].name);
+		desc += fmt::format("in the town of {}", wf_info[feat].name);
 	}
 	else if (wf_info[feat].entrance)
 	{
-		sprintf(desc, "near %s", wf_info[feat].name);
+		desc += fmt::format("near {}", wf_info[feat].name);
 	}
 	else
 	{
@@ -2338,21 +2349,19 @@ cptr describe_player_location()
 		 */
 		int landmark = 0, lwx = 0, lwy = 0;
 		int l_dist = -1;
-		int i;
 
-		for (i = 0; i < max_wf_idx; i++)
+		for (std::size_t i = 0; i < wf_info.size(); i++)
 		{
 			int wx = wf_info[i].wild_x;
 			int wy = wf_info[i].wild_y;
-			int dist;
 
 			/* Skip if not a landmark */
 			if (!wf_info[i].entrance) continue;
 
 			/* Skip if we haven't seen it */
-			if (!wild_map[wy][wx].known) continue;
+			if (!wilderness(wx, wy).known) continue;
 
-			dist = distance(wy, wx, pwy, pwx);
+			int dist = distance(wy, wx, pwy, pwx);
 			if (dist < l_dist || l_dist < 0)
 			{
 				landmark = i;
@@ -2364,12 +2373,12 @@ cptr describe_player_location()
 
 		if (!landmark)
 		{
-			sprintf(desc, "in %s", wf_info[feat].text);
+			desc += fmt::format("in {}", wf_info[feat].text);
 		}
 		else if (pwx == lwx && pwy == lwy)
 		{
 			/* Paranoia; this should have been caught above */
-			sprintf(desc, "near %s", wf_info[feat].name);
+			desc += fmt::format("near {}", wf_info[feat].name);
 		}
 		else
 		{
@@ -2391,7 +2400,8 @@ cptr describe_player_location()
 			if (dy * 81 < dx * 31) ns = "";
 			if (dx * 81 < dy * 31) ew = "";
 
-			sprintf(desc, "in %s %s%s of %s",
+			desc += fmt::format(
+				"in {} {}{} of {}",
 				wf_info[feat].text,
 				ns,
 				ew,
@@ -2399,10 +2409,8 @@ cptr describe_player_location()
 		}
 	}
 
-	/* strip trailing whitespace */
-	for (i = 0; desc[i]; ++i);
-	while (desc[--i] == ' ')
-		desc[i] = 0;
+	/* Strip trailing whitespace */
+	boost::trim_right(desc);
 
 	return desc;
 }
@@ -2446,7 +2454,7 @@ static void file_character_print_grid(FILE *fff, bool_ show_gaps, bool_ show_leg
 	{
 		for (x = 0; x < 40; x++)
 		{
-			(void)(Term_what(x, y, &a, &c));
+			(Term_what(x, y, &a, &c));
 			buf[x] = c;
 		}
 
@@ -2459,7 +2467,7 @@ static void file_character_print_grid(FILE *fff, bool_ show_gaps, bool_ show_leg
 	{
 		for (x = 40; x < 80; x++)
 		{
-			(void)(Term_what(x, y, &a, &c));
+			(Term_what(x, y, &a, &c));
 			buf[x - 40] = c;
 		}
 
@@ -2494,19 +2502,20 @@ void file_character_print_item(FILE *fff, char label, object_type *obj, bool_ fu
  *
  * Prints out one "store" (for Home and Mathom-house)
  */
-void file_character_print_store(FILE *fff, wilderness_type_info *place, int store, bool_ full)
+static void file_character_print_store(FILE *fff, wilderness_type_info const *place, std::size_t store, bool_ full)
 {
-	int i;
+	auto const &st_info = game->edit_data.st_info;
+
 	town_type *town = &town_info[place->entrance];
 	store_type *st_ptr = &town->store[store];
 
-	if (st_ptr->stock_num)
+	if (st_ptr->stock.size())
 	{
 		/* Header with name of the town */
-		fprintf(fff, "  [%s Inventory - %s]\n\n", st_info[store].name, place->name);
+		fprintf(fff, "  [%s Inventory - %s]\n\n", st_info[store].name.c_str(), place->name);
 
 		/* Dump all available items */
-		for (i = 0; i < st_ptr->stock_num; i++)
+		for (std::size_t i = 0; i < st_ptr->stock.size(); i++)
 		{
 			file_character_print_item(fff, I2A(i%24), &st_ptr->stock[i], full);
 		}
@@ -2523,7 +2532,7 @@ void file_character_print_store(FILE *fff, wilderness_type_info *place, int stor
  * was not already there.  XXX This is an ugly workaround for the double Gondolin
  * problem.
  */
-static bool_ file_character_check_stores(std::unordered_set<store_type *> *seen_stores, wilderness_type_info *place, int store)
+static bool_ file_character_check_stores(std::unordered_set<store_type *> *seen_stores, wilderness_type_info const *place, int store)
 {
 	town_type *town = &town_info[place->entrance];
 	store_type *st_ptr = &town->store[store];
@@ -2547,7 +2556,11 @@ static bool_ file_character_check_stores(std::unordered_set<store_type *> *seen_
  */
 errr file_character(cptr name, bool_ full)
 {
-	int i, j, x, y;
+	auto const &d_info = game->edit_data.d_info;
+	auto const &wf_info = game->edit_data.wf_info;
+	auto const &r_info = game->edit_data.r_info;
+
+	int i, x, y;
 	byte a;
 	char c;
 	int fd = -1;
@@ -2566,10 +2579,10 @@ errr file_character(cptr name, bool_ full)
 		char out_val[160];
 
 		/* Close the file */
-		(void)fd_close(fd);
+		fd_close(fd);
 
 		/* Build query */
-		(void)sprintf(out_val, "Replace existing file %s? ", buf);
+		sprintf(out_val, "Replace existing file %s? ", buf);
 
 		/* Ask */
 		if (get_check(out_val)) fd = -1;
@@ -2604,7 +2617,7 @@ errr file_character(cptr name, bool_ full)
 		for (x = 0; x < 79; x++)
 		{
 			/* Get the attr/char */
-			(void)(Term_what(x, y, &a, &c));
+			(Term_what(x, y, &a, &c));
 
 			/* Dump it */
 			buf[x] = c;
@@ -2627,7 +2640,7 @@ errr file_character(cptr name, bool_ full)
 		for (x = 0; x < 79; x++)
 		{
 			/* Get the attr/char */
-			(void)(Term_what(x, y, &a, &c));
+			(Term_what(x, y, &a, &c));
 
 			/* Dump it */
 			buf[x] = c;
@@ -2642,52 +2655,52 @@ errr file_character(cptr name, bool_ full)
 
 	/* List the patches */
 	fprintf(fff, "\n\n  [Miscellaneous information]\n");
-	if (joke_monsters)
+	if (options->joke_monsters)
 		fprintf(fff, "\n Joke monsters:        ON");
 	else
 		fprintf(fff, "\n Joke monsters:        OFF");
 
-	if (p_ptr->preserve)
+	if (options->preserve)
 		fprintf(fff, "\n Preserve Mode:        ON");
 	else
 		fprintf(fff, "\n Preserve Mode:        OFF");
 
-	if (auto_scum)
+	if (options->auto_scum)
 		fprintf(fff, "\n Autoscum:             ON");
 	else
 		fprintf(fff, "\n Autoscum:             OFF");
 
-	if (always_small_level)
+	if (options->always_small_level)
 		fprintf(fff, "\n Small Levels:         ALWAYS");
-	else if (small_levels)
+	else if (options->small_levels)
 		fprintf(fff, "\n Small Levels:         ON");
 	else
 		fprintf(fff, "\n Small Levels:         OFF");
 
-	if (empty_levels)
+	if (options->empty_levels)
 		fprintf(fff, "\n Arena Levels:         ON");
 	else
 		fprintf(fff, "\n Arena Levels:         OFF");
 
-	if (ironman_rooms)
+	if (options->ironman_rooms)
 		fprintf(fff, "\n Always unusual rooms: ON");
 	else
 		fprintf(fff, "\n Always unusual rooms: OFF");
 
 	fprintf(fff, "\n\n Recall Depth:");
-	for (y = 1; y < max_d_idx; y++)
+	for (y = 1; y < static_cast<int>(d_info.size()); y++)
 	{
 		if (max_dlv[y])
-			fprintf(fff, "\n        %s: Level %d (%d')",
-				d_info[y].name,
-			        max_dlv[y], 50 * (max_dlv[y]));
+			fprintf(fff, "\n        %s: Level %d",
+				d_info[y].name.c_str(),
+				max_dlv[y]);
 	}
 	fprintf(fff, "\n");
 
 	if (noscore)
 		fprintf(fff, "\n You have done something illegal.");
 
-	if (race_flags1_p(PR1_EXPERIMENTAL))
+	if (race_flags_p(PR_EXPERIMENTAL))
 		fprintf(fff, "\n You have done something experimental.");
 
 	{
@@ -2705,18 +2718,20 @@ errr file_character(cptr name, bool_ full)
 	}
 
 	/* Where we are, if we're alive */
-	if (!death) fprintf(fff, "\n You are currently %s.", describe_player_location());
+	if (!death)
+	{
+		fprintf(fff, "\n You are currently %s.", describe_player_location().c_str());
+	}
 
 	/* Monsters slain */
 	{
-		int k;
 		s32b Total = 0;
 
-		for (k = 1; k < max_r_idx; k++)
+		for (auto const &r_ref: r_info)
 		{
-			monster_race *r_ptr = &r_info[k];
+			auto r_ptr = &r_ref;
 
-			if (r_ptr->flags1 & (RF1_UNIQUE))
+			if (r_ptr->flags & RF_UNIQUE)
 			{
 				bool_ dead = (r_ptr->max_num == 0);
 				if (dead)
@@ -2755,33 +2770,24 @@ errr file_character(cptr name, bool_ full)
 
 	fprintf (fff, "\n\n");
 
-	/* Emit the self-knowledge lines, even though they duplicate the
-	   information in the grids (below), because they contain information
-	   that's not in the grids (racial abilities, luck, etc.). */
-	if (full)
-	{
-		self_knowledge(fff);
-		fprintf(fff, "\n\n");
-	}
-
 	/* adds and slays */
-	display_player (2);
+	display_player(1);
 	file_character_print_grid(fff, FALSE, TRUE);
 
 	/* sustains and resistances */
-	display_player (3);
+	display_player(2);
 	file_character_print_grid(fff, TRUE, FALSE);
 
 	/* stuff */
-	display_player (4);
+	display_player(3);
 	file_character_print_grid(fff, FALSE, FALSE);
 
 	/* a little bit of stuff */
-	display_player (5);
+	display_player(4);
 	file_character_print_grid(fff, FALSE, FALSE);
 
 	/* Dump corruptions */
-	dump_corruptions(fff, FALSE, TRUE);
+	fprintf(fff, "\n%s\n", dump_corruptions(false, true).c_str());
 
 	/* Dump skills */
 	dump_skills(fff);
@@ -2803,7 +2809,7 @@ errr file_character(cptr name, bool_ full)
 		if ((fates[i].fate) && (fates[i].know))
 		{
 			fprintf(fff, "\n\n  [Fates]\n\n");
-			dump_fates(fff);
+			fprintf(fff, "%s", dump_fates().c_str());
 			break;
 		}
 	}
@@ -2837,12 +2843,12 @@ errr file_character(cptr name, bool_ full)
 	/* Print all homes in the different towns */
 	{
 		std::unordered_set<store_type *> seen_stores;
-		for (j = 0; j < max_wf_idx; j++)
+		for (auto const &wf_ref: wf_info)
 		{
-			if (wf_info[j].feat == FEAT_TOWN &&
-			    file_character_check_stores(&seen_stores, &wf_info[j], 7))
+			if (wf_ref.feat == FEAT_TOWN &&
+			    file_character_check_stores(&seen_stores, &wf_ref, 7))
 			{
-				file_character_print_store(fff, &wf_info[j], 7, full);
+				file_character_print_store(fff, &wf_ref, 7, full);
 			}
 		}
 	}
@@ -2850,12 +2856,12 @@ errr file_character(cptr name, bool_ full)
 	/* Print all Mathom-houses in the different towns */
 	{
 		std::unordered_set<store_type *> seen_stores;
-		for (j = 0; j < max_wf_idx; j++)
+		for (auto const &wf_ref: wf_info)
 		{
-			if (wf_info[j].feat == FEAT_TOWN &&
-			    file_character_check_stores(&seen_stores, &wf_info[j], 57))
+			if (wf_ref.feat == FEAT_TOWN &&
+			    file_character_check_stores(&seen_stores, &wf_ref, 57))
 			{
-				file_character_print_store(fff, &wf_info[j], 57, full);
+				file_character_print_store(fff, &wf_ref, 57, full);
 			}
 		}
 	}
@@ -2917,7 +2923,7 @@ struct hyperlink
 
 typedef struct hyperlink hyperlink_type;
 
-bool_ show_file(cptr name, cptr what, int line, int mode)
+static bool_ show_file_aux(cptr name, cptr what, int line)
 {
 	int i, k, x;
 
@@ -3375,7 +3381,7 @@ bool_ show_file(cptr name, cptr what, int line, int mode)
 		{
 			/* Get "h_ptr->shower" */
 			prt("Show: ", hgt - 1, 0);
-			(void)askfor_aux(h_ptr->shower, 80);
+			askfor_aux(h_ptr->shower, 80);
 		}
 
 		/* Hack -- try finding */
@@ -3415,7 +3421,7 @@ bool_ show_file(cptr name, cptr what, int line, int mode)
 			strcpy(tmp, "help.hlp");
 			if (askfor_aux(tmp, 80))
 			{
-				if (!show_file(tmp, NULL, 0, mode)) k = ESCAPE;
+				if (!show_file_aux(tmp, NULL, 0)) k = ESCAPE;
 			}
 		}
 
@@ -3469,7 +3475,7 @@ bool_ show_file(cptr name, cptr what, int line, int mode)
 			if (h_ptr->link_x[cur_link] != -1)
 			{
 				/* Recurse on that file */
-				if (!show_file(h_ptr->link[cur_link], NULL, h_ptr->link_line[cur_link], mode)) k = ESCAPE;
+				if (!show_file_aux(h_ptr->link[cur_link], NULL, h_ptr->link_line[cur_link])) k = ESCAPE;
 			}
 		}
 
@@ -3482,7 +3488,7 @@ bool_ show_file(cptr name, cptr what, int line, int mode)
 			if (h_ptr->link_key[i] == k)
 			{
 				/* Recurse on that file */
-				if (!show_file(h_ptr->link[i], NULL, h_ptr->link_line[i], mode)) k = ESCAPE;
+				if (!show_file_aux(h_ptr->link[i], NULL, h_ptr->link_line[i])) k = ESCAPE;
 				break;
 			}
 		}
@@ -3498,316 +3504,27 @@ bool_ show_file(cptr name, cptr what, int line, int mode)
 	return (TRUE);
 }
 
-bool_ txt_to_html(cptr head, cptr foot, cptr base, cptr ext, bool_ force, bool_ recur)
+void show_string(const char *lines, const char *title, int line)
 {
-	int i, x;
+	// Temporary file
+	auto const file_name = boost::filesystem::unique_path().string();
 
-	/* Number of "real" lines passed by */
-	int next = 0;
+	// Open a new file
+	std::ofstream ofs(file_name);
+	ofs.exceptions(std::ofstream::failbit);
+	ofs << lines;
+	ofs.close();
 
-	char buf_name[80];
+	// Display the file contents
+	show_file_aux(file_name.c_str(), title, line);
 
-	/* Color of the next line */
-	byte color = TERM_WHITE;
+	// Remove the file
+	fd_kill(file_name.c_str());
+}
 
-	/* Current help file */
-	FILE *fff = NULL;
-
-	/* Current aux file */
-	FILE *aux = NULL;
-
-	/* Current html file */
-	FILE *htm = NULL;
-
-	cptr file_ext = "html";
-	cptr link_prefix = "";
-	cptr link_suffix = "";
-
-	/* Pointer to general buffer in the above */
-	char *buf;
-
-	/* Allocate hyperlink data */
-	std::unique_ptr<hyperlink_type> h_ptr(new hyperlink_type);
-	memset(h_ptr.get(), 0, sizeof(hyperlink_type));
-
-	/* Setup buffer pointer */
-	buf = h_ptr->rbuf;
-
-	/* Wipe the links */
-	for (i = 0; i < MAX_LINKS; i++)
-	{
-		h_ptr->link_x[i] = -1;
-	}
-
-	sprintf(buf_name, "%s.%s", base, file_ext);
-
-	if ((!force) && file_exist(buf_name)) return FALSE;
-
-	/* Build the filename */
-	path_build(h_ptr->path, 1024, ANGBAND_DIR_HELP, buf_name);
-
-	/* Open the file */
-	htm = my_fopen(h_ptr->path, "w");
-
-	sprintf(buf_name, "%s.%s", base, ext);
-
-	/* h_ptr->caption */
-	sprintf(h_ptr->caption, "Help file '%s'", buf_name);
-
-	/* Build the filename */
-	path_build(h_ptr->path, 1024, ANGBAND_DIR_HELP, buf_name);
-
-	/* Open the file */
-	fff = my_fopen(h_ptr->path, "r");
-
-	/* Oops */
-	if (!fff || !htm)
-	{
-		my_fclose(fff);
-		my_fclose(htm);
-
-		/* Oops */
-		return (TRUE);
-	}
-
-	/* Build the filename */
-	path_build(h_ptr->path, 1024, ANGBAND_DIR_HELP, head);
-
-	/* Open the file */
-	aux = my_fopen(h_ptr->path, "r");
-
-	/* Copy the header */
-	if (aux)
-	{
-		while (TRUE)
-		{
-			char *find;
-
-			if (my_fgets(aux, h_ptr->rbuf, 1024)) break;
-			find = strstr(h_ptr->rbuf, "%t");
-			if (find != NULL)
-			{
-				*find = '\0';
-				find += 2;
-				fprintf(htm, "%s", h_ptr->rbuf);
-				fprintf(htm, "%s", base);
-				fprintf(htm, "%s\n", find);
-			}
-			else
-				fprintf(htm, "%s\n", h_ptr->rbuf);
-		}
-		my_fclose(aux);
-	}
-
-	/* Display the file */
-	while (TRUE)
-	{
-		bool_ do_color = FALSE;
-
-		/* Skip a line */
-		if (my_fgets(fff, h_ptr->rbuf, 1024)) break;
-
-		color = TERM_WHITE;
-
-		{
-			int print_x;
-
-			/* Get a color */
-			if (prefix(h_ptr->rbuf, "#####"))
-			{
-				color = color_char_to_attr(h_ptr->rbuf[5]);
-				do_color = TRUE;
-				fprintf(htm, "<FONT COLOR=\"#%02X%02X%02X\">",
-				        angband_color_table[color][1],
-				        angband_color_table[color][2],
-				        angband_color_table[color][3]);
-				buf = &h_ptr->rbuf[6];
-			}
-			else buf = h_ptr->rbuf;
-
-			/* Count the "real" lines */
-			next++;
-
-			/* Skip link colors */
-			if (prefix(buf, "|||||")) continue;
-
-			/* Skip tags */
-			if (prefix(buf, "~~~~~"))
-			{
-				int i;
-
-				for (i = 5; (buf[i] >= '0') && (buf[i] <= '9'); i++)
-					;
-				buf[i] = '\0';
-				fprintf(htm, "<A NAME=\"%s\"></A>", buf + 5);
-				continue;
-			}
-
-			/* Dump the line */
-			print_x = 0;
-			if (!prefix(buf, "&&&&&"))
-			{
-				x = 0;
-				while (buf[x])
-				{
-					/* Hyperlink ? */
-					if (prefix(buf + x, "*****"))
-					{
-						int xx = x + 5, z = 0;
-						char buff[80];
-						char link_line[80], *s;
-
-						if (buf[xx] == '/') xx += 2;
-
-						/* Zap the link info */
-						while (buf[xx] != '*')
-						{
-							buff[z++] = buf[xx];
-							xx++;
-						}
-						xx++;
-						buff[z] = '\0';
-
-						/* Zap the link info */
-						z = 0;
-						while (buf[xx] != '[')
-						{
-							link_line[z++] = buf[xx];
-							xx++;
-						}
-						xx++;
-						link_line[z] = '\0';
-
-						/* parse it */
-						s = buff;
-						while (*s != '.') s++;
-						*s = '\0';
-						s++;
-						if (recur) txt_to_html(head, foot, buff, s, FALSE, recur);
-
-						if (atoi(link_line)) fprintf(htm, "<A HREF=\"%s%s.%s%s#%d\">", link_prefix, buff, file_ext, link_suffix, atoi(link_line));
-						else fprintf(htm, "<A HREF=\"%s%s.%s%s\">", link_prefix, buff, file_ext, link_suffix);
-
-						/* Ok print the link name */
-						while (buf[xx] != ']')
-						{
-							/* Now we treat the next char as printable */
-							if (buf[xx] == '\\')
-								xx++;
-							fprintf(htm, "%c", buf[xx]);
-							xx++;
-							print_x++;
-						}
-						x = xx;
-
-						fprintf(htm, "</A>");
-					}
-					/* Color ? */
-					else if (prefix(buf + x, "[[[[["))
-					{
-						int xx = x + 6;
-
-						color = color_char_to_attr(buf[x + 5]);
-						fprintf(htm, "<FONT COLOR=\"#%02X%02X%02X\">",
-						        angband_color_table[color][1],
-						        angband_color_table[color][2],
-						        angband_color_table[color][3]);
-
-						/* Ok print the link name */
-						while (buf[xx] != ']')
-						{
-							/* Now we treat the next char as printable */
-							if (buf[xx] == '\\')
-								xx++;
-							fprintf(htm, "%c", buf[xx]);
-							xx++;
-							print_x++;
-						}
-						x++;
-						x = xx;
-
-						fprintf(htm, "</FONT>");
-					}
-					/* Hidden HTML tag? */
-					else if (prefix(buf + x, "{{{{{"))
-					{
-						int xx = x + 5;
-
-						/* Ok output the tag inside */
-						while (buf[xx] != '}')
-						{
-							fprintf(htm, "%c", buf[xx]);
-							xx++;
-						}
-						x++;
-						x = xx;
-					}
-					else
-					{
-						fprintf(htm, "%c", buf[x]);
-						print_x++;
-					}
-
-					x++;
-				}
-			}
-			/* Verbatim mode: i.e: acacacac */
-			else
-			{
-				byte old_color;
-
-				x = 5;
-				old_color = color_char_to_attr(buf[x]);
-				fprintf(htm, "<FONT COLOR=\"#%02X%02X%02X\">",
-				        angband_color_table[color][1],
-				        angband_color_table[color][2],
-				        angband_color_table[color][3]);
-				while (buf[x])
-				{
-					color = color_char_to_attr(buf[x]);
-					if (color != old_color)
-						fprintf(htm, "</FONT><FONT COLOR=\"#%02X%02X%02X\">",
-						        angband_color_table[color][1],
-						        angband_color_table[color][2],
-						        angband_color_table[color][3]);
-
-					fprintf(htm, "%c", buf[x + 1]);
-					print_x++;
-					x += 2;
-				}
-				fprintf(htm, "</FONT>");
-			}
-		}
-		if (do_color)
-		{
-			fprintf(htm, "</FONT>");
-		}
-		fprintf(htm, "\n");
-	}
-
-	/* Build the filename */
-	path_build(h_ptr->path, 1024, ANGBAND_DIR_HELP, foot);
-
-	/* Open the file */
-	aux = my_fopen(h_ptr->path, "r");
-
-	/* Copy the footer */
-	if (aux)
-	{
-		while (TRUE)
-		{
-			if (my_fgets(aux, h_ptr->rbuf, 1024)) break;
-			fprintf(htm, "%s\n", h_ptr->rbuf);
-		}
-		my_fclose(aux);
-	}
-
-	/* Close the file */
-	my_fclose(htm);
-	my_fclose(fff);
-
-	/* Normal return */
-	return (TRUE);
+void show_file(cptr name, cptr what, int line)
+{
+	show_file_aux(name, what, line);
 }
 
 static void cmovie_clean_line(int y, char *abuf, char *cbuf)
@@ -4001,13 +3718,13 @@ void html_screenshot(cptr name)
 /*
  * Peruse the On-Line-Help
  */
-void do_cmd_help(void)
+void do_cmd_help()
 {
 	/* Save screen */
 	screen_save();
 
 	/* Peruse the main help file */
-	(void)show_file("help.hlp", NULL, 0, 0);
+	show_file("help.hlp", NULL);
 
 	/* Load screen */
 	screen_load();
@@ -4016,72 +3733,53 @@ void do_cmd_help(void)
 
 
 
-/*
- * Process the player name.
- * Extract a clean "base name".
- * Build the savefile name if needed.
- */
 void process_player_base()
 {
-	char temp[128];
-
-	/* Rename the savefile, using the player_base */
-	(void)sprintf(temp, "%s", player_base);
-
-	/* Build the filename */
-	path_build(savefile, 1024, ANGBAND_DIR_SAVE, temp);
+	path_build(savefile, 1024, ANGBAND_DIR_SAVE, game->player_base.c_str());
 }
 
 void process_player_name(bool_ sf)
 {
-	int i, k = 0;
-	char tmp[50];
-
 	/* Cannot be too long */
-	if (strlen(player_base) > 15)
+	if (game->player_base.size() > 15)
 	{
-		/* Name too long */
-		quit_fmt("The name '%s' is too long!", player_base);
+		quit_fmt("The name '%s' is too long!", game->player_base.c_str());
 	}
 
-	/* Cannot contain "icky" characters */
-	for (i = 0; player_base[i]; i++)
+	/* Cannot contain control characters */
+	for (auto c : game->player_base)
 	{
-		/* No control characters */
-		if (iscntrl(player_base[i]))
+		if (iscntrl(c))
 		{
-			/* Illegal characters */
-			quit_fmt("The name '%s' contains control chars!", player_base);
+			quit_fmt("The name '%s' contains control chars!", game->player_base.c_str());
 		}
 	}
 
 	/* Extract "useful" letters */
-	for (i = 0; player_base[i]; i++)
+	std::string buf;
+	for (auto c : game->player_base)
 	{
-		char c = player_base[i];
-
 		/* Accept some letters */
-		if (isalpha(c) || isdigit(c)) tmp[k++] = c;
+		if (isalpha(c) || isdigit(c))
+		{
+			buf += c;
+		}
 
 		/* Convert space, dot, and underscore to underscore */
-		else if (strchr("@. _", c)) tmp[k++] = '_';
+		else if (strchr("@. _", c))
+		{
+			buf += '_';
+		}
 	}
 
-
-#if defined(WINDOWS)
-
-	/* Hack -- max length */
-	if (k > 8) k = 8;
-
-#endif
-
 	/* Terminate */
-	tmp[k] = '\0';
-	sprintf(player_base, "%s", tmp);
+	game->player_base = buf;
 
 	/* Require a "base" name */
-	if (!player_base[0]) strcpy(player_base, "PLAYER");
-
+	if (game->player_base.empty())
+	{
+		game->player_base = "PLAYER";
+	}
 
 	/* Change the savefile name */
 	if (sf)
@@ -4101,7 +3799,7 @@ void process_player_name(bool_ sf)
  *
  * What a horrible name for a global function.  XXX XXX XXX
  */
-void get_name(void)
+void get_name()
 {
 	char tmp[32];
 
@@ -4118,10 +3816,13 @@ void get_name(void)
 		move_cursor(2, 9);
 
 		/* Save the player name */
-		strcpy(tmp, player_name);
+		strcpy(tmp, game->player_name.c_str());
 
 		/* Get an input, ignore "Escape" */
-		if (askfor_aux(tmp, 31)) strcpy(player_name, tmp);
+		if (askfor_aux(tmp, 31))
+		{
+			game->player_name = tmp;
+		}
 
 		/* Process the player name */
 		process_player_name(FALSE);
@@ -4131,7 +3832,7 @@ void get_name(void)
 	}
 
 	/* Pad the name (to clear junk) */
-	sprintf(tmp, "%-31.31s", player_name);
+	sprintf(tmp, "%-31.31s", game->player_name.c_str());
 
 	/* Re-Draw the name (in light blue) */
 	c_put_str(TERM_L_BLUE, tmp, 2, 9);
@@ -4145,7 +3846,7 @@ void get_name(void)
 /*
  * Hack -- commit suicide
  */
-void do_cmd_suicide(void)
+void do_cmd_suicide()
 {
 	int i;
 
@@ -4186,7 +3887,7 @@ void do_cmd_suicide(void)
 	p_ptr->leaving = TRUE;
 
 	/* Cause of death */
-	(void)strcpy(died_from, "Quitting");
+	game->died_from = "Quitting";
 }
 
 
@@ -4222,7 +3923,7 @@ void remove_cave_view(bool_ remove)
 /*
  * Save the game
  */
-void do_cmd_save_game(void)
+void do_cmd_save_game()
 {
 	remove_cave_view(TRUE);
 
@@ -4233,7 +3934,7 @@ void do_cmd_save_game(void)
 	if (!is_autosave)
 	{
 		/* Disturb the player */
-		disturb(1);
+		disturb();
 	}
 
 	/* Clear messages */
@@ -4249,7 +3950,7 @@ void do_cmd_save_game(void)
 	Term_fresh();
 
 	/* The player is not dead */
-	(void)strcpy(died_from, "(saved)");
+	game->died_from = "(saved)";
 
 	/* Save the player */
 	if (save_player())
@@ -4269,7 +3970,7 @@ void do_cmd_save_game(void)
 	Term_fresh();
 
 	/* Note that the player is not dead */
-	(void)strcpy(died_from, "(alive and well)");
+	game->died_from = "(alive and well)";
 }
 
 /*
@@ -4277,7 +3978,7 @@ void do_cmd_save_game(void)
  */
 void autosave_checkpoint()
 {
-	if (autosave_l)
+	if (options->autosave_l)
 	{
 		is_autosave = TRUE;
 		msg_print("Autosaving the game...");
@@ -4289,28 +3990,36 @@ void autosave_checkpoint()
 /*
  * Hack -- Calculates the total number of points earned                -JWT-
  */
-static long total_points(void)
+static long total_points()
 {
-	s16b max_dl = 0, i, k;
+	auto const &d_info = game->edit_data.d_info;
+	auto const &r_info = game->edit_data.r_info;
+	auto const &k_info = game->edit_data.k_info;
+
+	s16b max_dl = 0;
 	long temp, Total = 0;
 	long mult = 20; /* was 100. Divided values by 5 because of an overflow error */
 	long comp_death = (p_ptr->companion_killed * 2 / 5);
 
 	if (!comp_death) comp_death = 1;
 
-	if (p_ptr->preserve) mult -= 1;  /* Penalize preserve, maximize modes */
+	if (options->preserve) mult -= 1;  /* Penalize preserve, maximize modes */
 	mult -= 1; /* maximize pentalty, always on */
-	if (auto_scum) mult -= 4;
-	if (small_levels) mult += ((always_small_level) ? 4 : 10);
-	if (empty_levels) mult += 2;
-	if (smart_learn) mult += 4;
+	if (options->auto_scum) mult -= 4;
+	if (options->small_levels) mult += ((options->always_small_level) ? 4 : 10);
+	if (options->empty_levels) mult += 2;
+	if (options->smart_learn) mult += 4;
 
 	if (mult < 2) mult = 2;  /* At least 10% of the original score */
 	/* mult is now between 2 and 40, i.e. 10% and 200% */
 
-	for (i = 0; i < max_d_idx; i++)
+	for (std::size_t i = 0; i < d_info.size(); i++)
+	{
 		if (max_dlv[i] > max_dl)
+		{
 			max_dl = max_dlv[i];
+		}
+	}
 
 	temp = p_ptr->lev * p_ptr->lev * p_ptr->lev * p_ptr->lev + (100 * max_dl);
 
@@ -4322,7 +4031,7 @@ static long total_points(void)
 	temp += p_ptr->au / 5;
 
 	/* Completing quest increase score */
-	for (i = 0; i < MAX_Q_IDX; i++)
+	for (std::size_t i = 0; i < MAX_Q_IDX; i++)
 	{
 		if (quest[i].status >= QUEST_STATUS_COMPLETED)
 		{
@@ -4334,14 +4043,13 @@ static long total_points(void)
 	/* Death of a companion is BAD */
 	temp /= comp_death;
 
-	/* The know objects increase the score */
-	/* Scan the object kinds */
-	for (k = 1; k < max_k_idx; k++)
+	/* The known objects increase the score */
+	for (std::size_t k = 1; k < k_info.size(); k++)
 	{
-		object_kind *k_ptr = &k_info[k];
+		auto k_ptr = &k_info[k];
 
 		/* Hack -- skip artifacts */
-		if (k_ptr->flags3 & (TR3_INSTA_ART)) continue;
+		if (k_ptr->flags & TR_INSTA_ART) continue;
 
 		/* List known flavored objects */
 		if (k_ptr->flavor && k_ptr->aware)
@@ -4359,11 +4067,11 @@ static long total_points(void)
 		}
 	}
 
-	for (k = 1; k < max_r_idx; k++)
+	for (auto const &r_ref: r_info)
 	{
-		monster_race *r_ptr = &r_info[k];
+		auto r_ptr = &r_ref;
 
-		if (r_ptr->flags1 & (RF1_UNIQUE))
+		if (r_ptr->flags & RF_UNIQUE)
 		{
 			bool_ dead = (r_ptr->max_num == 0);
 
@@ -4393,50 +4101,26 @@ static long total_points(void)
 }
 
 
-
-/*
- * Centers a string within a 31 character string                -JWT-
- */
-static void center_string(char *buf, cptr str)
-{
-	int i, j;
-
-	/* Total length */
-	i = strlen(str);
-
-	/* Necessary border */
-	j = 15 - i / 2;
-
-	/* Mega-Hack */
-	(void)sprintf(buf, "%*s%s%*s", j, "", str, 31 - i - j, "");
-}
-
-
 /*
  * Display a "tomb-stone"
  */
-static void print_tomb(void)
+static void print_tomb()
 {
-	cptr p;
-
-	char tmp[160];
-
-	char buf[1024];
-	char dummy[80];
-
-	FILE *fp;
-
 	time_t ct = time(nullptr);
 
+	auto center = [](std::string const &s) -> std::string {
+		return fmt::format("{:^31s}", s);
+	};
 
 	/* Clear screen */
 	Term_clear();
 
 	/* Build the filename */
+	char buf[1024];
 	path_build(buf, 1024, ANGBAND_DIR_FILE, "dead.txt");
 
 	/* Open the News file */
-	fp = my_fopen(buf, "r");
+	FILE *fp = my_fopen(buf, "r");
 
 	/* Dump */
 	if (fp)
@@ -4454,81 +4138,38 @@ static void print_tomb(void)
 		my_fclose(fp);
 	}
 
-
-	/* King or Queen */
+	std::string p_title;
 	if (total_winner || (p_ptr->lev > PY_MAX_LEVEL))
 	{
-		p = "Magnificent";
-	}
-
-	/* Normal */
-	else
-	{
-		p = cp_ptr->titles[(p_ptr->lev - 1) / 5];
-	}
-
-	center_string(buf, player_name);
-	put_str(buf, 6, 11);
-
-	center_string(buf, "the");
-	put_str(buf, 7, 11);
-
-	center_string(buf, p);
-	put_str(buf, 8, 11);
-
-
-	center_string(buf, spp_ptr->title);
-	put_str(buf, 10, 11);
-
-	(void)sprintf(tmp, "Level: %d", (int)p_ptr->lev);
-	center_string(buf, tmp);
-	put_str(buf, 11, 11);
-
-	(void)sprintf(tmp, "Exp: %ld", (long)p_ptr->exp);
-	center_string(buf, tmp);
-	put_str(buf, 12, 11);
-
-	(void)sprintf(tmp, "AU: %ld", (long)p_ptr->au);
-	center_string(buf, tmp);
-	put_str(buf, 13, 11);
-
-	(void)sprintf(tmp, "Killed on Level %d", dun_level);
-	center_string(buf, tmp);
-	put_str(buf, 14, 11);
-
-
-	if (strlen(died_from) > 24)
-	{
-		strncpy(dummy, died_from, 24);
-		dummy[24] = '\0';
-		(void)sprintf(tmp, "by %s.", dummy);
+		p_title = "Magnificent";
 	}
 	else
-		(void)sprintf(tmp, "by %s.", died_from);
+	{
+		p_title = cp_ptr->titles[(p_ptr->lev - 1) / 5];
+	}
 
-	center_string(buf, tmp);
-	put_str(buf, 15, 11);
-
-
-	(void)sprintf(tmp, "%-.24s", ctime(&ct));
-	center_string(buf, tmp);
-	put_str(buf, 17, 11);
+	put_str(center(game->player_name), 6, 11);
+	put_str(center("the"), 7, 11);
+	put_str(center(p_title), 8, 11);
+	put_str(center(spp_ptr->title), 10, 11);
+	put_str(center(fmt::format("Level: {}", p_ptr->lev)), 11, 11);
+	put_str(center(fmt::format("Exp: {}", p_ptr->exp)), 12, 11);
+	put_str(center(fmt::format("AU: {}", p_ptr->au)), 13, 11);
+	put_str(center(fmt::format("Killed on Level {}", dun_level)), 14, 11);
+	put_str(center(fmt::format("by {}.", game->died_from.substr(0, 24))), 15, 11);
+	put_str(center(std::string(ctime(&ct)).substr(0, 24)), 17, 11);
 }
 
 
 /*
  * Display some character info
  */
-static void show_info(void)
+static void show_info()
 {
-	int i, j, k;
-	object_type *o_ptr;
-	store_type *st_ptr;
-
 	/* Hack -- Know everything in the inven/equip */
-	for (i = 0; i < INVEN_TOTAL; i++)
+	for (auto &o_ref: p_ptr->inventory)
 	{
-		o_ptr = &p_ptr->inventory[i];
+		auto o_ptr = &o_ref;
 
 		/* Skip non-objects */
 		if (!o_ptr->k_idx) continue;
@@ -4538,14 +4179,13 @@ static void show_info(void)
 		object_known(o_ptr);
 	}
 
-	for (i = 1; i < max_towns; i++)
+	/* Hack -- Know everything in the home */
+	for (int i = 1; i < max_towns; i++)
 	{
-		st_ptr = &town_info[i].store[7];
-
-		/* Hack -- Know everything in the home */
-		for (j = 0; j < st_ptr->stock_num; j++)
+		auto st_ptr = &town_info[i].store[7];
+		for (auto &o_ref: st_ptr->stock)
 		{
-			o_ptr = &st_ptr->stock[j];
+			auto o_ptr = &o_ref;
 
 			/* Skip non-objects */
 			if (!o_ptr->k_idx) continue;
@@ -4595,7 +4235,7 @@ static void show_info(void)
 		Term_save();
 
 		/* Dump a character file */
-		(void)file_character(out_val, TRUE);
+		file_character(out_val, TRUE);
 
 		/* Load screen */
 		Term_load();
@@ -4634,27 +4274,28 @@ static void show_info(void)
 	}
 
 	/* Homes in the different towns */
-	for (k = 1; k < max_towns; k++)
+	for (int k = 1; k < max_towns; k++)
 	{
-		st_ptr = &town_info[k].store[7];
+		store_type *st_ptr = &town_info[k].store[7];
 
 		/* Home -- if anything there */
-		if (st_ptr->stock_num)
+		if (!st_ptr->stock.empty())
 		{
+			std::size_t i;
 			/* Display contents of the home */
-			for (k = 0, i = 0; i < st_ptr->stock_num; k++)
+			for (k = 0, i = 0; i < st_ptr->stock.size(); k++)
 			{
 				/* Clear screen */
 				Term_clear();
 
 				/* Show 12 items */
-				for (j = 0; (j < 12) && (i < st_ptr->stock_num); j++, i++)
+				for (int j = 0; (j < 12) && (i < st_ptr->stock.size()); j++, i++)
 				{
 					char o_name[80];
 					char tmp_val[80];
 
 					/* Acquire item */
-					o_ptr = &st_ptr->stock[i];
+					auto o_ptr = &st_ptr->stock[i];
 
 					/* Print header, clear line */
 					sprintf(tmp_val, "%c) ", I2A(j));
@@ -4688,6 +4329,8 @@ static void show_info(void)
  */
 static void display_scores_aux(int highscore_fd, int from, int to, int note, high_score *score)
 {
+	auto const &class_info = game->edit_data.class_info;
+
 	int i, j, k, n, place;
 	byte attr;
 	char out_val[256];
@@ -4788,11 +4431,12 @@ static void display_scores_aux(int highscore_fd, int from, int to, int note, hig
 			for (aged = the_score.turns; isspace(*aged); aged++) /* loop */;
 
 			/* Dump some info */
+			auto const player_race_name = get_player_race_name(pr, ps);
 			sprintf(out_val, "%3d.%9s  %s the %s %s, Level %d",
 				place,
 				the_score.pts,
 				the_score.who,
-				get_player_race_name(pr, ps),
+				player_race_name.c_str(),
 				class_info[pc].spec[pcs].title,
 			        clev);
 
@@ -4851,11 +4495,12 @@ static void display_scores_aux(int highscore_fd, int from, int to, int note, hig
  */
 void show_highclass(int building)
 {
+	auto const &race_info = game->edit_data.race_info;
 
 	int i = 0, j, m = 0;
 	int pr, pc, clev;
 	high_score the_score;
-	char buf[1024], out_val[256];
+	char buf[1024];
 	int highscore_fd;
 
 	switch (building)
@@ -4914,6 +4559,9 @@ void show_highclass(int building)
 	j = 0;
 	clev = 0;
 
+	auto const format_num = "{:>3d}) {} the {} (Level {:>2d})"; // See also race_score()
+	auto const format_you = "You) {} the {} (Level {:>2d})";
+
 	while ((m < 9) || (j < MAX_HISCORES))
 	{
 		if (highscore_seek(highscore_fd, j)) break;
@@ -4924,9 +4572,9 @@ void show_highclass(int building)
 		if (((pc == (building - 10)) && (building != 1)) ||
 				((building == 1) && (clev >= PY_MAX_LEVEL)))
 		{
-			sprintf(out_val, "%3d) %s the %s (Level %2d)",
+			auto out_val = fmt::format(format_num,
 				(m + 1), the_score.who, race_info[pr].title, clev);
-			prt(out_val, (m + 7), 0);
+			prt(out_val.c_str(), (m + 7), 0);
 			m++;
 		}
 		j++;
@@ -4935,17 +4583,21 @@ void show_highclass(int building)
 	/* Now, list the active player if they qualify */
 	if ((building == 1) && (p_ptr->lev >= PY_MAX_LEVEL))
 	{
-		sprintf(out_val, "You) %s the %s (Level %2d)",
-			player_name, race_info[p_ptr->prace].title, p_ptr->lev);
-		prt(out_val, (m + 8), 0);
+		auto out_val = fmt::format(format_you,
+			game->player_name,
+			race_info[p_ptr->prace].title,
+			p_ptr->lev);
+		prt(out_val.c_str(), (m + 8), 0);
 	}
 	else if ((building != 1))
 	{
 		if ((p_ptr->lev > clev) && (p_ptr->pclass == (building - 10)))
 		{
-			sprintf(out_val, "You) %s the %s (Level %2d)",
-				player_name, race_info[p_ptr->prace].title, p_ptr->lev);
-			prt(out_val, (m + 8), 0);
+			auto out_val = fmt::format(format_you,
+				game->player_name,
+				race_info[p_ptr->prace].title,
+				p_ptr->lev);
+			prt(out_val.c_str(), (m + 8), 0);
 		}
 	}
 
@@ -4964,16 +4616,18 @@ void show_highclass(int building)
  */
 void race_score(int race_num)
 {
+	auto const &race_info = game->edit_data.race_info;
+
 	int i = 0, j, m = 0;
 	int pr, clev, lastlev;
 	high_score the_score;
-	char buf[1024], out_val[256], tmp_str[80];
+	char buf[1024], tmp_str[80];
 	int highscore_fd;
 
 	lastlev = 0;
 
 	/* rr9: TODO - pluralize the race */
-	sprintf(tmp_str, "The Greatest of all the %s", race_info[race_num].title);
+	sprintf(tmp_str, "The Greatest of all the %s", race_info[race_num].title.c_str());
 	prt(tmp_str, 5, 3);
 
 	/* Build the filename */
@@ -4999,6 +4653,9 @@ void race_score(int race_num)
 	m = 0;
 	j = 0;
 
+	auto const format_num = "{:>3d}) {} the {} (Level {:>2d})"; // See also show_highclass()
+	auto const format_you = "You) {} the {} (Level {:>2d})";
+
 	while ((m < 10) && (j < i))
 	{
 		if (highscore_seek(highscore_fd, j)) break;
@@ -5007,10 +4664,12 @@ void race_score(int race_num)
 		clev = atoi(the_score.cur_lev);
 		if (pr == race_num)
 		{
-			sprintf(out_val, "%3d) %s the %s (Level %3d)",
-			        (m + 1), the_score.who,
-				race_info[pr].title, clev);
-			prt(out_val, (m + 7), 0);
+			auto out_val = fmt::format(format_num,
+				(m + 1),
+				the_score.who,
+				race_info[pr].title,
+				clev);
+			prt(out_val.c_str(), (m + 7), 0);
 			m++;
 			lastlev = clev;
 		}
@@ -5020,9 +4679,11 @@ void race_score(int race_num)
 	/* add player if qualified */
 	if ((p_ptr->prace == race_num) && (p_ptr->lev >= lastlev))
 	{
-		sprintf(out_val, "You) %s the %s (Level %3d)",
-			player_name, race_info[p_ptr->prace].title, p_ptr->lev);
-		prt(out_val, (m + 8), 0);
+		auto out_val = fmt::format(format_you,
+			game->player_name,
+			race_info[p_ptr->prace].title,
+			p_ptr->lev);
+		prt(out_val.c_str(), (m + 8), 0);
 	}
 
 	fd_close(highscore_fd);
@@ -5033,17 +4694,19 @@ void race_score(int race_num)
  * Race Legends
  * -KMW-
  */
-void race_legends(void)
+void race_legends()
 {
-	int i, j;
+	auto const &race_info = game->edit_data.race_info;
 
-	for (i = 0; i < max_rp_idx; i++)
+	for (size_t i = 0; i < race_info.size(); i++)
 	{
 		race_score(i);
 		msg_print("Hit any key to continue");
 		msg_print(NULL);
-		for (j = 5; j < 19; j++)
+		for (int j = 5; j < 19; j++)
+		{
 			prt("", j, 0);
+		}
 	}
 }
 
@@ -5054,7 +4717,7 @@ void race_legends(void)
  * Enters a players name on a hi-score table, if "legal", and in any
  * case, displays some relevant portion of the high score list.
  */
-static errr top_twenty(void)
+static errr top_twenty()
 {
 	int j;
 
@@ -5091,15 +4754,6 @@ static errr top_twenty(void)
 		goto out;
 	}
 
-	/* Borg-mode pre-empts scoring */
-	if (noscore & 0x00F0)
-	{
-		msg_print("Score not registered for borgs.");
-		msg_print(NULL);
-		display_scores_aux(highscore_fd, 0, 10, -1, NULL);
-		goto out;
-	}
-
 	/* Cheaters are not scored */
 	if (noscore & 0xFF00)
 	{
@@ -5109,17 +4763,8 @@ static errr top_twenty(void)
 		goto out;
 	}
 
-	/* Interupted */
-	if (!total_winner && streq(died_from, "Interrupting"))
-	{
-		msg_print("Score not registered due to interruption.");
-		msg_print(NULL);
-		display_scores_aux(highscore_fd, 0, 10, -1, NULL);
-		goto out;
-	}
-
 	/* Quitter */
-	if (!total_winner && streq(died_from, "Quitting"))
+	if (!total_winner && (game->died_from == "Quitting"))
 	{
 		msg_print("Score not registered due to quitting.");
 		msg_print(NULL);
@@ -5153,10 +4798,9 @@ static errr top_twenty(void)
 	strftime(the_score.day, 9, "%m/%d/%y", localtime(&ct));
 
 	/* Save the player name (15 chars) */
-	sprintf(the_score.who, "%-.15s", player_name);
+	sprintf(the_score.who, "%-.15s", game->player_name.c_str());
 
 	/* Save the player info XXX XXX XXX */
-	sprintf(the_score.sex, "%c", (p_ptr->psex ? 'm' : 'f'));
 	sprintf(the_score.p_r, "%2d", p_ptr->prace);
 	sprintf(the_score.p_s, "%2d", p_ptr->pracem);
 	sprintf(the_score.p_c, "%2d", p_ptr->pclass);
@@ -5171,7 +4815,7 @@ static errr top_twenty(void)
 	sprintf(the_score.inside_quest, "%3d", p_ptr->inside_quest);
 
 	/* Save the cause of death (31 chars) */
-	sprintf(the_score.how, "%-.31s", died_from);
+	sprintf(the_score.how, "%-.31s", game->died_from.c_str());
 
 
 	/* Add a new entry to the score list, see where it went */
@@ -5206,7 +4850,7 @@ out:
 /*
  * Predict the players location, and display it.
  */
-static errr predict_score(void)
+static errr predict_score()
 {
 	int j;
 
@@ -5254,10 +4898,9 @@ static errr predict_score(void)
 	strcpy(the_score.day, "TODAY");
 
 	/* Save the player name (15 chars) */
-	sprintf(the_score.who, "%-.15s", player_name);
+	sprintf(the_score.who, "%-.15s", game->player_name.c_str());
 
 	/* Save the player info XXX XXX XXX */
-	sprintf(the_score.sex, "%c", (p_ptr->psex ? 'm' : 'f'));
 	sprintf(the_score.p_r, "%2d", p_ptr->prace);
 	sprintf(the_score.p_s, "%2d", p_ptr->pracem);
 	sprintf(the_score.p_c, "%2d", p_ptr->pclass);
@@ -5346,7 +4989,7 @@ void predict_score_gui(bool_ *initialized_p, bool_ *game_in_progress_p)
 	}
 
 	/* Close the high score file */
-	(void)fd_close(highscore_fd);
+	fd_close(highscore_fd);
 
 	/* Forget the fd */
 	highscore_fd = -1;
@@ -5365,13 +5008,13 @@ void predict_score_gui(bool_ *initialized_p, bool_ *game_in_progress_p)
 /*
  * Change the player into a King!                        -RAK-
  */
-static void kingly(void)
+static void kingly()
 {
 	/* Hack -- retire in town */
 	dun_level = 0;
 
 	/* Fake death */
-	(void)strcpy(died_from, "Ripe Old Age");
+	game->died_from = "Ripe Old Age";
 
 	/* Restore the experience */
 	p_ptr->exp = p_ptr->max_exp;
@@ -5404,7 +5047,7 @@ static void kingly(void)
 	/* Display a message */
 	put_str("Veni, Vidi, Vici!", 15, 26);
 	put_str("I came, I saw, I conquered!", 16, 21);
-	put_str(format("All Hail the Mighty %s!", sp_ptr->winner), 17, 22);
+	put_str(format("All Hail the Mighty %s!", game->player_name.c_str()), 17, 22);
 
 	/* Flush input */
 	flush();
@@ -5419,13 +5062,16 @@ static void kingly(void)
  */
 void wipe_saved()
 {
-	int d, l, od = dungeon_type, ol = dun_level;
+	auto const &d_info = game->edit_data.d_info;
 
-	for (d = 0; d < max_d_idx; d++)
+	int od = dungeon_type;
+	int ol = dun_level;
+
+	for (std::size_t d = 0; d < d_info.size(); d++)
 	{
-		dungeon_info_type *d_ptr = &d_info[d];
+		auto d_ptr = &d_info[d];
 
-		for (l = d_ptr->mindepth; l <= d_ptr->maxdepth; l++)
+		for (auto l = d_ptr->mindepth; l <= d_ptr->maxdepth; l++)
 		{
 			char buf[10];
 
@@ -5433,10 +5079,10 @@ void wipe_saved()
 			dungeon_type = d;
 			if (get_dungeon_save(buf))
 			{
-				char tmp[80], name[1024];
+				auto tmp = fmt::format("{}.{}", game->player_base, buf);
 
-				sprintf(tmp, "%s.%s", player_base, buf);
-				path_build(name, 1024, ANGBAND_DIR_SAVE, tmp);
+				char name[1024];
+				path_build(name, 1024, ANGBAND_DIR_SAVE, tmp.c_str());
 
 				/* Remove the dungeon save file */
 				fd_kill(name);
@@ -5454,7 +5100,7 @@ void wipe_saved()
  *
  * This function is called only from "main.c" and "signals.c".
  */
-void close_game(void)
+void close_game()
 {
 	/* Handle stuff */
 	handle_stuff();
@@ -5497,7 +5143,6 @@ void close_game(void)
 		/* Make a note */
 		{
 			char long_day[30];
-			char buf[80];
 			time_t ct = time((time_t*)NULL);
 
 			/* Get the date */
@@ -5505,11 +5150,13 @@ void close_game(void)
 			         "%Y-%m-%d at %H:%M:%S", localtime(&ct));
 
 			/* Create string */
-			sprintf(buf, "\n%s was killed by %s on %s\n", player_name,
-			        died_from, long_day);
+			auto buf = fmt::format("\n{} was killed by {} on {}\n",
+				game->player_name,
+				game->died_from,
+				long_day);
 
 			/* Output to the notes file */
-			output_note(buf);
+			output_note(buf.c_str());
 		}
 
 		/* Handle score, show Top scores */
@@ -5556,7 +5203,7 @@ errr get_rnd_line(const char *file_name, char *output)
 	strcpy(output, "");
 
 	/* test hack */
-	if (wizard && cheat_xtra) msg_print(file_name);
+	if (wizard && options->cheat_xtra) msg_print(file_name);
 
 	/* Build the filename */
 	path_build(buf, 1024, ANGBAND_DIR_FILE, file_name);
@@ -5678,7 +5325,7 @@ errr get_xtra_line(const char *file_name, monster_type *m_ptr, char *output)
 	strcpy(output, "");
 
 	/* test and DEBUG hack */
-	if (wizard && cheat_xtra)
+	if (wizard && options->cheat_xtra)
 	{
 		msg_print(file_name);
 	}
@@ -5757,7 +5404,7 @@ errr get_xtra_line(const char *file_name, monster_type *m_ptr, char *output)
 	line = rand_int(num_entries);
 
 	/* test and DEBUG hack */
-	if (wizard && cheat_xtra)
+	if (wizard && options->cheat_xtra)
 	{
 		sprintf(buf, "Line number %d", line);
 		msg_print(buf);

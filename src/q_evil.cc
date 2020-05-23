@@ -2,7 +2,10 @@
 
 #include "cave.hpp"
 #include "cave_type.hpp"
+#include "dungeon_flag.hpp"
+#include "feature_flag.hpp"
 #include "feature_type.hpp"
+#include "game.hpp"
 #include "hook_quest_finish_in.hpp"
 #include "hooks.hpp"
 #include "init1.hpp"
@@ -16,17 +19,24 @@
 
 #define cquest (quest[QUEST_EVIL])
 
-static bool_ quest_evil_gen_hook(void *, void *, void *)
+static bool quest_evil_gen_hook(void *, void *, void *)
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	int x, y, i;
 	int xstart = 2;
 	int ystart = 2;
 
-	if (p_ptr->inside_quest != QUEST_EVIL) return FALSE;
+	if (p_ptr->inside_quest != QUEST_EVIL)
+	{
+		return false;
+	}
 
 	/* Just in case we didnt talk the the mayor */
 	if (cquest.status == QUEST_STATUS_UNTAKEN)
+	{
 		cquest.status = QUEST_STATUS_TAKEN;
+	}
 
 	/* Start with perm walls */
 	for (y = 0; y < cur_hgt; y++)
@@ -47,18 +57,17 @@ static bool_ quest_evil_gen_hook(void *, void *, void *)
 
 	init_flags = INIT_CREATE_DUNGEON;
 	process_dungeon_file("evil.map", &ystart, &xstart, cur_hgt, cur_wid, TRUE, FALSE);
-	dungeon_flags2 |= DF2_NO_GENO;
+	dungeon_flags |= DF_NO_GENO;
 
 	/* Place some random balrogs */
 	for (i = 6; i > 0; )
 	{
-		int m_idx, flags;
 		y = rand_int(21) + 3;
 		x = rand_int(31) + 3;
-		flags = f_info[cave[y][x].feat].flags1;
-		if (!(flags & FF1_PERMANENT) && (flags & FF1_FLOOR))
+		auto const flags = f_info[cave[y][x].feat].flags;
+		if (!(flags & FF_PERMANENT) && (flags & FF_FLOOR))
 		{
-			m_idx = place_monster_one(y, x, 996, 0, FALSE, MSTATUS_ENEMY);
+			int m_idx = place_monster_one(y, x, 996, 0, FALSE, MSTATUS_ENEMY);
 			if (m_idx) m_list[m_idx].mflag |= MFLAG_QUEST;
 			--i;
 		}
@@ -66,14 +75,17 @@ static bool_ quest_evil_gen_hook(void *, void *, void *)
 
 	process_hooks_restart = TRUE;
 
-	return TRUE;
+	return true;
 }
 
-static bool_ quest_evil_death_hook(void *, void *, void *)
+static bool quest_evil_death_hook(void *, void *, void *)
 {
 	int i, mcnt = 0;
 
-	if (p_ptr->inside_quest != QUEST_EVIL) return FALSE;
+	if (p_ptr->inside_quest != QUEST_EVIL)
+	{
+		return false;
+	}
 
 	/* Process the monsters (backwards) */
 	for (i = m_max - 1; i >= 1; i--)
@@ -99,17 +111,20 @@ static bool_ quest_evil_death_hook(void *, void *, void *)
 		process_hooks_restart = TRUE;
 
 		cmsg_print(TERM_YELLOW, "Khazad-Dum is safer now.");
-		return (FALSE);
+		return false;
 	}
-	return FALSE;
+	return false;
 }
 
-static bool_ quest_evil_finish_hook(void *, void *in_, void *)
+static bool quest_evil_finish_hook(void *, void *in_, void *)
 {
 	struct hook_quest_finish_in *in = static_cast<struct hook_quest_finish_in *>(in_);
 	s32b q_idx = in->q_idx;
 
-	if (q_idx != QUEST_EVIL) return FALSE;
+	if (q_idx != QUEST_EVIL)
+	{
+		return false;
+	}
 
 	c_put_str(TERM_YELLOW, "Thank you for saving us!", 8, 0);
 	c_put_str(TERM_YELLOW, "You can use the cave as your house as a reward.", 9, 0);
@@ -117,10 +132,10 @@ static bool_ quest_evil_finish_hook(void *, void *in_, void *)
 	/* End the plot */
 	*(quest[q_idx].plot) = QUEST_NULL;
 
-	return TRUE;
+	return true;
 }
 
-bool_ quest_evil_init_hook(int q_idx)
+void quest_evil_init_hook()
 {
 	if ((cquest.status >= QUEST_STATUS_UNTAKEN) && (cquest.status < QUEST_STATUS_FINISHED))
 	{
@@ -128,5 +143,4 @@ bool_ quest_evil_init_hook(int q_idx)
 		add_hook_new(HOOK_QUEST_FINISH,  quest_evil_finish_hook, "evil_finish",        NULL);
 		add_hook_new(HOOK_GEN_QUEST,     quest_evil_gen_hook,    "evil_geb",           NULL);
 	}
-	return (FALSE);
 }

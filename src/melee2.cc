@@ -16,8 +16,11 @@
 #include "cave.hpp"
 #include "cave_type.hpp"
 #include "cmd1.hpp"
+#include "dungeon_flag.hpp"
+#include "feature_flag.hpp"
 #include "feature_type.hpp"
 #include "files.hpp"
+#include "game.hpp"
 #include "hook_mon_speak_in.hpp"
 #include "hook_monster_ai_in.hpp"
 #include "hook_monster_ai_out.hpp"
@@ -27,18 +30,20 @@
 #include "monster2.hpp"
 #include "monster3.hpp"
 #include "monster_race.hpp"
+#include "monster_race_flag.hpp"
+#include "monster_spell.hpp"
+#include "monster_spell_flag.hpp"
 #include "monster_type.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
 #include "options.hpp"
 #include "player_type.hpp"
-#include "quark.hpp"
 #include "skills.hpp"
 #include "spells1.hpp"
 #include "spells2.hpp"
 #include "stats.hpp"
 #include "tables.hpp"
-#include "traps.hpp"
 #include "util.hpp"
 #include "variable.hpp"
 #include "xtra2.hpp"
@@ -51,7 +56,6 @@
 
 #define FOLLOW_DISTANCE 6
 
-static void cmonster_msg(char a, cptr fmt, ...);
 
 /*
  * Based on mon_take_hit... all monster attacks on
@@ -61,12 +65,34 @@ bool_ mon_take_hit_mon(int s_idx, int m_idx, int dam, bool_ *fear, cptr note)
 {
 	monster_type *m_ptr = &m_list[m_idx], *s_ptr = &m_list[s_idx];
 
+	/* Output */
+	auto cmonster_msg = [m_ptr](std::string const &suffix) {
+		auto &messages = game->messages;
+		// Build monster name
+		char m_name[80];
+		monster_desc(m_name, m_ptr, 0);
+		capitalize(m_name);
+		// Add suffix
+		auto msg = std::string(m_name);
+		msg += suffix;
+		// Display
+		if (options->disturb_other)
+		{
+			cmsg_print(TERM_L_RED, msg);
+		}
+		else
+		{
+			messages.add(msg, TERM_L_RED);
+			p_ptr->window |= PW_MESSAGE;
+		}
+	};
+
 	/* Redraw (later) if needed */
 	if (health_who == m_idx) p_ptr->redraw |= (PR_FRAME);
 
 	/* Some monsters are immune to death */
 	auto const r_ptr = m_ptr->race();
-	if (r_ptr->flags7 & RF7_NO_DEATH) return FALSE;
+	if (r_ptr->flags & RF_NO_DEATH) return FALSE;
 
 	/* Wake it up */
 	m_ptr->csleep = 0;
@@ -77,39 +103,24 @@ bool_ mon_take_hit_mon(int s_idx, int m_idx, int dam, bool_ *fear, cptr note)
 	/* It is dead now... or is it? */
 	if (m_ptr->hp < 0)
 	{
-		if (((r_ptr->flags1 & RF1_UNIQUE) && (m_ptr->status <= MSTATUS_NEUTRAL_P)) ||
+		if (((r_ptr->flags & RF_UNIQUE) && (m_ptr->status <= MSTATUS_NEUTRAL_P)) ||
 		                (m_ptr->mflag & MFLAG_QUEST))
 		{
 			m_ptr->hp = 1;
 		}
 		else
 		{
-			char m_name[80];
 			s32b dive = s_ptr->level;
 
-			if (!dive) dive = 1;
-
-			/* Extract monster name */
-			monster_desc(m_name, m_ptr, 0);
-
-			/* Make a sound */
-			if ((r_ptr->flags3 & RF3_DEMON) ||
-			                (r_ptr->flags3 & RF3_UNDEAD) ||
-			                (r_ptr->flags2 & RF2_STUPID) ||
-			                (r_ptr->flags3 & RF3_NONLIVING) ||
-			                (strchr("Evg", r_ptr->d_char)))
+			if (!dive)
 			{
-				sound(SOUND_N_KILL);
-			}
-			else
-			{
-				sound(SOUND_KILL);
+				dive = 1;
 			}
 
 			/* Death by Missile/Spell attack */
 			if (note)
 			{
-				cmonster_msg(TERM_L_RED, "%^s%s", m_name, note);
+				cmonster_msg(note);
 			}
 			/* Death by Physical attack -- living monster */
 			else if (!m_ptr->ml)
@@ -117,17 +128,17 @@ bool_ mon_take_hit_mon(int s_idx, int m_idx, int dam, bool_ *fear, cptr note)
 				/* Do nothing */
 			}
 			/* Death by Physical attack -- non-living monster */
-			else if ((r_ptr->flags3 & (RF3_DEMON)) ||
-			                (r_ptr->flags3 & (RF3_UNDEAD)) ||
-			                (r_ptr->flags2 & (RF2_STUPID)) ||
-			                (r_ptr->flags3 & (RF3_NONLIVING)) ||
+			else if ((r_ptr->flags & RF_DEMON) ||
+			                (r_ptr->flags & RF_UNDEAD) ||
+			                (r_ptr->flags & RF_STUPID) ||
+			                (r_ptr->flags & RF_NONLIVING) ||
 			                (strchr("Evg", r_ptr->d_char)))
 			{
-				cmonster_msg(TERM_L_RED, "%^s is destroyed.", m_name);
+				cmonster_msg(" is destroyed.");
 			}
 			else
 			{
-				cmonster_msg(TERM_L_RED, "%^s is killed.", m_name);
+				cmonster_msg(" is killed.");
 			}
 
 			dive = r_ptr->mexp * m_ptr->level / dive;
@@ -171,7 +182,7 @@ bool_ mon_take_hit_mon(int s_idx, int m_idx, int dam, bool_ *fear, cptr note)
 			}
 
 			/* When an Unique dies, it stays dead */
-			if (r_ptr->flags1 & (RF1_UNIQUE))
+			if (r_ptr->flags & RF_UNIQUE)
 			{
 				r_ptr->max_num = 0;
 			}
@@ -228,7 +239,7 @@ void mon_handle_fear(monster_type *m_ptr, int dam, bool_ *fear)
 
 	/* Sometimes a monster gets scared by damage */
 	auto const r_ptr = m_ptr->race();
-	if (!m_ptr->monfear && !(r_ptr->flags3 & (RF3_NO_FEAR)))
+	if (!m_ptr->monfear && !(r_ptr->flags & RF_NO_FEAR))
 	{
 		int percentage;
 
@@ -289,7 +300,7 @@ void mon_handle_fear(monster_type *m_ptr, int dam, bool_ *fear)
 static bool_ int_outof(std::shared_ptr<monster_race> r_ptr, int prob)
 {
 	/* Non-Smart monsters are half as "smart" */
-	if (!(r_ptr->flags2 & (RF2_SMART))) prob = prob / 2;
+	if (!(r_ptr->flags & RF_SMART)) prob = prob / 2;
 
 	/* Roll the dice */
 	return (rand_int(100) < prob);
@@ -300,36 +311,32 @@ static bool_ int_outof(std::shared_ptr<monster_race> r_ptr, int prob)
 /*
  * Remove the "bad" spells from a spell list
  */
-static void remove_bad_spells(int m_idx, u32b *f4p, u32b *f5p, u32b *f6p)
+static void remove_bad_spells(int m_idx, monster_spell_flag_set *spells_p)
 {
 	monster_type *m_ptr = &m_list[m_idx];
-
-	u32b f4 = (*f4p);
-	u32b f5 = (*f5p);
-	u32b f6 = (*f6p);
-
 	u32b smart = 0L;
 
+	// Shorthand
+	auto spells(*spells_p);
 
 	/* Too stupid to know anything? */
 	auto const r_ptr = m_ptr->race();
-	if (r_ptr->flags2 & (RF2_STUPID)) return;
-
-
-	/* Must be cheating or learning */
-	if (!smart_learn) return;
-
-
-	/* Update acquired knowledge */
-	if (smart_learn)
+	if (r_ptr->flags & RF_STUPID)
 	{
-		/* Hack -- Occasionally forget player status */
-		if (m_ptr->smart && magik(1)) m_ptr->smart = 0L;
-
-		/* Use the memorized flags */
-		smart = m_ptr->smart;
+		return;
 	}
 
+	/* Must be cheating or learning */
+	if (!options->smart_learn)
+	{
+		return;
+	}
+
+	/* Hack -- Occasionally forget player status */
+	if (m_ptr->smart && magik(1)) m_ptr->smart = 0L;
+
+	/* Use the memorized flags */
+	smart = m_ptr->smart;
 
 	/* Nothing known */
 	if (!smart) return;
@@ -337,201 +344,199 @@ static void remove_bad_spells(int m_idx, u32b *f4p, u32b *f5p, u32b *f6p)
 
 	if (smart & (SM_IMM_ACID))
 	{
-		if (int_outof(r_ptr, 100)) f4 &= ~(RF4_BR_ACID);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BA_ACID);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_ACID);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BR_ACID;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BA_ACID;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_ACID;
 	}
 	else if ((smart & (SM_OPP_ACID)) && (smart & (SM_RES_ACID)))
 	{
-		if (int_outof(r_ptr, 80)) f4 &= ~(RF4_BR_ACID);
-		if (int_outof(r_ptr, 80)) f5 &= ~(RF5_BA_ACID);
-		if (int_outof(r_ptr, 80)) f5 &= ~(RF5_BO_ACID);
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BR_ACID;
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BA_ACID;
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BO_ACID;
 	}
 	else if ((smart & (SM_OPP_ACID)) || (smart & (SM_RES_ACID)))
 	{
-		if (int_outof(r_ptr, 30)) f4 &= ~(RF4_BR_ACID);
-		if (int_outof(r_ptr, 30)) f5 &= ~(RF5_BA_ACID);
-		if (int_outof(r_ptr, 30)) f5 &= ~(RF5_BO_ACID);
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BR_ACID;
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BA_ACID;
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BO_ACID;
 	}
 
 
 	if (smart & (SM_IMM_ELEC))
 	{
-		if (int_outof(r_ptr, 100)) f4 &= ~(RF4_BR_ELEC);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BA_ELEC);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_ELEC);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BR_ELEC;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BA_ELEC;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_ELEC;
 	}
 	else if ((smart & (SM_OPP_ELEC)) && (smart & (SM_RES_ELEC)))
 	{
-		if (int_outof(r_ptr, 80)) f4 &= ~(RF4_BR_ELEC);
-		if (int_outof(r_ptr, 80)) f5 &= ~(RF5_BA_ELEC);
-		if (int_outof(r_ptr, 80)) f5 &= ~(RF5_BO_ELEC);
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BR_ELEC;
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BA_ELEC;
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BO_ELEC;
 	}
 	else if ((smart & (SM_OPP_ELEC)) || (smart & (SM_RES_ELEC)))
 	{
-		if (int_outof(r_ptr, 30)) f4 &= ~(RF4_BR_ELEC);
-		if (int_outof(r_ptr, 30)) f5 &= ~(RF5_BA_ELEC);
-		if (int_outof(r_ptr, 30)) f5 &= ~(RF5_BO_ELEC);
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BR_ELEC;
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BA_ELEC;
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BO_ELEC;
 	}
 
 
 	if (smart & (SM_IMM_FIRE))
 	{
-		if (int_outof(r_ptr, 100)) f4 &= ~(RF4_BR_FIRE);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BA_FIRE);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_FIRE);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BR_FIRE;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BA_FIRE;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_FIRE;
 	}
 	else if ((smart & (SM_OPP_FIRE)) && (smart & (SM_RES_FIRE)))
 	{
-		if (int_outof(r_ptr, 80)) f4 &= ~(RF4_BR_FIRE);
-		if (int_outof(r_ptr, 80)) f5 &= ~(RF5_BA_FIRE);
-		if (int_outof(r_ptr, 80)) f5 &= ~(RF5_BO_FIRE);
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BR_FIRE;
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BA_FIRE;
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BO_FIRE;
 	}
 	else if ((smart & (SM_OPP_FIRE)) || (smart & (SM_RES_FIRE)))
 	{
-		if (int_outof(r_ptr, 30)) f4 &= ~(RF4_BR_FIRE);
-		if (int_outof(r_ptr, 30)) f5 &= ~(RF5_BA_FIRE);
-		if (int_outof(r_ptr, 30)) f5 &= ~(RF5_BO_FIRE);
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BR_FIRE;
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BA_FIRE;
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BO_FIRE;
 	}
 
 
 	if (smart & (SM_IMM_COLD))
 	{
-		if (int_outof(r_ptr, 100)) f4 &= ~(RF4_BR_COLD);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BA_COLD);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_COLD);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_ICEE);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BR_COLD;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BA_COLD;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_COLD;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_ICEE;
 	}
 	else if ((smart & (SM_OPP_COLD)) && (smart & (SM_RES_COLD)))
 	{
-		if (int_outof(r_ptr, 80)) f4 &= ~(RF4_BR_COLD);
-		if (int_outof(r_ptr, 80)) f5 &= ~(RF5_BA_COLD);
-		if (int_outof(r_ptr, 80)) f5 &= ~(RF5_BO_COLD);
-		if (int_outof(r_ptr, 80)) f5 &= ~(RF5_BO_ICEE);
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BR_COLD;
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BA_COLD;
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BO_COLD;
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BO_ICEE;
 	}
 	else if ((smart & (SM_OPP_COLD)) || (smart & (SM_RES_COLD)))
 	{
-		if (int_outof(r_ptr, 30)) f4 &= ~(RF4_BR_COLD);
-		if (int_outof(r_ptr, 30)) f5 &= ~(RF5_BA_COLD);
-		if (int_outof(r_ptr, 30)) f5 &= ~(RF5_BO_COLD);
-		if (int_outof(r_ptr, 30)) f5 &= ~(RF5_BO_ICEE);
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BR_COLD;
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BA_COLD;
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BO_COLD;
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BO_ICEE;
 	}
 
 
 	if ((smart & (SM_OPP_POIS)) && (smart & (SM_RES_POIS)))
 	{
-		if (int_outof(r_ptr, 80)) f4 &= ~(RF4_BR_POIS);
-		if (int_outof(r_ptr, 80)) f5 &= ~(RF5_BA_POIS);
-		if (int_outof(r_ptr, 40)) f4 &= ~(RF4_BA_NUKE);
-		if (int_outof(r_ptr, 40)) f4 &= ~(RF4_BR_NUKE);
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BR_POIS;
+		if (int_outof(r_ptr, 80)) spells &= ~SF_BA_POIS;
+		if (int_outof(r_ptr, 40)) spells &= ~SF_BA_NUKE;
+		if (int_outof(r_ptr, 40)) spells &= ~SF_BR_NUKE;
 	}
 	else if ((smart & (SM_OPP_POIS)) || (smart & (SM_RES_POIS)))
 	{
-		if (int_outof(r_ptr, 30)) f4 &= ~(RF4_BR_POIS);
-		if (int_outof(r_ptr, 30)) f5 &= ~(RF5_BA_POIS);
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BR_POIS;
+		if (int_outof(r_ptr, 30)) spells &= ~SF_BA_POIS;
 	}
 
 
 	if (smart & (SM_RES_NETH))
 	{
-		if (int_outof(r_ptr, 50)) f4 &= ~(RF4_BR_NETH);
-		if (int_outof(r_ptr, 50)) f5 &= ~(RF5_BA_NETH);
-		if (int_outof(r_ptr, 50)) f5 &= ~(RF5_BO_NETH);
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BR_NETH;
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BA_NETH;
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BO_NETH;
 	}
 
 	if (smart & (SM_RES_LITE))
 	{
-		if (int_outof(r_ptr, 50)) f4 &= ~(RF4_BR_LITE);
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BR_LITE;
 	}
 
 	if (smart & (SM_RES_DARK))
 	{
-		if (int_outof(r_ptr, 50)) f4 &= ~(RF4_BR_DARK);
-		if (int_outof(r_ptr, 50)) f5 &= ~(RF5_BA_DARK);
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BR_DARK;
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BA_DARK;
 	}
 
 	if (smart & (SM_RES_FEAR))
 	{
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_SCARE);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_SCARE;
 	}
 
 	if (smart & (SM_RES_CONF))
 	{
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_CONF);
-		if (int_outof(r_ptr, 50)) f4 &= ~(RF4_BR_CONF);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_CONF;
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BR_CONF;
 	}
 
 	if (smart & (SM_RES_CHAOS))
 	{
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_CONF);
-		if (int_outof(r_ptr, 50)) f4 &= ~(RF4_BR_CONF);
-		if (int_outof(r_ptr, 50)) f4 &= ~(RF4_BR_CHAO);
-		if (int_outof(r_ptr, 50)) f4 &= ~(RF4_BA_CHAO);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_CONF;
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BR_CONF;
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BR_CHAO;
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BA_CHAO;
 	}
 
 	if (smart & (SM_RES_DISEN))
 	{
-		if (int_outof(r_ptr, 100)) f4 &= ~(RF4_BR_DISE);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BR_DISE;
 	}
 
 	if (smart & (SM_RES_BLIND))
 	{
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BLIND);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BLIND;
 	}
 
 	if (smart & (SM_RES_NEXUS))
 	{
-		if (int_outof(r_ptr, 50)) f4 &= ~(RF4_BR_NEXU);
-		if (int_outof(r_ptr, 50)) f6 &= ~(RF6_TELE_LEVEL);
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BR_NEXU;
+		if (int_outof(r_ptr, 50)) spells &= ~SF_TELE_LEVEL;
 	}
 
 	if (smart & (SM_RES_SOUND))
 	{
-		if (int_outof(r_ptr, 50)) f4 &= ~(RF4_BR_SOUN);
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BR_SOUN;
 	}
 
 	if (smart & (SM_RES_SHARD))
 	{
-		if (int_outof(r_ptr, 50)) f4 &= ~(RF4_BR_SHAR);
-		if (int_outof(r_ptr, 20)) f4 &= ~(RF4_ROCKET);
+		if (int_outof(r_ptr, 50)) spells &= ~SF_BR_SHAR;
+		if (int_outof(r_ptr, 20)) spells &= ~SF_ROCKET;
 	}
 
 	if (smart & (SM_IMM_REFLECT))
 	{
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_COLD);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_FIRE);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_ACID);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_ELEC);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_POIS);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_NETH);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_WATE);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_MANA);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_PLAS);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_BO_ICEE);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_MISSILE);
-		if (int_outof(r_ptr, 100)) f4 &= ~(RF4_ARROW_1);
-		if (int_outof(r_ptr, 100)) f4 &= ~(RF4_ARROW_2);
-		if (int_outof(r_ptr, 100)) f4 &= ~(RF4_ARROW_3);
-		if (int_outof(r_ptr, 100)) f4 &= ~(RF4_ARROW_4);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_COLD;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_FIRE;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_ACID;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_ELEC;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_POIS;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_NETH;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_WATE;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_MANA;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_PLAS;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_BO_ICEE;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_MISSILE;
+		if (int_outof(r_ptr, 100)) spells &= ~(SF_ARROW_1);
+		if (int_outof(r_ptr, 100)) spells &= ~(SF_ARROW_2);
+		if (int_outof(r_ptr, 100)) spells &= ~(SF_ARROW_3);
+		if (int_outof(r_ptr, 100)) spells &= ~(SF_ARROW_4);
 	}
 
 	if (smart & (SM_IMM_FREE))
 	{
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_HOLD);
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_SLOW);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_HOLD;
+		if (int_outof(r_ptr, 100)) spells &= ~SF_SLOW;
 	}
 
 	if (smart & (SM_IMM_MANA))
 	{
-		if (int_outof(r_ptr, 100)) f5 &= ~(RF5_DRAIN_MANA);
+		if (int_outof(r_ptr, 100)) spells &= ~SF_DRAIN_MANA;
 	}
 
 	/* XXX XXX XXX No spells left? */
 	/* if (!f4 && !f5 && !f6) ... */
 
-	(*f4p) = f4;
-	(*f5p) = f5;
-	(*f6p) = f6;
+	*spells_p = spells;
 }
 
 
@@ -622,122 +627,75 @@ static void bolt(int m_idx, int typ, int dam_hp)
 	int flg = PROJECT_STOP | PROJECT_KILL;
 
 	/* Target the player with a bolt attack */
-	(void)project(m_idx, 0, p_ptr->py, p_ptr->px, dam_hp, typ, flg);
+	project(m_idx, 0, p_ptr->py, p_ptr->px, dam_hp, typ, flg);
 }
 
 
 /*
- * Return TRUE if a spell is good for hurting the player (directly).
+ * Calculate the mask for "bolt" spells
  */
-static bool_ spell_attack(byte spell)
+static monster_spell_flag_set compute_bolt_mask()
 {
-	/* All RF4 spells hurt (except for shriek, multiply, summon animal) */
-	if (spell >= 96 + 3 && spell <= 96 + 31) return (TRUE);
-
-	/* Various "ball" spells */
-	if (spell >= 128 && spell <= 128 + 8) return (TRUE);
-
-	/* "Cause wounds" and "bolt" spells */
-	if (spell >= 128 + 12 && spell <= 128 + 26) return (TRUE);
-
-	/* Hand of Doom */
-	if (spell == 160 + 1) return (TRUE);
-
-	/* Doesn't hurt */
-	return (FALSE);
+	monster_spell_flag_set flags;
+	for (auto const &monster_spell: monster_spells())
+	{
+		if (monster_spell->is_bolt)
+		{
+			flags |= monster_spell->flag_set;
+		}
+	}
+	return flags;
 }
 
 
 /*
- * Return TRUE if a spell is good for escaping.
+ * Calculate mask for summoning spells
  */
-static bool_ spell_escape(byte spell)
+static monster_spell_flag_set compute_summoning_mask()
 {
-	/* Blink or Teleport */
-	if (spell == 160 + 4 || spell == 160 + 5) return (TRUE);
-
-	/* Teleport the player away */
-	if (spell == 160 + 7 || spell == 160 + 8) return (TRUE);
-
-	/* Isn't good for escaping */
-	return (FALSE);
-}
-
-/*
- * Return TRUE if a spell is good for annoying the player.
- */
-static bool_ spell_annoy(byte spell)
-{
-	/* Shriek */
-	if (spell == 96 + 0) return (TRUE);
-
-	/* Brain smash, et al (added curses) */
-	if (spell >= 128 + 9 && spell <= 128 + 14) return (TRUE);
-
-	/* Scare, confuse, blind, slow, paralyze */
-	if (spell >= 128 + 27 && spell <= 128 + 31) return (TRUE);
-
-	/* Teleport to */
-	if (spell == 160 + 6) return (TRUE);
-
-	/* Darkness, make traps, cause amnesia */
-	if (spell >= 160 + 9 && spell <= 160 + 11) return (TRUE);
-
-	/* Doesn't annoy */
-	return (FALSE);
-}
-
-/*
- * Return TRUE if a spell summons help.
- */
-static bool_ spell_summon(byte spell)
-{
-	/* RF4_S_ANIMAL, RF6_S_ANIMALS */
-	if (spell == 96 + 2 || spell == 160 + 3) return (TRUE);
-	/* All other summon spells */
-	if (spell >= 160 + 13 && spell <= 160 + 31) return (TRUE);
-
-	/* Doesn't summon */
-	return (FALSE);
+	monster_spell_flag_set flags;
+	for (auto const &monster_spell: monster_spells())
+	{
+		if (monster_spell->is_summon)
+		{
+			flags |= monster_spell->flag_set;
+		}
+	}
+	return flags;
 }
 
 
 /*
- * Return TRUE if a spell is good in a tactical situation.
+ * Calculate mask for spells requiring SMART flag
  */
-static bool_ spell_tactic(byte spell)
+static monster_spell_flag_set compute_smart_mask()
 {
-	/* Blink */
-	if (spell == 160 + 4) return (TRUE);
-
-	/* Not good */
-	return (FALSE);
+	monster_spell_flag_set flags;
+	for (auto const &monster_spell: monster_spells())
+	{
+		if (monster_spell->is_smart)
+		{
+			flags |= monster_spell->flag_set;
+		}
+	}
+	return flags;
 }
 
 
 /*
- * Return TRUE if a spell hastes.
+ * Calculate mask for spells requiring SMART flag
  */
-static bool_ spell_haste(byte spell)
+static monster_spell_flag_set compute_innate_mask()
 {
-	/* Haste self */
-	if (spell == 160 + 0) return (TRUE);
-
-	/* Not a haste spell */
-	return (FALSE);
-}
-
-
-/*
- * Return TRUE if a spell is good for healing.
- */
-static bool_ spell_heal(byte spell)
-{
-	/* Heal */
-	if (spell == 160 + 2) return (TRUE);
-
-	/* No healing */
-	return (FALSE);
+	monster_spell_flag_set flags;
+	for (auto const &monster_spell: monster_spells())
+	{
+		if (monster_spell->is_innate)
+		{
+			flags |= monster_spell->flag_set;
+		}
+	}
+	return flags;
 }
 
 
@@ -755,49 +713,71 @@ static bool_ spell_heal(byte spell)
  *
  * This function may well be an efficiency bottleneck.
  */
-static int choose_attack_spell(int m_idx, byte spells[], byte num)
+static monster_spell const *choose_attack_spell(int m_idx, std::vector<monster_spell const *> const &spells)
 {
 	monster_type *m_ptr = &m_list[m_idx];
 
-	byte escape[96], escape_num = 0;
-	byte attack[96], attack_num = 0;
-	byte summon[96], summon_num = 0;
-	byte tactic[96], tactic_num = 0;
-	byte annoy[96], annoy_num = 0;
-	byte haste[96], haste_num = 0;
-	byte heal[96], heal_num = 0;
-
 	/* Stupid monsters choose randomly */
 	auto const r_ptr = m_ptr->race();
-	if (r_ptr->flags2 & (RF2_STUPID))
+	if (r_ptr->flags & RF_STUPID)
 	{
 		/* Pick at random */
-		return (spells[rand_int(num)]);
+		return spells[rand_int(spells.size())];
 	}
 
+	/* Spells by category */
+	std::vector<monster_spell const *> escape; escape.reserve(spells.size());
+	std::vector<monster_spell const *> attack; attack.reserve(spells.size());
+	std::vector<monster_spell const *> summon; summon.reserve(spells.size());
+	std::vector<monster_spell const *> tactic; tactic.reserve(spells.size());
+	std::vector<monster_spell const *> annoy ;  annoy.reserve(spells.size());
+	std::vector<monster_spell const *> haste ;  haste.reserve(spells.size());
+	std::vector<monster_spell const *> heal  ;   heal.reserve(spells.size());
+
 	/* Categorize spells */
-	for (int i = 0; i < num; i++)
+	for (std::size_t i = 0; i < spells.size(); i++)
 	{
 		/* Escape spell? */
-		if (spell_escape(spells[i])) escape[escape_num++] = spells[i];
+		if (spells[i]->is_escape)
+		{
+			escape.push_back(spells[i]);
+		}
 
 		/* Attack spell? */
-		if (spell_attack(spells[i])) attack[attack_num++] = spells[i];
+		if (spells[i]->is_damage)
+		{
+			attack.push_back(spells[i]);
+		}
 
 		/* Summon spell? */
-		if (spell_summon(spells[i])) summon[summon_num++] = spells[i];
+		if (spells[i]->is_summon)
+		{
+			summon.push_back(spells[i]);
+		}
 
 		/* Tactical spell? */
-		if (spell_tactic(spells[i])) tactic[tactic_num++] = spells[i];
+		if (spells[i]->is_tactic)
+		{
+			tactic.push_back(spells[i]);
+		}
 
 		/* Annoyance spell? */
-		if (spell_annoy(spells[i])) annoy[annoy_num++] = spells[i];
+		if (spells[i]->is_annoy)
+		{
+			annoy.push_back(spells[i]);
+		}
 
 		/* Haste spell? */
-		if (spell_haste(spells[i])) haste[haste_num++] = spells[i];
+		if (spells[i]->is_haste)
+		{
+			haste.push_back(spells[i]);
+		}
 
 		/* Heal spell? */
-		if (spell_heal(spells[i])) heal[heal_num++] = spells[i];
+		if (spells[i]->is_heal)
+		{
+			heal.push_back(spells[i]);
+		}
 	}
 
 	/*** Try to pick an appropriate spell type ***/
@@ -805,68 +785,59 @@ static int choose_attack_spell(int m_idx, byte spells[], byte num)
 	/* Hurt badly or afraid, attempt to flee */
 	if ((m_ptr->hp < m_ptr->maxhp / 3) || m_ptr->monfear)
 	{
-		/* Choose escape spell if possible */
-		if (escape_num) return (escape[rand_int(escape_num)]);
+		if (!escape.empty()) return escape[rand_int(escape.size())];
 	}
 
 	/* Still hurt badly, couldn't flee, attempt to heal */
 	if (m_ptr->hp < m_ptr->maxhp / 3)
 	{
-		/* Choose heal spell if possible */
-		if (heal_num) return (heal[rand_int(heal_num)]);
+		if (!heal.empty()) return heal[rand_int(heal.size())];
 	}
 
 	/* Player is close and we have attack spells, blink away */
-	if ((distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx) < 4) && attack_num && (rand_int(100) < 75))
+	if ((distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx) < 4) && !attack.empty() && (rand_int(100) < 75))
 	{
-		/* Choose tactical spell */
-		if (tactic_num) return (tactic[rand_int(tactic_num)]);
+		if (!tactic.empty()) return tactic[rand_int(tactic.size())];
 	}
 
 	/* We're hurt (not badly), try to heal */
 	if ((m_ptr->hp < m_ptr->maxhp * 3 / 4) && (rand_int(100) < 75))
 	{
-		/* Choose heal spell if possible */
-		if (heal_num) return (heal[rand_int(heal_num)]);
+		if (!heal.empty()) return heal[rand_int(heal.size())];
 	}
 
 	/* Summon if possible (sometimes) */
-	if (summon_num && (rand_int(100) < 50))
+	if (!summon.empty() && (rand_int(100) < 50))
 	{
-		/* Choose summon spell */
-		return (summon[rand_int(summon_num)]);
+		return summon[rand_int(summon.size())];
 	}
 
 	/* Attack spell (most of the time) */
-	if (attack_num && (rand_int(100) < 85))
+	if (!attack.empty() && (rand_int(100) < 85))
 	{
-		/* Choose attack spell */
-		return (attack[rand_int(attack_num)]);
+		return attack[rand_int(attack.size())];
 	}
 
 	/* Try another tactical spell (sometimes) */
-	if (tactic_num && (rand_int(100) < 50))
+	if (!tactic.empty() && (rand_int(100) < 50))
 	{
-		/* Choose tactic spell */
-		return (tactic[rand_int(tactic_num)]);
+		return tactic[rand_int(tactic.size())];
 	}
 
 	/* Haste self if we aren't already somewhat hasted (rarely) */
-	if (haste_num && (rand_int(100) < (20 + m_ptr->speed - m_ptr->mspeed)))
+	if (!haste.empty() && (rand_int(100) < (20 + m_ptr->speed - m_ptr->mspeed)))
 	{
-		/* Choose haste spell */
-		return (haste[rand_int(haste_num)]);
+		return haste[rand_int(haste.size())];
 	}
 
 	/* Annoy player (most of the time) */
-	if (annoy_num && (rand_int(100) < 85))
+	if (!annoy.empty() && (rand_int(100) < 85))
 	{
-		/* Choose annoyance spell */
-		return (annoy[rand_int(annoy_num)]);
+		return annoy[rand_int(annoy.size())];
 	}
 
 	/* Choose no spell */
-	return (0);
+	return nullptr;
 }
 
 
@@ -883,10 +854,10 @@ static void breath(int m_idx, int typ, int dam_hp, int rad)
 	auto const r_ptr = m_ptr->race();
 
 	/* Determine the radius of the blast */
-	if (rad < 1) rad = (r_ptr->flags2 & (RF2_POWERFUL)) ? 3 : 2;
+	if (rad < 1) rad = (r_ptr->flags & RF_POWERFUL) ? 3 : 2;
 
 	/* Target the player with a ball attack */
-	(void)project(m_idx, rad, p_ptr->py, p_ptr->px, dam_hp, typ, flg);
+	project(m_idx, rad, p_ptr->py, p_ptr->px, dam_hp, typ, flg);
 }
 
 
@@ -903,9 +874,9 @@ static void monst_breath_monst(int m_idx, int y, int x, int typ, int dam_hp, int
 	auto const r_ptr = m_ptr->race();
 
 	/* Determine the radius of the blast */
-	if (rad < 1) rad = (r_ptr->flags2 & (RF2_POWERFUL)) ? 3 : 2;
+	if (rad < 1) rad = (r_ptr->flags & RF_POWERFUL) ? 3 : 2;
 
-	(void)project(m_idx, rad, y, x, dam_hp, typ, flg);
+	project(m_idx, rad, y, x, dam_hp, typ, flg);
 }
 
 
@@ -918,7 +889,7 @@ static void monst_bolt_monst(int m_idx, int y, int x, int typ, int dam_hp)
 {
 	int flg = PROJECT_STOP | PROJECT_KILL;
 
-	(void)project(m_idx, 0, y, x, dam_hp, typ, flg);
+	project(m_idx, 0, y, x, dam_hp, typ, flg);
 }
 
 
@@ -932,7 +903,7 @@ static void monster_msg(cptr fmt, ...)
 	va_start(vp, fmt);
 
 	/* Format the args, save the length */
-	(void)vstrnfmt(buf, 1024, fmt, vp);
+	vstrnfmt(buf, 1024, fmt, vp);
 
 	/* End the Varargs Stuff */
 	va_end(vp);
@@ -943,43 +914,38 @@ static void monster_msg(cptr fmt, ...)
 
 void monster_msg_simple(cptr s)
 {
+	auto &messages = game->messages;
+
 	/* Display */
-	if (disturb_other)
+	if (options->disturb_other)
 	{
 		msg_print(s);
 	}
 	else
 	{
-		message_add(s, TERM_WHITE);
+		messages.add(s, TERM_WHITE);
 		p_ptr->window |= PW_MESSAGE;
 	}
 }
 
-void cmonster_msg(char a, cptr fmt, ...)
+/**
+ * Extract list of spell indexes from a flag set.
+ */
+static std::vector<monster_spell const *> extract_spells(monster_spell_flag_set const &spell_flag_set)
 {
-	va_list vp;
+	auto result = std::vector<monster_spell const *>();
+	result.reserve(spell_flag_set.nbits);
 
-	char buf[1024];
-
-	/* Begin the Varargs Stuff */
-	va_start(vp, fmt);
-
-	/* Format the args, save the length */
-	(void)vstrnfmt(buf, 1024, fmt, vp);
-
-	/* End the Varargs Stuff */
-	va_end(vp);
-
-	/* Display */
-	if (disturb_other)
-		cmsg_print(a, buf);
-	else
+	for (auto const &monster_spell: monster_spells())
 	{
-		message_add(buf, a);
-		p_ptr->window |= PW_MESSAGE;
+		if (bool(spell_flag_set & monster_spell->flag_set))
+		{
+			result.push_back(monster_spell);
+		}
 	}
-}
 
+	return result;
+}
 
 /*
  * Monster tries to 'cast a spell' (or breath, etc)
@@ -988,15 +954,13 @@ void cmonster_msg(char a, cptr fmt, ...)
 int monst_spell_monst_spell = -1;
 static bool_ monst_spell_monst(int m_idx)
 {
+	static const monster_spell_flag_set SF_INT_MASK = compute_smart_mask();
+
 	int y = 0, x = 0;
-	int i = 1;
-	int thrown_spell;
-	byte spell[96], num = 0;
 	char m_name[80], t_name[80];
 	char m_poss[80];
 	char ddesc[80];
 	monster_type *m_ptr = &m_list[m_idx];    /* Attacker */
-	u32b f4, f5, f6;                        /* racial spell flags */
 	bool_ direct = TRUE;
 	bool_ wake_up = FALSE;
 
@@ -1027,20 +991,14 @@ static bool_ monst_spell_monst(int m_idx)
 
 	if ((rand_int(100) >= chance) && (monst_spell_monst_spell == -1)) return (FALSE);
 
-	/* Target location */
-	if (m_ptr->target > -1)
+	/* Make sure monster actually has a target */
+	if (m_ptr->target <= 0)
 	{
-		if (m_ptr->target > 0)
-		{
-			i = m_ptr->target;
-		}
-		else return FALSE;
+		return FALSE;
 	}
-	else return FALSE;
-
 
 	{
-		int t_idx = i;
+		int t_idx = m_ptr->target;
 
 		monster_type *t_ptr = &m_list[t_idx];
 		auto const tr_ptr = t_ptr->race();
@@ -1058,45 +1016,26 @@ static bool_ monst_spell_monst(int m_idx)
 		/* Extract the monster level */
 		const int rlev = ((m_ptr->level >= 1) ? m_ptr->level : 1);
 
-		/* Extract the racial spell flags */
-		f4 = r_ptr->flags4;
-		f5 = r_ptr->flags5;
-		f6 = r_ptr->flags6;
+		/* Which spells are allowed? */
+		monster_spell_flag_set allowed_spells = r_ptr->spells;
 
 		/* Hack -- allow "desperate" spells */
-		if ((r_ptr->flags2 & (RF2_SMART)) &&
+		if ((r_ptr->flags & RF_SMART) &&
 		                (m_ptr->hp < m_ptr->maxhp / 10) &&
 		                (rand_int(100) < 50))
 		{
 			/* Require intelligent spells */
-			f4 &= (RF4_INT_MASK);
-			f5 &= (RF5_INT_MASK);
-			f6 &= (RF6_INT_MASK);
+			allowed_spells &= SF_INT_MASK;
 
-			/* No spells left */
-			if ((!f4 && !f5 && !f6) && (monst_spell_monst_spell == -1)) return (FALSE);
+			/* No spells left? */
+			if ((!allowed_spells) && (monst_spell_monst_spell == -1)) return (FALSE);
 		}
 
-		/* Extract the "inate" spells */
-		for (int k = 0; k < 32; k++)
-		{
-			if (f4 & (1L << k)) spell[num++] = k + 32 * 3;
-		}
+		/* Extract spells */
+		auto spell = extract_spells(allowed_spells);
 
-		/* Extract the "normal" spells */
-		for (int k = 0; k < 32; k++)
-		{
-			if (f5 & (1L << k)) spell[num++] = k + 32 * 4;
-		}
-
-		/* Extract the "bizarre" spells */
-		for (int k = 0; k < 32; k++)
-		{
-			if (f6 & (1L << k)) spell[num++] = k + 32 * 5;
-		}
-
-		/* No spells left */
-		if (!num) return (FALSE);
+		/* No spells left? */
+		if (spell.empty()) return (FALSE);
 
 		/* Stop if player is dead or gone */
 		if (!alive || death) return (FALSE);
@@ -1117,12 +1056,12 @@ static bool_ monst_spell_monst(int m_idx)
 		monster_desc(ddesc, m_ptr, 0x88);
 
 		/* Choose a spell to cast */
-		thrown_spell = spell[rand_int(num)];
+		auto thrown_spell = spell[rand_int(spell.size())];
 
 		/* Force a spell ? */
 		if (monst_spell_monst_spell > -1)
 		{
-			thrown_spell = monst_spell_monst_spell;
+			thrown_spell = spell[monst_spell_monst_spell];
 			monst_spell_monst_spell = -1;
 		}
 
@@ -1131,47 +1070,115 @@ static bool_ monst_spell_monst(int m_idx)
 		see_either = (see_m || see_t);
 		see_both = (see_m && see_t);
 
-		int count = 0;
-		switch (thrown_spell)
+		/* Do a breath */
+		auto do_breath = [&](char const *element, int gf, s32b max, int divisor) -> void {
+			// Interrupt
+			disturb_on_other();
+			// Message
+			if (!see_either)
+			{
+				monster_msg("You hear breathing noise.");
+			}
+			else if (blind)
+			{
+				monster_msg("%^s breathes.", m_name);
+			}
+			else
+			{
+				monster_msg("%^s breathes %s at %s.", m_name, element, t_name);
+			}
+			// Breathe
+			monst_breath_monst(m_idx, y, x, gf, std::min(max, m_ptr->hp / divisor), 0);
+		};
+
+		/* Messages for summoning */
+		struct summon_messages {
+			char const *singular;
+			char const *plural;
+		};
+
+		/* Default message for summoning when player is blinded */
+		auto blind_msg_default = summon_messages {
+		        "You hear something appear nearby.",
+		        "You hear many things appear nearby."
+	        };
+
+		/* Do a summoning spell */
+		auto do_summon = [&](char const *action, int n, int friendly_type, int hostile_type, summon_messages const &blind_msg) -> void {
+			// Interrupt
+			disturb_on_other();
+
+			// Message
+			if (blind || !see_m)
+			{
+				monster_msg("%^s mumbles.", m_name);
+			}
+			else
+			{
+				monster_msg("%^s magically %s", m_name, action);
+			}
+
+			// Do the actual summoning
+			int count = 0;
+			for (int k = 0; k < n; k++)
+			{
+				if (friendly)
+				{
+					count += summon_specific_friendly(m_ptr->fy, m_ptr->fx, rlev, friendly_type, TRUE);
+				}
+				else if (!friendly)
+				{
+					count += summon_specific(m_ptr->fy, m_ptr->fx, rlev, hostile_type);
+				}
+			}
+			// Message for blinded characters
+			if (blind)
+			{
+				if (count == 1)
+				{
+					monster_msg(blind_msg.singular);
+				}
+				else if (count > 1)
+				{
+					monster_msg(blind_msg.plural);
+				}
+			}
+		};
+
+		/* There's no summoning friendly uniques or Nazgul */
+		auto spell_idx = thrown_spell->spell_idx;
+
+		if (friendly)
 		{
-			/* RF4_SHRIEK */
-		case 96 + 0:
+			if ((thrown_spell->spell_idx == SF_S_UNIQUE_IDX) &&
+			        (thrown_spell->spell_idx == SF_S_WRAITH_IDX))
+			{
+				// Summon high undead instead
+				spell_idx = SF_S_HI_UNDEAD_IDX;
+			}
+		}
+
+		/* Spell effect */
+		switch (spell_idx)
+		{
+		case SF_SHRIEK_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (!see_m) monster_msg("You hear a shriek.");
 				else monster_msg("%^s shrieks at %s.", m_name, t_name);
 				wake_up = TRUE;
 				break;
 			}
 
-			/* RF4_MULTIPLY */
-		case 96 + 1:
+		case SF_MULTIPLY_IDX:
 			{
 				break;
 			}
 
-			/* RF4_S_ANIMAL */
-		case 96 + 2:
+		case SF_ROCKET_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons an animal!", m_name);
-				for (int k = 0; k < 1; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_ANIMAL, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_ANIMAL);
-				}
-				if (blind && count) monster_msg("You hear something appear nearby.");
-				break;
-			}
-
-			/* RF4_ROCKET */
-		case 96 + 3:
-			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg("You hear an explosion!");
 				else if (blind) monster_msg("%^s shoots something.", m_name);
 				else monster_msg("%^s fires a rocket at %s.", m_name, t_name);
@@ -1180,371 +1187,204 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF4_ARROW_1 */
-		case 96 + 4:
+		case SF_ARROW_1_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg("You hear a strange noise.");
 				else if (blind) monster_msg("%^s makes a strange noise.", m_name);
 				else monster_msg("%^s fires an arrow at %s.", m_name, t_name);
-				sound(SOUND_SHOOT);
 				monst_bolt_monst(m_idx, y, x, GF_ARROW, damroll(1, 6));
 				break;
 			}
 
-			/* RF4_ARROW_2 */
-		case 96 + 5:
+		case SF_ARROW_2_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg("You hear a strange noise.");
 				else if (blind) monster_msg("%^s makes a strange noise.", m_name);
 				else monster_msg("%^s fires an arrow at %s.", m_name, t_name);
-				sound(SOUND_SHOOT);
 				monst_bolt_monst(m_idx, y, x, GF_ARROW, damroll(3, 6));
 				break;
 			}
 
-			/* RF4_ARROW_3 */
-		case 96 + 6:
+		case SF_ARROW_3_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 
 				if (!see_either) monster_msg("You hear a strange noise.");
 				else if (blind) monster_msg("%^s makes a strange noise.", m_name);
 				else monster_msg("%^s fires a missile at %s.", m_name, t_name);
-				sound(SOUND_SHOOT);
 				monst_bolt_monst(m_idx, y, x, GF_ARROW, damroll(5, 6));
 				break;
 			}
 
-			/* RF4_ARROW_4 */
-		case 96 + 7:
+		case SF_ARROW_4_IDX:
 			{
 				if (!see_either) monster_msg("You hear a strange noise.");
-				else if (disturb_other) disturb(1);
+				else disturb_on_other();
 				if (blind) monster_msg("%^s makes a strange noise.", m_name);
 				else monster_msg("%^s fires a missile at %s.", m_name, t_name);
-				sound(SOUND_SHOOT);
 				monst_bolt_monst(m_idx, y, x, GF_ARROW, damroll(7, 6));
 				break;
 			}
 
-			/* RF4_BR_ACID */
-		case 96 + 8:
+		case SF_BR_ACID_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes acid at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_ACID,
-				                   ((m_ptr->hp / 3) > 1600 ? 1600 : (m_ptr->hp / 3)), 0);
+			        do_breath("acid", GF_ACID, 1600, 3);
 				break;
 			}
 
-			/* RF4_BR_ELEC */
-		case 96 + 9:
+		case SF_BR_ELEC_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes lightning at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_ELEC,
-				                   ((m_ptr->hp / 3) > 1600 ? 1600 : (m_ptr->hp / 3)), 0);
+			        do_breath("lightning", GF_ELEC, 1600, 3);
 				break;
 			}
 
-			/* RF4_BR_FIRE */
-		case 96 + 10:
+		case SF_BR_FIRE_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes fire at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_FIRE,
-				                   ((m_ptr->hp / 3) > 1600 ? 1600 : (m_ptr->hp / 3)), 0);
+			        do_breath("fire", GF_FIRE, 1600, 3);
 				break;
 			}
 
-			/* RF4_BR_COLD */
-		case 96 + 11:
+		case SF_BR_COLD_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes frost at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_COLD,
-				                   ((m_ptr->hp / 3) > 1600 ? 1600 : (m_ptr->hp / 3)), 0);
+			        do_breath("frost", GF_COLD, 1600, 3);
 				break;
 			}
 
-			/* RF4_BR_POIS */
-		case 96 + 12:
+		case SF_BR_POIS_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes gas at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_POIS,
-				                   ((m_ptr->hp / 3) > 800 ? 800 : (m_ptr->hp / 3)), 0);
+			        do_breath("gas", GF_POIS, 800, 3);
 				break;
 			}
 
-			/* RF4_BR_NETH */
-		case 96 + 13:
+		case SF_BR_NETH_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes nether at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_NETHER,
-				                   ((m_ptr->hp / 6) > 550 ? 550 : (m_ptr->hp / 6)), 0);
+			        do_breath("nether", GF_NETHER, 550, 6);
 				break;
 			}
 
-			/* RF4_BR_LITE */
-		case 96 + 14:
+		case SF_BR_LITE_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes light at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_LITE,
-				                   ((m_ptr->hp / 6) > 400 ? 400 : (m_ptr->hp / 6)), 0);
+			        do_breath("light", GF_LITE, 400, 6);
 				break;
 			}
 
-			/* RF4_BR_DARK */
-		case 96 + 15:
+		case SF_BR_DARK_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes darkness at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_DARK,
-				                   ((m_ptr->hp / 6) > 400 ? 400 : (m_ptr->hp / 6)), 0);
+			        do_breath("darkness", GF_DARK, 400, 6);
 				break;
 			}
 
-			/* RF4_BR_CONF */
-		case 96 + 16:
+		case SF_BR_CONF_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes confusion at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_CONFUSION,
-				                   ((m_ptr->hp / 6) > 400 ? 400 : (m_ptr->hp / 6)), 0);
+			        do_breath("confusion", GF_CONFUSION, 400, 6);
 				break;
 			}
 
-			/* RF4_BR_SOUN */
-		case 96 + 17:
+		case SF_BR_SOUN_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes sound at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_SOUND,
-				                   ((m_ptr->hp / 6) > 400 ? 400 : (m_ptr->hp / 6)), 0);
+			        do_breath("sound", GF_SOUND, 400, 6);
 				break;
 			}
 
-			/* RF4_BR_CHAO */
-		case 96 + 18:
+		case SF_BR_CHAO_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes chaos at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_CHAOS,
-				                   ((m_ptr->hp / 6) > 600 ? 600 : (m_ptr->hp / 6)), 0);
+			        do_breath("chaos", GF_CHAOS, 600, 6);
 				break;
 			}
 
-			/* RF4_BR_DISE */
-		case 96 + 19:
+		case SF_BR_DISE_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes disenchantment at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_DISENCHANT,
-				                   ((m_ptr->hp / 6) > 500 ? 500 : (m_ptr->hp / 6)), 0);
+			        do_breath("disenchantment", GF_DISENCHANT, 500, 6);
 				break;
 			}
 
-			/* RF4_BR_NEXU */
-		case 96 + 20:
+		case SF_BR_NEXU_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes nexus at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_NEXUS,
-				                   ((m_ptr->hp / 3) > 250 ? 250 : (m_ptr->hp / 3)), 0);
+			        do_breath("nexus", GF_NEXUS, 250, 3);
 				break;
 			}
 
-			/* RF4_BR_TIME */
-		case 96 + 21:
+		case SF_BR_TIME_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes time at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_TIME,
-				                   ((m_ptr->hp / 3) > 150 ? 150 : (m_ptr->hp / 3)), 0);
+			        do_breath("time", GF_TIME, 150, 3);
 				break;
 			}
 
-			/* RF4_BR_INER */
-		case 96 + 22:
+		case SF_BR_INER_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes inertia at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_INERTIA,
-				                   ((m_ptr->hp / 6) > 200 ? 200 : (m_ptr->hp / 6)), 0);
+			        do_breath("inertia", GF_INERTIA, 200, 6);
 				break;
 			}
 
-			/* RF4_BR_GRAV */
-		case 96 + 23:
+		case SF_BR_GRAV_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes gravity at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_GRAVITY,
-				                   ((m_ptr->hp / 3) > 200 ? 200 : (m_ptr->hp / 3)), 0);
+			        do_breath("gravity", GF_GRAVITY, 200, 3);
 				break;
 			}
 
-			/* RF4_BR_SHAR */
-		case 96 + 24:
+		case SF_BR_SHAR_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes shards at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_SHARDS,
-				                   ((m_ptr->hp / 6) > 400 ? 400 : (m_ptr->hp / 6)), 0);
+			        do_breath("shards", GF_SHARDS, 400, 6);
 				break;
 			}
 
-			/* RF4_BR_PLAS */
-		case 96 + 25:
+		case SF_BR_PLAS_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes plasma at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_PLASMA,
-				                   ((m_ptr->hp / 6) > 150 ? 150 : (m_ptr->hp / 6)), 0);
+			        do_breath("plasma", GF_PLASMA, 150, 6);
 				break;
 			}
 
-			/* RF4_BR_WALL */
-		case 96 + 26:
+		case SF_BR_WALL_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes force at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_FORCE,
-				                   ((m_ptr->hp / 6) > 200 ? 200 : (m_ptr->hp / 6)), 0);
+			        do_breath("force", GF_FORCE, 200, 6);
 				break;
 			}
 
-			/* RF4_BR_MANA */
-		case 96 + 27:
+		case SF_BR_MANA_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes magical energy at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_MANA,
-				                   ((m_ptr->hp / 3) > 250 ? 250 : (m_ptr->hp / 3)), 0);
+			        do_breath("magical energy", GF_MANA, 250, 3);
 				break;
 			}
 
-			/* RF4_BA_NUKE */
-		case 96 + 28:
+		case SF_BA_NUKE_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg("You hear someone mumble.");
 				else if (blind) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts a ball of radiation at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
 				monst_breath_monst(m_idx, y, x, GF_NUKE,
 				                   (rlev + damroll(10, 6)), 2);
 				break;
 			}
 
-			/* RF4_BR_NUKE */
-		case 96 + 29:
+		case SF_BR_NUKE_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes toxic waste at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_NUKE,
-				                   ((m_ptr->hp / 3) > 800 ? 800 : (m_ptr->hp / 3)), 0);
+			        do_breath("toxic waste", GF_NUKE, 800, 3);
 				break;
 			}
 
-			/* RF4_BA_CHAO */
-		case 96 + 30:
+		case SF_BA_CHAO_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg("You hear someone mumble frighteningly.");
 				else if (blind) monster_msg("%^s mumbles frighteningly.", m_name);
 				else monster_msg("%^s invokes a raw Chaos upon %s.", m_name, t_name);
-				sound(SOUND_BREATH);
 				monst_breath_monst(m_idx, y, x, GF_CHAOS,
 				                   (rlev * 2) + damroll(10, 10), 4);
 				break;
 			}
 
-			/* RF4_BR_DISI -> Breathe Disintegration */
-		case 96 + 31:
+		case SF_BR_DISI_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (!see_either) monster_msg("You hear breathing noise.");
-				else if (blind) monster_msg("%^s breathes.", m_name);
-				else monster_msg("%^s breathes disintegration at %s.", m_name, t_name);
-				sound(SOUND_BREATH);
-				monst_breath_monst(m_idx, y, x, GF_DISINTEGRATE,
-				                   ((m_ptr->hp / 3) > 300 ? 300 : (m_ptr->hp / 3)), 0);
+			        do_breath("disintegration", GF_DISINTEGRATE, 300, 3);
 				break;
 			}
 
-			/* RF5_BA_ACID */
-		case 128 + 0:
+		case SF_BA_ACID_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg ("You hear someone mumble.");
 				else if (blind) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts an acid ball at %s.", m_name, t_name);
@@ -1552,10 +1392,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_ELEC */
-		case 128 + 1:
+		case SF_BA_ELEC_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg ("You hear someone mumble.");
 				else
 					if (blind) monster_msg("%^s mumbles.", m_name);
@@ -1564,10 +1403,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_FIRE */
-		case 128 + 2:
+		case SF_BA_FIRE_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg ("You hear someone mumble.");
 				else
 					if (blind) monster_msg("%^s mumbles.", m_name);
@@ -1576,10 +1414,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_COLD */
-		case 128 + 3:
+		case SF_BA_COLD_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg ("You hear someone mumble.");
 				else
 					if (blind) monster_msg("%^s mumbles.", m_name);
@@ -1588,10 +1425,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_POIS */
-		case 128 + 4:
+		case SF_BA_POIS_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg ("You hear someone mumble.");
 				else
 					if (blind) monster_msg("%^s mumbles.", m_name);
@@ -1600,10 +1436,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_NETH */
-		case 128 + 5:
+		case SF_BA_NETH_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg ("You hear someone mumble.");
 				else
 					if (blind) monster_msg("%^s mumbles.", m_name);
@@ -1612,10 +1447,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_WATE */
-		case 128 + 6:
+		case SF_BA_WATE_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg ("You hear someone mumble.");
 				else
 					if (blind) monster_msg("%^s mumbles.", m_name);
@@ -1625,10 +1459,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_MANA */
-		case 128 + 7:
+		case SF_BA_MANA_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg ("You hear someone mumble powerfully.");
 				else
 					if (blind) monster_msg("%^s mumbles powerfully.", m_name);
@@ -1637,10 +1470,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_DARK */
-		case 128 + 8:
+		case SF_BA_DARK_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (!see_either) monster_msg ("You hear someone mumble powerfully.");
 				else
 					if (blind) monster_msg("%^s mumbles powerfully.", m_name);
@@ -1649,8 +1481,7 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_DRAIN_MANA */
-		case 128 + 9:
+		case SF_DRAIN_MANA_IDX:
 			{
 				/* Attack power */
 				int r1 = (randint(rlev) / 2) + 1;
@@ -1664,7 +1495,7 @@ static bool_ monst_spell_monst(int m_idx)
 				/* Heal the monster */
 				if (m_ptr->hp < m_ptr->maxhp)
 				{
-					if (!(tr_ptr->flags4 || tr_ptr->flags5 || tr_ptr->flags6))
+					if (!tr_ptr->spells)
 					{
 						if (see_both)
 							monster_msg("%^s is unaffected!", t_name);
@@ -1690,12 +1521,11 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_MIND_BLAST */
-		case 128 + 10:
+		case SF_MIND_BLAST_IDX:
 			{
 				if (!direct) break;
 
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 
 				if (!seen)
 				{
@@ -1707,16 +1537,10 @@ static bool_ monst_spell_monst(int m_idx)
 				}
 
 				/* Attempt a saving throw */
-				if ((tr_ptr->flags1 & (RF1_UNIQUE)) ||
-				                (tr_ptr->flags3 & (RF3_NO_CONF)) ||
+				if ((tr_ptr->flags & RF_UNIQUE) ||
+				                (tr_ptr->flags & RF_NO_CONF) ||
 				                (t_ptr->level > randint((rlev - 10) < 1 ? 1 : (rlev - 10)) + 10))
 				{
-					/* Memorize a flag */
-					if (tr_ptr->flags3 & (RF3_NO_CONF))
-					{
-						if (seen) tr_ptr->r_flags3 |= (RF3_NO_CONF);
-					}
-
 					/* No obvious effect */
 					if (see_t)
 					{
@@ -1736,11 +1560,10 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BRAIN_SMASH */
-		case 128 + 11:
+		case SF_BRAIN_SMASH_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (!seen)
 				{
 					/* */
@@ -1751,15 +1574,10 @@ static bool_ monst_spell_monst(int m_idx)
 				}
 
 				/* Attempt a saving throw */
-				if ((tr_ptr->flags1 & (RF1_UNIQUE)) ||
-				                (tr_ptr->flags3 & (RF3_NO_CONF)) ||
+				if ((tr_ptr->flags & RF_UNIQUE) ||
+				                (tr_ptr->flags & RF_NO_CONF) ||
 				                (t_ptr->level > randint((rlev - 10) < 1 ? 1 : (rlev - 10)) + 10))
 				{
-					/* Memorize a flag */
-					if (tr_ptr->flags3 & (RF3_NO_CONF))
-					{
-						if (seen) tr_ptr->r_flags3 |= (RF3_NO_CONF);
-					}
 					/* No obvious effect */
 					if (see_t)
 					{
@@ -1782,11 +1600,10 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_CAUSE_1 */
-		case 128 + 12:
+		case SF_CAUSE_1_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s points at %s and curses.", m_name, t_name);
 				if (t_ptr->level > randint((rlev - 10) < 1 ? 1 : (rlev - 10)) + 10)
@@ -1803,11 +1620,10 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_CAUSE_2 */
-		case 128 + 13:
+		case SF_CAUSE_2_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s points at %s and curses horribly.", m_name, t_name);
 				if (t_ptr->level > randint((rlev - 10) < 1 ? 1 : (rlev - 10)) + 10)
@@ -1823,11 +1639,10 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_CAUSE_3 */
-		case 128 + 14:
+		case SF_CAUSE_3_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s points at %s, incanting terribly!", m_name, t_name);
 				if (t_ptr->level > randint((rlev - 10) < 1 ? 1 : (rlev - 10)) + 10)
@@ -1843,11 +1658,10 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_CAUSE_4 */
-		case 128 + 15:
+		case SF_CAUSE_4_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s points at %s, screaming the word 'DIE!'", m_name, t_name);
 				if (t_ptr->level > randint((rlev - 10) < 1 ? 1 : (rlev - 10)) + 10)
@@ -1863,10 +1677,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_ACID */
-		case 128 + 16:
+		case SF_BO_ACID_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts an acid bolt at %s.", m_name, t_name);
 				monst_bolt_monst(m_idx, y, x, GF_ACID,
@@ -1874,10 +1687,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_ELEC */
-		case 128 + 17:
+		case SF_BO_ELEC_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts a lightning bolt at %s.", m_name, t_name);
 				monst_bolt_monst(m_idx, y, x, GF_ELEC,
@@ -1885,10 +1697,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_FIRE */
-		case 128 + 18:
+		case SF_BO_FIRE_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts a fire bolt at %s.", m_name, t_name);
 				monst_bolt_monst(m_idx, y, x, GF_FIRE,
@@ -1896,10 +1707,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_COLD */
-		case 128 + 19:
+		case SF_BO_COLD_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts a frost bolt at %s.", m_name, t_name);
 				monst_bolt_monst(m_idx, y, x, GF_COLD,
@@ -1907,17 +1717,15 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_POIS */
-		case 128 + 20:
+		case SF_BO_POIS_IDX:
 			{
 				/* XXX XXX XXX */
 				break;
 			}
 
-			/* RF5_BO_NETH */
-		case 128 + 21:
+		case SF_BO_NETH_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts a nether bolt at %s.", m_name, t_name);
 				monst_bolt_monst(m_idx, y, x, GF_NETHER,
@@ -1925,10 +1733,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_WATE */
-		case 128 + 22:
+		case SF_BO_WATE_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts a water bolt at %s.", m_name, t_name);
 				monst_bolt_monst(m_idx, y, x, GF_WATER,
@@ -1936,10 +1743,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_MANA */
-		case 128 + 23:
+		case SF_BO_MANA_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts a mana bolt at %s.", m_name, t_name);
 				monst_bolt_monst(m_idx, y, x, GF_MANA,
@@ -1947,10 +1753,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_PLAS */
-		case 128 + 24:
+		case SF_BO_PLAS_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts a plasma bolt at %s.", m_name, t_name);
 				monst_bolt_monst(m_idx, y, x, GF_PLASMA,
@@ -1958,10 +1763,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_ICEE */
-		case 128 + 25:
+		case SF_BO_ICEE_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts an ice bolt at %s.", m_name, t_name);
 				monst_bolt_monst(m_idx, y, x, GF_ICE,
@@ -1969,10 +1773,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_MISSILE */
-		case 128 + 26:
+		case SF_MISSILE_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts a magic missile at %s.", m_name, t_name);
 				monst_bolt_monst(m_idx, y, x, GF_MISSILE,
@@ -1980,14 +1783,13 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_SCARE */
-		case 128 + 27:
+		case SF_SCARE_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles, and you hear scary noises.", m_name);
 				else monster_msg("%^s casts a fearful illusion at %s.", m_name, t_name);
-				if (tr_ptr->flags3 & RF3_NO_FEAR)
+				if (tr_ptr->flags & RF_NO_FEAR)
 				{
 					if (see_t) monster_msg("%^s refuses to be frightened.", t_name);
 				}
@@ -2004,15 +1806,14 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_BLIND */
-		case 128 + 28:
+		case SF_BLIND_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s casts a spell, burning %s%s eyes.", m_name, t_name,
 					                 (!strcmp(t_name, "it") ? "s" : "'s"));
-				if (tr_ptr->flags3 & RF3_NO_CONF)  /* Simulate blindness with confusion */
+				if (tr_ptr->flags & RF_NO_CONF)  /* Simulate blindness with confusion */
 				{
 					if (see_t) monster_msg("%^s is unaffected.", t_name);
 				}
@@ -2030,14 +1831,13 @@ static bool_ monst_spell_monst(int m_idx)
 
 			}
 
-			/* RF5_CONF */
-		case 128 + 29:
+		case SF_CONF_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (blind || !see_m) monster_msg("%^s mumbles, and you hear puzzling noises.", m_name);
 				else monster_msg("%^s creates a mesmerising illusion in front of %s.", m_name, t_name);
-				if (tr_ptr->flags3 & RF3_NO_CONF)
+				if (tr_ptr->flags & RF_NO_CONF)
 				{
 					if (see_t) monster_msg("%^s disbelieves the feeble spell.", t_name);
 				}
@@ -2054,14 +1854,13 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_SLOW */
-		case 128 + 30:
+		case SF_SLOW_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (!blind && see_either) monster_msg("%^s drains power from %s%s muscles.", m_name, t_name,
 					                                      (!strcmp(t_name, "it") ? "s" : "'s"));
-				if (tr_ptr->flags1 & RF1_UNIQUE)
+				if (tr_ptr->flags & RF_UNIQUE)
 				{
 					if (see_t) monster_msg("%^s is unaffected.", t_name);
 				}
@@ -2078,14 +1877,13 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF5_HOLD */
-		case 128 + 31:
+		case SF_HOLD_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (!blind && see_m) monster_msg("%^s stares intently at %s.", m_name, t_name);
-				if ((tr_ptr->flags1 & RF1_UNIQUE) ||
-				                (tr_ptr->flags3 & RF3_NO_STUN))
+				if ((tr_ptr->flags & RF_UNIQUE) ||
+				                (tr_ptr->flags & RF_NO_STUN))
 				{
 					if (see_t) monster_msg("%^s is unaffected.", t_name);
 				}
@@ -2102,11 +1900,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-
-			/* RF6_HASTE */
-		case 160 + 0:
+		case SF_HASTE_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (blind || !see_m)
 				{
 					monster_msg("%^s mumbles.", m_name);
@@ -2133,16 +1929,15 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF6_HAND_DOOM */
-		case 160 + 1:
+		case SF_HAND_DOOM_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (!see_m) monster_msg("You hear someone invoke the Hand of Doom!");
 				else if (!blind) monster_msg("%^s invokes the Hand of Doom on %s.", m_name, t_name);
 				else
 					monster_msg ("You hear someone invoke the Hand of Doom!");
-				if (tr_ptr->flags1 & RF1_UNIQUE)
+				if (tr_ptr->flags & RF_UNIQUE)
 				{
 					if (!blind && see_t) monster_msg("^%s is unaffected!", t_name);
 				}
@@ -2165,10 +1960,9 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF6_HEAL */
-		case 160 + 2:
+		case SF_HEAL_IDX:
 			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 
 				/* Message */
 				if (blind || !see_m)
@@ -2230,72 +2024,59 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF6_S_ANIMALS */
-		case 160 + 3:
+		case SF_BLINK_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons some animals!", m_name);
-				for (int k = 0; k < 4; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_ANIMAL, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_ANIMAL);
-				}
-				if (blind && count) monster_msg("You hear many things appear nearby.");
-				break;
-			}
-
-			/* RF6_BLINK */
-		case 160 + 4:
-			{
-				if (disturb_other) disturb(1);
+			        disturb_on_other();
 				if (see_m) monster_msg("%^s blinks away.", m_name);
 				teleport_away(m_idx, 10);
 				break;
 			}
 
-			/* RF6_TPORT */
-		case 160 + 5:
+		case SF_TPORT_IDX:
 			{
-				if (dungeon_flags2 & DF2_NO_TELEPORT) break;  /* No teleport on special levels */
+			        if (dungeon_flags & DF_NO_TELEPORT)
+				{
+					break;  /* No teleport on special levels */
+				}
 				else
 				{
-					if (disturb_other) disturb(1);
+					disturb_on_other();
 					if (see_m) monster_msg("%^s teleports away.", m_name);
 					teleport_away(m_idx, MAX_SIGHT * 2 + 5);
 					break;
 				}
 			}
 
-			/* RF6_TELE_TO */
-		case 160 + 6:
+		case SF_TELE_TO_IDX:
 			{
 				/* Not implemented */
 				break;
 			}
 
-			/* RF6_TELE_AWAY */
-		case 160 + 7:
+		case SF_TELE_AWAY_IDX:
 			{
-				if (dungeon_flags2 & DF2_NO_TELEPORT) break;
+			        if (dungeon_flags & DF_NO_TELEPORT)
+				{
+					break;
+				}
 
-				if (!direct) break;
+				if (!direct)
+				{
+					break;
+				}
 				else
 				{
 					bool_ resists_tele = FALSE;
-					if (disturb_other) disturb(1);
+					disturb_on_other();
 					monster_msg("%^s teleports %s away.", m_name, t_name);
 
 
-					if (tr_ptr->flags3 & (RF3_RES_TELE))
+					if (tr_ptr->flags & RF_RES_TELE)
 					{
-						if (tr_ptr->flags1 & (RF1_UNIQUE))
+						if (tr_ptr->flags & RF_UNIQUE)
 						{
 							if (see_t)
 							{
-								tr_ptr->r_flags3 |= RF3_RES_TELE;
 								monster_msg("%^s is unaffected!", t_name);
 							}
 							resists_tele = TRUE;
@@ -2304,7 +2085,6 @@ static bool_ monst_spell_monst(int m_idx)
 						{
 							if (see_t)
 							{
-								tr_ptr->r_flags3 |= RF3_RES_TELE;
 								monster_msg("%^s resists!", t_name);
 							}
 							resists_tele = TRUE;
@@ -2320,388 +2100,212 @@ static bool_ monst_spell_monst(int m_idx)
 				break;
 			}
 
-			/* RF6_TELE_LEVEL */
-		case 160 + 8:
+		case SF_TELE_LEVEL_IDX:
 			{
 				/* Not implemented */
 				break;
 			}
 
-			/* RF6_DARKNESS */
-		case 160 + 9:
+		case SF_DARKNESS_IDX:
 			{
 				if (!direct) break;
-				if (disturb_other) disturb(1);
+				disturb_on_other();
 				if (blind) monster_msg("%^s mumbles.", m_name);
 				else monster_msg("%^s gestures in shadow.", m_name);
 				if (seen)
 					monster_msg("%^s is surrounded by darkness.", t_name);
-				(void)project(m_idx, 3, y, x, 0, GF_DARK_WEAK, PROJECT_GRID | PROJECT_KILL);
+				project(m_idx, 3, y, x, 0, GF_DARK_WEAK, PROJECT_GRID | PROJECT_KILL);
 				/* Lite up the room */
 				unlite_room(y, x);
 				break;
 			}
 
-			/* RF6_TRAPS */
-		case 160 + 10:
+		case SF_FORGET_IDX:
 			{
 				/* Not implemented */
 				break;
 			}
 
-			/* RF6_FORGET */
-		case 160 + 11:
+		case SF_S_ANIMAL_IDX:
+		        {
+			        do_summon("summons an animal!", 1, SUMMON_ANIMAL, SUMMON_ANIMAL, blind_msg_default);
+				break;
+		        }
+
+		case SF_S_ANIMALS_IDX:
+		        {
+			        do_summon("summons some animals!", 4, SUMMON_ANIMAL, SUMMON_ANIMAL, blind_msg_default);
+				break;
+		        }
+
+		case SF_S_BUG_IDX:
 			{
-				/* Not implemented */
+			        do_summon("codes some software bugs.", 6, SUMMON_BUG, SUMMON_BUG, blind_msg_default);
 				break;
 			}
 
-			/* RF6_ANIM_DEAD */
-		case 160 + 12:
+		case SF_S_RNG_IDX:
 			{
+			        do_summon("codes some RNGs.", 6, SUMMON_RNG, SUMMON_RNG, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_BUG */
-		case 160 + 13:
+		case SF_S_THUNDERLORD_IDX:
 			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically codes some software bugs.", m_name);
-				for (int k = 0; k < 6; k++)
+			        do_summon("summons a Thunderlord!", 1, SUMMON_THUNDERLORD, SUMMON_THUNDERLORD, blind_msg_default);
+				break;
+			}
+
+		case SF_S_KIN_IDX:
+			{
+			        // Describe the summons
+			        char action[256];
+				sprintf(action,
+				        "summons %s %s.",
+				        m_poss,
+				        (r_ptr->flags & RF_UNIQUE ? "minions" : "kin"));
+				// Force the right type of "kin"
+			        summon_kin_type = r_ptr->d_char;
+				// Summon
+				do_summon(action, 6, SUMMON_KIN, SUMMON_KIN, blind_msg_default);
+				break;
+			}
+
+		case SF_S_HI_DEMON_IDX:
+			{
+			        do_summon("summons greater demons!", 8, SUMMON_HI_DEMON, SUMMON_HI_DEMON, blind_msg_default);
+				break;
+		        }
+
+		case SF_S_MONSTER_IDX:
+			{
+			        do_summon("summons help!", 1, SUMMON_NO_UNIQUES, 0, blind_msg_default);
+				break;
+			}
+
+		case SF_S_MONSTERS_IDX:
+			{
+			        do_summon("summons monsters!", 8, SUMMON_NO_UNIQUES, 0, blind_msg_default);
+				break;
+			}
+
+		case SF_S_ANT_IDX:
+			{
+			        do_summon("summons ants.", 6, SUMMON_ANT, SUMMON_ANT, blind_msg_default);
+				break;
+			}
+
+		case SF_S_SPIDER_IDX:
+			{
+			        do_summon("summons spiders.", 6, SUMMON_SPIDER, SUMMON_SPIDER, blind_msg_default);
+				break;
+			}
+
+		case SF_S_HOUND_IDX:
+			{
+			        do_summon("summons hounds.", 6, SUMMON_HOUND, SUMMON_HOUND, blind_msg_default);
+				break;
+			}
+
+		case SF_S_HYDRA_IDX:
+			{
+			        do_summon("summons hydras.", 6, SUMMON_HYDRA, SUMMON_HYDRA, blind_msg_default);
+				break;
+			}
+
+		case SF_S_ANGEL_IDX:
+			{
+			        do_summon("summons an angel!", 1, SUMMON_ANGEL, SUMMON_ANGEL, blind_msg_default);
+				break;
+			}
+
+		case SF_S_DEMON_IDX:
+			{
+			        do_summon("summons a demon!", 1, SUMMON_DEMON, SUMMON_DEMON, blind_msg_default);
+				break;
+			}
+
+		case SF_S_UNDEAD_IDX:
+			{
+			        do_summon("summons an undead adversary!", 1, SUMMON_UNDEAD, SUMMON_UNDEAD, blind_msg_default);
+				break;
+			}
+
+		case SF_S_DRAGON_IDX:
+			{
+			        do_summon("summons a dragon!", 1, SUMMON_DRAGON, SUMMON_DRAGON, blind_msg_default);
+				break;
+			}
+
+		case SF_S_HI_UNDEAD_IDX:
+			{
+			        summon_messages blind_msg {
+					"You hear a creepy thing appear nearby.",
+					"You hear many creepy things appear nearby."
+				};
+				do_summon("summons greater undead!", 8, SUMMON_HI_UNDEAD_NO_UNIQUES, SUMMON_HI_UNDEAD, blind_msg);
+				break;
+			}
+
+		case SF_S_HI_DRAGON_IDX:
+			{
+			        summon_messages blind_msg {
+					"You hear many a powerful thing appear nearby.",
+					"You hear many powerful things appear nearby."
+				};
+				do_summon("summons ancient dragons!", 8, SUMMON_HI_DRAGON_NO_UNIQUES, SUMMON_HI_DRAGON, blind_msg);
+				break;
+			}
+
+		case SF_S_WRAITH_IDX:
+			{
+			        // No summoning Nazgul; see the remapping code above the switch.
+			        assert(!friendly);
+				// Summon
+				summon_messages blind_msg {
+					"You hear an immortal being appear nearby.",
+					"You hear immortal beings appear nearby."
+				};
+				do_summon("summons a wraith!", 8, 0 /* not used */, SUMMON_WRAITH, blind_msg);
+				break;
+			}
+
+		case SF_S_UNIQUE_IDX:
+			{
+			        // No summoning uniques; see the remapping code above the switch.
+			        assert(!friendly);
+				// Interrupt
+				disturb_on_other();
+				// Message
+				if (blind || !see_m)
 				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_BUG, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_BUG);
+					monster_msg("%^s mumbles.", m_name);
 				}
-				if (blind && count) monster_msg("You hear many things appear nearby.");
-				break;
-			}
-
-			/* RF6_S_RNG */
-		case 160 + 14:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically codes some RNGs.", m_name);
-				for (int k = 0; k < 6; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_RNG, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_RNG);
-				}
-				if (blind && count) monster_msg("You hear many things appear nearby.");
-				break;
-			}
-
-
-			/* RF6_S_THUNDERLORD */
-		case 160 + 15:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons a Thunderlord!", m_name);
-				for (int k = 0; k < 1; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_THUNDERLORD, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_THUNDERLORD);
-				}
-				if (blind && count) monster_msg("You hear something appear nearby.");
-				break;
-			}
-
-			/* RF6_SUMMON_KIN */
-		case 160 + 16:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons %s %s.",
-					                 m_name, m_poss,
-					                 ((r_ptr->flags1) & RF1_UNIQUE ?
-					                  "minions" : "kin"));
-				summon_kin_type = r_ptr->d_char;  /* Big hack */
-				for (int k = 0; k < 6; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_KIN, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_KIN);
-				}
-				if (blind && count) monster_msg("You hear many things appear nearby.");
-
-
-				break;
-			}
-
-			/* RF6_S_HI_DEMON */
-		case 160 + 17:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons greater demons!", m_name);
-				if (blind && count) monster_msg("You hear heavy steps nearby.");
-				if (friendly)
-					summon_specific_friendly(y, x, rlev, SUMMON_HI_DEMON, TRUE);
 				else
-					summon_cyber();
-				break;
-			}
-
-			/* RF6_S_MONSTER */
-		case 160 + 18:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons help!", m_name);
-				for (int k = 0; k < 1; k++)
 				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_NO_UNIQUES, TRUE);
-					else
-						count += summon_specific(y, x, rlev, 0);
+					monster_msg("%^s magically summons special opponents!", m_name);
 				}
-				if (blind && count) monster_msg("You hear something appear nearby.");
-				break;
-			}
-
-			/* RF6_S_MONSTERS */
-		case 160 + 19:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons monsters!", m_name);
+				// Summon
+				int count = 0;
 				for (int k = 0; k < 8; k++)
 				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_NO_UNIQUES, TRUE);
-					else
-						count += summon_specific(y, x, rlev, 0);
-				}
-				if (blind && count) monster_msg("You hear many things appear nearby.");
-				break;
-			}
-
-			/* RF6_S_ANT */
-		case 160 + 20:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons ants.", m_name);
-				for (int k = 0; k < 6; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_ANT, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_ANT);
-				}
-				if (blind && count) monster_msg("You hear many things appear nearby.");
-				break;
-			}
-
-			/* RF6_S_SPIDER */
-		case 160 + 21:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons spiders.", m_name);
-				for (int k = 0; k < 6; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_SPIDER, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_SPIDER);
-				}
-				if (blind && count) monster_msg("You hear many things appear nearby.");
-				break;
-			}
-
-			/* RF6_S_HOUND */
-		case 160 + 22:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons hounds.", m_name);
-				for (int k = 0; k < 6; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_HOUND, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_HOUND);
-				}
-				if (blind && count) monster_msg("You hear many things appear nearby.");
-				break;
-			}
-
-			/* RF6_S_HYDRA */
-		case 160 + 23:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons hydras.", m_name);
-				for (int k = 0; k < 6; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_HYDRA, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_HYDRA);
-				}
-				if (blind && count) monster_msg("You hear many things appear nearby.");
-				break;
-			}
-
-			/* RF6_S_ANGEL */
-		case 160 + 24:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons an angel!", m_name);
-				for (int k = 0; k < 1; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_ANGEL, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_ANGEL);
-				}
-				if (blind && count) monster_msg("You hear something appear nearby.");
-				break;
-			}
-
-			/* RF6_S_DEMON */
-		case 160 + 25:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons a demon!", m_name);
-				for (int k = 0; k < 1; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_DEMON, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_DEMON);
-				}
-				if (blind && count) monster_msg("You hear something appear nearby.");
-				break;
-			}
-
-			/* RF6_S_UNDEAD */
-		case 160 + 26:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons an undead adversary!", m_name);
-				for (int k = 0; k < 1; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_UNDEAD, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_UNDEAD);
-				}
-				if (blind && count) monster_msg("You hear something appear nearby.");
-				break;
-			}
-
-			/* RF6_S_DRAGON */
-		case 160 + 27:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons a dragon!", m_name);
-				for (int k = 0; k < 1; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_DRAGON, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_DRAGON);
-				}
-				if (blind && count) monster_msg("You hear something appear nearby.");
-				break;
-			}
-
-			/* RF6_S_HI_UNDEAD */
-		case 160 + 28:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons greater undead!", m_name);
-				for (int k = 0; k < 8; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_HI_UNDEAD_NO_UNIQUES, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_HI_UNDEAD);
-				}
-				if (blind && count)
-				{
-					monster_msg("You hear many creepy things appear nearby.");
-				}
-				break;
-			}
-
-			/* RF6_S_HI_DRAGON */
-		case 160 + 29:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons ancient dragons!", m_name);
-				for (int k = 0; k < 8; k++)
-				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_HI_DRAGON_NO_UNIQUES, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_HI_DRAGON);
-				}
-				if (blind && count)
-				{
-					monster_msg("You hear many powerful things appear nearby.");
-				}
-				break;
-			}
-
-			/* RF6_S_WRAITH */
-		case 160 + 30:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons a wraith!", m_name);
-
-
-				for (int k = 0; k < 8; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_WRAITH);
-				}
-
-				if (blind && count)
-				{
-					monster_msg("You hear immortal beings appear nearby.");
-				}
-				break;
-			}
-
-			/* RF6_S_UNIQUE */
-		case 160 + 31:
-			{
-				if (disturb_other) disturb(1);
-				if (blind || !see_m) monster_msg("%^s mumbles.", m_name);
-				else monster_msg("%^s magically summons special opponents!", m_name);
-				for (int k = 0; k < 8; k++)
-				{
-					if (!friendly)
-						count += summon_specific(y, x, rlev, SUMMON_UNIQUE);
+					count += summon_specific(m_ptr->fy, m_ptr->fx, rlev, SUMMON_UNIQUE);
 				}
 				for (int k = 0; k < 8; k++)
 				{
-					if (friendly)
-						count += summon_specific_friendly(y, x, rlev, SUMMON_HI_UNDEAD_NO_UNIQUES, TRUE);
-					else
-						count += summon_specific(y, x, rlev, SUMMON_HI_UNDEAD);
+					count += summon_specific(m_ptr->fy, m_ptr->fx, rlev, SUMMON_HI_UNDEAD);
 				}
-				if (blind && count)
+				// Message
+				if (blind)
 				{
-					monster_msg("You hear many powerful things appear nearby.");
+					if (count == 1)
+					{
+						monster_msg("You hear a powerful thing appear nearby.");
+					}
+					else if (count > 1)
+					{
+						monster_msg("You hear many powerful things appear nearby.");
+					}
 				}
 				break;
 			}
@@ -2710,39 +2314,6 @@ static bool_ monst_spell_monst(int m_idx)
 		if (wake_up)
 		{
 			t_ptr->csleep = 0;
-		}
-
-
-		/* Remember what the monster did, if we saw it */
-		if (seen)
-		{
-			/* Inate spell */
-			if (thrown_spell < 32*4)
-			{
-				r_ptr->r_flags4 |= (1L << (thrown_spell - 32 * 3));
-				if (r_ptr->r_cast_inate < MAX_UCHAR) r_ptr->r_cast_inate++;
-			}
-
-			/* Bolt or Ball */
-			else if (thrown_spell < 32*5)
-			{
-				r_ptr->r_flags5 |= (1L << (thrown_spell - 32 * 4));
-				if (r_ptr->r_cast_spell < MAX_UCHAR) r_ptr->r_cast_spell++;
-			}
-
-			/* Special spell */
-			else if (thrown_spell < 32*6)
-			{
-				r_ptr->r_flags6 |= (1L << (thrown_spell - 32 * 5));
-				if (r_ptr->r_cast_spell < MAX_UCHAR) r_ptr->r_cast_spell++;
-			}
-		}
-
-		/* Always take note of monsters that kill you ---
-		* even accidentally */
-		if (death && (r_ptr->r_deaths < MAX_SHORT))
-		{
-			r_ptr->r_deaths++;
 		}
 
 		/* A spell was cast */
@@ -2757,7 +2328,6 @@ static bool_ monst_spell_monst(int m_idx)
 void curse_equipment(int chance, int heavy_chance)
 {
 	bool_ changed = FALSE;
-	u32b o1, o2, o3, o4, esp, o5;
 	object_type * o_ptr =
 		&p_ptr->inventory[rand_range(INVEN_WIELD, INVEN_TOTAL - 1)];
 
@@ -2765,11 +2335,11 @@ void curse_equipment(int chance, int heavy_chance)
 
 	if (!(o_ptr->k_idx)) return;
 
-	object_flags(o_ptr, &o1, &o2, &o3, &o4, &o5, &esp);
+	auto const flags = object_flags(o_ptr);
 
 
 	/* Extra, biased saving throw for blessed items */
-	if ((o3 & (TR3_BLESSED)) && (randint(888) > chance))
+	if ((flags & TR_BLESSED) && (randint(888) > chance))
 	{
 		char o_name[256];
 		object_desc(o_name, o_ptr, FALSE, 0);
@@ -2780,31 +2350,28 @@ void curse_equipment(int chance, int heavy_chance)
 	}
 
 	if ((randint(100) <= heavy_chance) &&
-	                (o_ptr->name1 || o_ptr->name2 || o_ptr->art_name))
+	    (o_ptr->name1 || o_ptr->name2 || (!o_ptr->artifact_name.empty())))
 	{
-		if (!(o3 & TR3_HEAVY_CURSE))
+		if (!(flags & TR_HEAVY_CURSE))
 			changed = TRUE;
-		o_ptr->art_flags3 |= TR3_HEAVY_CURSE;
-		o_ptr->art_flags3 |= TR3_CURSED;
+		o_ptr->art_flags |= TR_HEAVY_CURSE;
+		o_ptr->art_flags |= TR_CURSED;
 		o_ptr->ident |= IDENT_CURSED;
 	}
 	else
 	{
-		if (!(o_ptr->ident & (IDENT_CURSED)))
+		if (!(o_ptr->ident & IDENT_CURSED))
 			changed = TRUE;
-		o_ptr->art_flags3 |= TR3_CURSED;
+		o_ptr->art_flags |= TR_CURSED;
 		o_ptr->ident |= IDENT_CURSED;
 	}
 
 	if (changed)
 	{
 		msg_print("There is a malignant black aura surrounding you...");
-		if (o_ptr->note)
+		if (o_ptr->inscription == "uncursed")
 		{
-			if (streq(quark_str(o_ptr->note), "uncursed"))
-			{
-				o_ptr->note = 0;
-			}
+			o_ptr->inscription.clear();
 		}
 	}
 }
@@ -2813,7 +2380,7 @@ void curse_equipment(int chance, int heavy_chance)
 void curse_equipment_dg(int chance, int heavy_chance)
 {
 	bool_ changed = FALSE;
-	u32b o1, o2, o3, o4, esp, o5;
+
 	object_type * o_ptr =
 		&p_ptr->inventory[rand_range(INVEN_WIELD, INVEN_TOTAL - 1)];
 
@@ -2821,49 +2388,44 @@ void curse_equipment_dg(int chance, int heavy_chance)
 
 	if (!(o_ptr->k_idx)) return;
 
-	object_flags(o_ptr, &o1, &o2, &o3, &o4, &o5, &esp);
+	auto const flags = object_flags(o_ptr);
 
 
 	/* Extra, biased saving throw for blessed items */
-	if ((o3 & (TR3_BLESSED)) && (randint(888) > chance))
+	if ((flags & TR_BLESSED) && (randint(888) > chance))
 	{
 		char o_name[256];
 		object_desc(o_name, o_ptr, FALSE, 0);
 		msg_format("Your %s resist%s cursing!", o_name,
 		           ((o_ptr->number > 1) ? "" : "s"));
-		/* Hmmm -- can we wear multiple items? If not, this is unnecessary */
-		/* DG -- Yes we can, in the quiver */
 		return;
 	}
 
 	if ((randint(100) <= heavy_chance) &&
-	                (o_ptr->name1 || o_ptr->name2 || o_ptr->art_name))
+	    (o_ptr->name1 || o_ptr->name2 || (!o_ptr->artifact_name.empty())))
 	{
-		if (!(o3 & TR3_HEAVY_CURSE))
+		if (!(flags & TR_HEAVY_CURSE))
 			changed = TRUE;
-		o_ptr->art_flags3 |= TR3_HEAVY_CURSE;
-		o_ptr->art_flags3 |= TR3_CURSED;
-		o_ptr->art_flags4 |= TR4_DG_CURSE;
+		o_ptr->art_flags |= TR_HEAVY_CURSE;
+		o_ptr->art_flags |= TR_CURSED;
+		o_ptr->art_flags |= TR_DG_CURSE;
 		o_ptr->ident |= IDENT_CURSED;
 	}
 	else
 	{
-		if (!(o_ptr->ident & (IDENT_CURSED)))
+		if (!(o_ptr->ident & IDENT_CURSED))
 			changed = TRUE;
-		o_ptr->art_flags3 |= TR3_CURSED;
-		o_ptr->art_flags4 |= TR4_DG_CURSE;
+		o_ptr->art_flags |= TR_CURSED;
+		o_ptr->art_flags |= TR_DG_CURSE;
 		o_ptr->ident |= IDENT_CURSED;
 	}
 
 	if (changed)
 	{
 		msg_print("There is a malignant black aura surrounding you...");
-		if (o_ptr->note)
+		if (o_ptr->inscription == "uncursed")
 		{
-			if (streq(quark_str(o_ptr->note), "uncursed"))
-			{
-				o_ptr->note = 0;
-			}
+			o_ptr->inscription.clear();
 		}
 	}
 }
@@ -2911,15 +2473,14 @@ void curse_equipment_dg(int chance, int heavy_chance)
  */
 static bool_ make_attack_spell(int m_idx)
 {
-	int k, chance, thrown_spell, rlev, failrate;
-	byte spell[96], num = 0;
-	u32b f4, f5, f6;
+	static const auto SF_BOLT_MASK = compute_bolt_mask();
+	static const auto SF_SUMMON_MASK = compute_summoning_mask();
+	static const auto SF_INT_MASK = compute_smart_mask();
+	static const auto SF_INNATE_MASK = compute_innate_mask();
+
+	int chance, rlev, failrate;
 	char m_name[80];
 	bool_ no_inate = FALSE;
-	int x, y;
-
-	/* Summon count */
-	int count = 0;
 
 	/* Extract the blind-ness */
 	bool_ blind = (p_ptr->blind ? TRUE : FALSE);
@@ -2930,23 +2491,13 @@ static bool_ make_attack_spell(int m_idx)
 	/* Extract the "see-able-ness" */
 	bool_ seen = (!blind && m_ptr->ml);
 
-	/* Assume "normal" target */
-	bool_ normal = TRUE;
-
 	/* Target location */
-	if (m_ptr->target > -1)
+	if (m_ptr->target != 0)
 	{
-		if (!m_ptr->target)
-		{
-			y = p_ptr->py;
-			x = p_ptr->px;
-		}
-		else
-		{
-			return (FALSE);
-		}
+		return FALSE;
 	}
-	else return FALSE;
+	int y = p_ptr->py;
+	int x = p_ptr->px;
 
 	/* Cannot cast spells when confused */
 	if (m_ptr->confused) return (FALSE);
@@ -2957,7 +2508,7 @@ static bool_ make_attack_spell(int m_idx)
 
 	/* Cannot attack the player if mortal and player fated to never die by the ... */
 	auto const r_ptr = m_ptr->race();
-	if ((r_ptr->flags7 & RF7_MORTAL) && (p_ptr->no_mortal)) return (FALSE);
+	if ((r_ptr->flags & RF_MORTAL) && (p_ptr->no_mortal)) return (FALSE);
 
 	/* Hack -- Extract the spell probability */
 	chance = (r_ptr->freq_inate + r_ptr->freq_spell) / 2;
@@ -2971,8 +2522,7 @@ static bool_ make_attack_spell(int m_idx)
 	/* Sometimes forbid inate attacks (breaths) */
 	if (rand_int(100) >= (chance * 2)) no_inate = TRUE;
 
-	/* Hack -- require projectable player */
-	if (normal)
+	/* Require projectable player */
 	{
 		/* Check range */
 		if (m_ptr->cdis > MAX_RANGE) return (FALSE);
@@ -2985,80 +2535,58 @@ static bool_ make_attack_spell(int m_idx)
 	rlev = ((m_ptr->level >= 1) ? m_ptr->level : 1);
 
 	/* Extract the racial spell flags */
-	f4 = r_ptr->flags4;
-	f5 = r_ptr->flags5;
-	f6 = r_ptr->flags6;
+	monster_spell_flag_set allowed_spells = r_ptr->spells;
 
 	/* Forbid inate attacks sometimes */
-	if (no_inate) f4 = 0L;
+	if (no_inate)
+	{
+		allowed_spells &= ~SF_INNATE_MASK;
+	}
 
 	/* Hack -- allow "desperate" spells */
-	if ((r_ptr->flags2 & (RF2_SMART)) &&
+	if ((r_ptr->flags & RF_SMART) &&
 	                (m_ptr->hp < m_ptr->maxhp / 10) &&
 	                (rand_int(100) < 50))
 	{
 		/* Require intelligent spells */
-		f4 &= (RF4_INT_MASK);
-		f5 &= (RF5_INT_MASK);
-		f6 &= (RF6_INT_MASK);
+		allowed_spells &= SF_INT_MASK;
 
-		/* No spells left */
-		if (!f4 && !f5 && !f6) return (FALSE);
+		/* No spells left? */
+		if (!allowed_spells) return (FALSE);
 	}
 
 	/* Remove the "ineffective" spells */
-	remove_bad_spells(m_idx, &f4, &f5, &f6);
+	remove_bad_spells(m_idx, &allowed_spells);
 
 	/* No spells left */
-	if (!f4 && !f5 && !f6) return (FALSE);
+	if (!allowed_spells) return (FALSE);
 
 	/* Check for a clean bolt shot */
-	if ((f4&(RF4_BOLT_MASK) || f5 & (RF5_BOLT_MASK) ||
-	     f6&(RF6_BOLT_MASK)) &&
-	    !(r_ptr->flags2 & (RF2_STUPID)) &&
+	if ((allowed_spells & SF_BOLT_MASK) &&
+	    !(r_ptr->flags & RF_STUPID) &&
 	    !clean_shot(m_ptr->fy, m_ptr->fx, y, x))
 	{
 		/* Remove spells that will only hurt friends */
-		f4 &= ~(RF4_BOLT_MASK);
-		f5 &= ~(RF5_BOLT_MASK);
-		f6 &= ~(RF6_BOLT_MASK);
+		allowed_spells &= ~SF_BOLT_MASK;
 	}
 
 	/* Check for a possible summon */
-	if ((f4 & (RF4_SUMMON_MASK) || f5 & (RF5_SUMMON_MASK) ||
-	     f6 & (RF6_SUMMON_MASK)) &&
-	    !(r_ptr->flags2 & (RF2_STUPID)) &&
+	if ((allowed_spells & SF_SUMMON_MASK) &&
+	    !(r_ptr->flags & RF_STUPID) &&
 	    !(summon_possible(y, x)))
 	{
 		/* Remove summoning spells */
-		f4 &= ~(RF4_SUMMON_MASK);
-		f5 &= ~(RF5_SUMMON_MASK);
-		f6 &= ~(RF6_SUMMON_MASK);
+		allowed_spells &= ~SF_SUMMON_MASK;
 	}
 
 	/* No spells left */
-	if (!f4 && !f5 && !f6) return (FALSE);
+	if (!allowed_spells) return (FALSE);
 
 	/* Extract the "inate" spells */
-	for (k = 0; k < 32; k++)
-	{
-		if (f4 & (1L << k)) spell[num++] = k + 32 * 3;
-	}
-
-	/* Extract the "normal" spells */
-	for (k = 0; k < 32; k++)
-	{
-		if (f5 & (1L << k)) spell[num++] = k + 32 * 4;
-	}
-
-	/* Extract the "bizarre" spells */
-	for (k = 0; k < 32; k++)
-	{
-		if (f6 & (1L << k)) spell[num++] = k + 32 * 5;
-	}
+	auto spell = extract_spells(allowed_spells);
 
 	/* No spells left */
-	if (!num) return (FALSE);
+	if (spell.empty()) return (FALSE);
 
 	/* Stop if player is dead or gone */
 	if (!alive || death) return (FALSE);
@@ -3070,7 +2598,7 @@ static bool_ make_attack_spell(int m_idx)
 	monster_desc(m_name, m_ptr, 0x00);
 
 	/* Choose a spell to cast */
-	thrown_spell = choose_attack_spell(m_idx, spell, num);
+	auto thrown_spell = choose_attack_spell(m_idx, spell);
 
 	/* Abort if no spell was chosen */
 	if (!thrown_spell) return (FALSE);
@@ -3079,10 +2607,10 @@ static bool_ make_attack_spell(int m_idx)
 	failrate = 25 - (rlev + 3) / 4;
 
 	/* Hack -- Stupid monsters will never fail (for jellies and such) */
-	if (r_ptr->flags2 & (RF2_STUPID)) failrate = 0;
+	if (r_ptr->flags & RF_STUPID) failrate = 0;
 
 	/* Check for spell failure (inate attacks never fail) */
-	if ((thrown_spell >= 128) && (rand_int(100) < failrate))
+	if ((!thrown_spell->is_innate) && (rand_int(100) < failrate))
 	{
 		/* Message */
 		msg_format("%^s tries to cast a spell, but fails.", m_name);
@@ -3091,7 +2619,7 @@ static bool_ make_attack_spell(int m_idx)
 	}
 
 	/* Can the player disrupt its puny attempts? */
-	if ((p_ptr->antimagic_dis >= m_ptr->cdis) && (magik(p_ptr->antimagic)) && (thrown_spell >= 128))
+	if ((p_ptr->antimagic_dis >= m_ptr->cdis) && magik(p_ptr->antimagic) && thrown_spell->is_magic)
 	{
 		char m_poss[80];
 
@@ -3111,42 +2639,89 @@ static bool_ make_attack_spell(int m_idx)
 		/* Hack -- Get the "died from" name */
 		monster_desc(ddesc, m_ptr, 0x88);
 
-		/* Cast the spell. */
-		switch (thrown_spell)
-		{
-			/* RF4_SHRIEK */
-		case 96 + 0:
+		/* Do a breath */
+		auto do_breath = [&](char const *element, int gf, s32b max, int divisor, int smart_learn) -> void {
+			// Interrupt
+			disturb();
+			// Message
+			if (blind)
 			{
-				disturb(1);
+				msg_format("%^s breathes.", m_name);
+			}
+			else
+			{
+				msg_format("%^s breathes %s.", m_name, element);
+			}
+			// Breathe
+			breath(m_idx, gf, std::min(m_ptr->hp / divisor, max), 0);
+			// Update "smart" monster knowledge
+			update_smart_learn(m_idx, smart_learn);
+		};
+
+		/* Messages for summoning */
+		struct summon_messages {
+			char const *singular;
+			char const *plural;
+		};
+
+		/* Default message for summoning when player is blinded */
+		summon_messages blind_msg_default {
+			"You hear something appear nearby.",
+			"You hear many things appear nearby."
+		};
+
+		/* Do a summoning spell */
+		auto do_summon = [&](char const *action, int n, int type, summon_messages const &blind_msg) -> void {
+			// Interrupt
+			disturb();
+			// Message
+			if (blind)
+			{
+				msg_format("%^s mumbles.", m_name);
+			}
+			else
+			{
+				msg_format("%^s magically %s", m_name, action);
+			}
+			// Do the actual summoning
+			int count = 0;
+			for (int k = 0; k < n; k++)
+			{
+				count += summon_specific(m_ptr->fy, m_ptr->fx, rlev, type);
+			}
+			// Message for blinded characters
+			if (blind)
+			{
+				if (count == 1)
+				{
+					msg_print(blind_msg.singular);
+				}
+				else if (count > 1)
+				{
+					msg_print(blind_msg.plural);
+				}
+			}
+		};
+
+		/* Cast the spell. */
+		switch (thrown_spell->spell_idx)
+		{
+		case SF_SHRIEK_IDX:
+			{
+				disturb();
 				msg_format("%^s makes a high pitched shriek.", m_name);
 				aggravate_monsters(m_idx);
 				break;
 			}
 
-			/* RF4_MULTIPLY */
-		case 96 + 1:
+		case SF_MULTIPLY_IDX:
 			{
 				break;
 			}
 
-			/* RF4_S_ANIMAL */
-		case 96 + 2:
+		case SF_ROCKET_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons an animal!", m_name);
-				for (k = 0; k < 1; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_ANIMAL);
-				}
-				if (blind && count) msg_print("You hear something appear nearby.");
-				break;
-			}
-
-			/* RF4_ROCKET */
-		case 96 + 3:
-			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s shoots something.", m_name);
 				else msg_format("%^s fires a rocket.", m_name);
 				breath(m_idx, GF_ROCKET,
@@ -3155,10 +2730,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF4_ARROW_1 */
-		case 96 + 4:
+		case SF_ARROW_1_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s makes a strange noise.", m_name);
 				else msg_format("%^s fires an arrow.", m_name);
 				bolt(m_idx, GF_ARROW, damroll(1, 6));
@@ -3166,10 +2740,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF4_ARROW_2 */
-		case 96 + 5:
+		case SF_ARROW_2_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s makes a strange noise.", m_name);
 				else msg_format("%^s fires an arrow!", m_name);
 				bolt(m_idx, GF_ARROW, damroll(3, 6));
@@ -3177,10 +2750,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF4_ARROW_3 */
-		case 96 + 6:
+		case SF_ARROW_3_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s makes a strange noise.", m_name);
 				else msg_format("%^s fires a missile.", m_name);
 				bolt(m_idx, GF_ARROW, damroll(5, 6));
@@ -3188,10 +2760,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF4_ARROW_4 */
-		case 96 + 7:
+		case SF_ARROW_4_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s makes a strange noise.", m_name);
 				else msg_format("%^s fires a missile!", m_name);
 				bolt(m_idx, GF_ARROW, damroll(7, 6));
@@ -3199,245 +2770,129 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF4_BR_ACID */
-		case 96 + 8:
+		case SF_BR_ACID_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes acid.", m_name);
-				breath(m_idx, GF_ACID,
-				       ((m_ptr->hp / 3) > 1600 ? 1600 : (m_ptr->hp / 3)), 0);
-				update_smart_learn(m_idx, DRS_ACID);
+			        do_breath("acid", GF_ACID, 1600, 3, DRS_ACID);
 				break;
 			}
 
-			/* RF4_BR_ELEC */
-		case 96 + 9:
+		case SF_BR_ELEC_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes lightning.", m_name);
-				breath(m_idx, GF_ELEC,
-				       ((m_ptr->hp / 3) > 1600 ? 1600 : (m_ptr->hp / 3)), 0);
-				update_smart_learn(m_idx, DRS_ELEC);
+			        do_breath("lightning", GF_ELEC, 1600, 3, DRS_ELEC);
 				break;
 			}
 
-			/* RF4_BR_FIRE */
-		case 96 + 10:
+		case SF_BR_FIRE_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes fire.", m_name);
-				breath(m_idx, GF_FIRE,
-				       ((m_ptr->hp / 3) > 1600 ? 1600 : (m_ptr->hp / 3)), 0);
-				update_smart_learn(m_idx, DRS_FIRE);
+			        do_breath("fire", GF_FIRE, 1600, 3, DRS_FIRE);
 				break;
 			}
 
-			/* RF4_BR_COLD */
-		case 96 + 11:
+		case SF_BR_COLD_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes frost.", m_name);
-				breath(m_idx, GF_COLD,
-				       ((m_ptr->hp / 3) > 1600 ? 1600 : (m_ptr->hp / 3)), 0);
-				update_smart_learn(m_idx, DRS_COLD);
+			        do_breath("frost", GF_COLD, 1600, 3, DRS_COLD);
 				break;
 			}
 
-			/* RF4_BR_POIS */
-		case 96 + 12:
+		case SF_BR_POIS_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes gas.", m_name);
-				breath(m_idx, GF_POIS,
-				       ((m_ptr->hp / 3) > 800 ? 800 : (m_ptr->hp / 3)), 0);
-				update_smart_learn(m_idx, DRS_POIS);
+			        do_breath("gas", GF_POIS, 800, 3, DRS_POIS);
 				break;
 			}
 
-
-			/* RF4_BR_NETH */
-		case 96 + 13:
+		case SF_BR_NETH_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes nether.", m_name);
-				breath(m_idx, GF_NETHER,
-				       ((m_ptr->hp / 6) > 550 ? 550 : (m_ptr->hp / 6)), 0);
-				update_smart_learn(m_idx, DRS_NETH);
+			        do_breath("nether", GF_NETHER, 550, 6, DRS_NETH);
 				break;
 			}
 
-			/* RF4_BR_LITE */
-		case 96 + 14:
+		case SF_BR_LITE_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes light.", m_name);
-				breath(m_idx, GF_LITE,
-				       ((m_ptr->hp / 6) > 400 ? 400 : (m_ptr->hp / 6)), 0);
-				update_smart_learn(m_idx, DRS_LITE);
+			        do_breath("light", GF_LITE, 400, 6, DRS_LITE);
 				break;
 			}
 
-			/* RF4_BR_DARK */
-		case 96 + 15:
+		case SF_BR_DARK_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes darkness.", m_name);
-				breath(m_idx, GF_DARK,
-				       ((m_ptr->hp / 6) > 400 ? 400 : (m_ptr->hp / 6)), 0);
-				update_smart_learn(m_idx, DRS_DARK);
+			        do_breath("darkness", GF_DARK, 400, 6, DRS_DARK);
 				break;
 			}
 
-			/* RF4_BR_CONF */
-		case 96 + 16:
+		case SF_BR_CONF_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes confusion.", m_name);
-				breath(m_idx, GF_CONFUSION,
-				       ((m_ptr->hp / 6) > 400 ? 400 : (m_ptr->hp / 6)), 0);
-				update_smart_learn(m_idx, DRS_CONF);
+			        do_breath("confusion", GF_CONFUSION, 400, 6, DRS_CONF);
 				break;
 			}
 
-			/* RF4_BR_SOUN */
-		case 96 + 17:
+		case SF_BR_SOUN_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes sound.", m_name);
-				breath(m_idx, GF_SOUND,
-				       ((m_ptr->hp / 6) > 400 ? 400 : (m_ptr->hp / 6)), 0);
-				update_smart_learn(m_idx, DRS_SOUND);
+			        do_breath("sound", GF_SOUND, 400, 6, DRS_SOUND);
 				break;
 			}
 
-			/* RF4_BR_CHAO */
-		case 96 + 18:
+		case SF_BR_CHAO_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes chaos.", m_name);
-				breath(m_idx, GF_CHAOS,
-				       ((m_ptr->hp / 6) > 600 ? 600 : (m_ptr->hp / 6)), 0);
-				update_smart_learn(m_idx, DRS_CHAOS);
+			        do_breath("chaos", GF_CHAOS, 600, 6, DRS_CHAOS);
 				break;
 			}
 
-			/* RF4_BR_DISE */
-		case 96 + 19:
+		case SF_BR_DISE_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes disenchantment.", m_name);
-				breath(m_idx, GF_DISENCHANT,
-				       ((m_ptr->hp / 6) > 500 ? 500 : (m_ptr->hp / 6)), 0);
-				update_smart_learn(m_idx, DRS_DISEN);
+			        do_breath("disenchantment", GF_DISENCHANT, 500, 6, DRS_DISEN);
 				break;
 			}
 
-			/* RF4_BR_NEXU */
-		case 96 + 20:
+		case SF_BR_NEXU_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes nexus.", m_name);
-				breath(m_idx, GF_NEXUS,
-				       ((m_ptr->hp / 3) > 250 ? 250 : (m_ptr->hp / 3)), 0);
-				update_smart_learn(m_idx, DRS_NEXUS);
+			        do_breath("nexus", GF_NEXUS, 250, 3, DRS_NEXUS);
 				break;
 			}
 
-			/* RF4_BR_TIME */
-		case 96 + 21:
+		case SF_BR_TIME_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes time.", m_name);
-				breath(m_idx, GF_TIME,
-				       ((m_ptr->hp / 3) > 150 ? 150 : (m_ptr->hp / 3)), 0);
+			        do_breath("time", GF_TIME, 150, 3, DRS_NONE);
 				break;
 			}
 
-			/* RF4_BR_INER */
-		case 96 + 22:
+		case SF_BR_INER_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes inertia.", m_name);
-				breath(m_idx, GF_INERTIA,
-				       ((m_ptr->hp / 6) > 200 ? 200 : (m_ptr->hp / 6)), 0);
+			        do_breath("inertia", GF_INERTIA, 200, 6, DRS_NONE);
 				break;
 			}
 
-			/* RF4_BR_GRAV */
-		case 96 + 23:
+		case SF_BR_GRAV_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes gravity.", m_name);
-				breath(m_idx, GF_GRAVITY,
-				       ((m_ptr->hp / 3) > 200 ? 200 : (m_ptr->hp / 3)), 0);
+			        do_breath("gravity", GF_GRAVITY, 200, 3, DRS_NONE);
 				break;
 			}
 
-			/* RF4_BR_SHAR */
-		case 96 + 24:
+		case SF_BR_SHAR_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes shards.", m_name);
-				breath(m_idx, GF_SHARDS,
-				       ((m_ptr->hp / 6) > 400 ? 400 : (m_ptr->hp / 6)), 0);
-				update_smart_learn(m_idx, DRS_SHARD);
+			        do_breath("shards", GF_SHARDS, 400, 6, DRS_SHARD);
 				break;
 			}
 
-			/* RF4_BR_PLAS */
-		case 96 + 25:
+		case SF_BR_PLAS_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes plasma.", m_name);
-				breath(m_idx, GF_PLASMA,
-				       ((m_ptr->hp / 6) > 150 ? 150 : (m_ptr->hp / 6)), 0);
+			        do_breath("plasma", GF_PLASMA, 150, 6, DRS_NONE);
 				break;
 			}
 
-			/* RF4_BR_WALL */
-		case 96 + 26:
+		case SF_BR_WALL_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes force.", m_name);
-				breath(m_idx, GF_FORCE,
-				       ((m_ptr->hp / 6) > 200 ? 200 : (m_ptr->hp / 6)), 0);
+			        do_breath("force", GF_FORCE, 200, 6, DRS_NONE);
 				break;
 			}
 
-			/* RF4_BR_MANA */
-		case 96 + 27:
+		case SF_BR_MANA_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes magical energy.", m_name);
-				breath(m_idx, GF_MANA,
-				       ((m_ptr->hp / 3) > 250 ? 250 : (m_ptr->hp / 3)), 0);
+			        do_breath("magical energy", GF_MANA, 250, 3, DRS_NONE);
 				break;
 			}
 
-			/* RF4_BA_NUKE */
-		case 96 + 28:
+		case SF_BA_NUKE_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a ball of radiation.", m_name);
 				breath(m_idx, GF_NUKE, (rlev + damroll(10, 6)), 2);
@@ -3445,22 +2900,15 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF4_BR_NUKE */
-		case 96 + 29:
+		case SF_BR_NUKE_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes toxic waste.", m_name);
-				breath(m_idx, GF_NUKE,
-				       ((m_ptr->hp / 3) > 800 ? 800 : (m_ptr->hp / 3)), 0);
-				update_smart_learn(m_idx, DRS_POIS);
+			        do_breath("toxic waste", GF_NUKE, 800, 3, DRS_POIS);
 				break;
 			}
 
-			/* RF4_BA_CHAO */
-		case 96 + 30:
+		case SF_BA_CHAO_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles frighteningly.", m_name);
 				else msg_format("%^s invokes a raw chaos.", m_name);
 				breath(m_idx, GF_CHAOS, (rlev * 2) + damroll(10, 10), 4);
@@ -3468,23 +2916,15 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF4_BR_DISI -> Disintegration breath! */
-		case 96 + 31:
+		case SF_BR_DISI_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s breathes.", m_name);
-				else msg_format("%^s breathes disintegration.", m_name);
-				breath(m_idx, GF_DISINTEGRATE,
-				       ((m_ptr->hp / 3) > 300 ? 300 : (m_ptr->hp / 3)), 0);
+			        do_breath("disintegration", GF_DISINTEGRATE, 300, 3, DRS_NONE);
 				break;
 			}
 
-
-
-			/* RF5_BA_ACID */
-		case 128 + 0:
+		case SF_BA_ACID_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts an acid ball.", m_name);
 				breath(m_idx, GF_ACID,
@@ -3493,10 +2933,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_ELEC */
-		case 128 + 1:
+		case SF_BA_ELEC_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a lightning ball.", m_name);
 				breath(m_idx, GF_ELEC,
@@ -3505,10 +2944,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_FIRE */
-		case 128 + 2:
+		case SF_BA_FIRE_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a fire ball.", m_name);
 				breath(m_idx, GF_FIRE,
@@ -3517,10 +2955,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_COLD */
-		case 128 + 3:
+		case SF_BA_COLD_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a frost ball.", m_name);
 				breath(m_idx, GF_COLD,
@@ -3529,10 +2966,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_POIS */
-		case 128 + 4:
+		case SF_BA_POIS_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a stinking cloud.", m_name);
 				breath(m_idx, GF_POIS,
@@ -3541,10 +2977,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_NETH */
-		case 128 + 5:
+		case SF_BA_NETH_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a nether ball.", m_name);
 				breath(m_idx, GF_NETHER,
@@ -3553,10 +2988,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_WATE */
-		case 128 + 6:
+		case SF_BA_WATE_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s gestures fluidly.", m_name);
 				msg_print("You are engulfed in a whirlpool.");
@@ -3565,10 +2999,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_MANA */
-		case 128 + 7:
+		case SF_BA_MANA_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles powerfully.", m_name);
 				else msg_format("%^s invokes a mana storm.", m_name);
 				breath(m_idx, GF_MANA,
@@ -3576,10 +3009,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BA_DARK */
-		case 128 + 8:
+		case SF_BA_DARK_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles powerfully.", m_name);
 				else msg_format("%^s invokes a darkness storm.", m_name);
 				breath(m_idx, GF_DARK,
@@ -3588,15 +3020,14 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_DRAIN_MANA */
-		case 128 + 9:
+		case SF_DRAIN_MANA_IDX:
 			{
 				if (p_ptr->csp)
 				{
 					int r1;
 
 					/* Disturb if legal */
-					disturb(1);
+					disturb();
 
 					/* Basic message */
 					msg_format("%^s draws psychic energy from you!", m_name);
@@ -3645,10 +3076,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_MIND_BLAST */
-		case 128 + 10:
+		case SF_MIND_BLAST_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (!seen)
 				{
 					msg_print("You feel something focusing on your mind.");
@@ -3668,12 +3098,12 @@ static bool_ make_attack_spell(int m_idx)
 
 					if (!p_ptr->resist_conf)
 					{
-						(void)set_confused(p_ptr->confused + rand_int(4) + 4);
+						set_confused(p_ptr->confused + rand_int(4) + 4);
 					}
 
 					if ((!p_ptr->resist_chaos) && (randint(3) == 1))
 					{
-						(void) set_image(p_ptr->image + rand_int(250) + 150);
+						set_image(p_ptr->image + rand_int(250) + 150);
 					}
 
 					take_sanity_hit(damroll(8, 8), ddesc);
@@ -3681,10 +3111,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BRAIN_SMASH */
-		case 128 + 11:
+		case SF_BRAIN_SMASH_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (!seen)
 				{
 					msg_print("You feel something focusing on your mind.");
@@ -3704,35 +3133,34 @@ static bool_ make_attack_spell(int m_idx)
 					take_sanity_hit(damroll(12, 15), ddesc);
 					if (!p_ptr->resist_blind)
 					{
-						(void)set_blind(p_ptr->blind + 8 + rand_int(8));
+						set_blind(p_ptr->blind + 8 + rand_int(8));
 					}
 					if (!p_ptr->resist_conf)
 					{
-						(void)set_confused(p_ptr->confused + rand_int(4) + 4);
+						set_confused(p_ptr->confused + rand_int(4) + 4);
 					}
 					if (!p_ptr->free_act)
 					{
-						(void)set_paralyzed(rand_int(4) + 4);
+						set_paralyzed(rand_int(4) + 4);
 					}
-					(void)set_slow(p_ptr->slow + rand_int(4) + 4);
+					set_slow(p_ptr->slow + rand_int(4) + 4);
 
 					while (rand_int(100) > p_ptr->skill_sav)
-						(void)do_dec_stat(A_INT, STAT_DEC_NORMAL);
+						do_dec_stat(A_INT, STAT_DEC_NORMAL);
 					while (rand_int(100) > p_ptr->skill_sav)
-						(void)do_dec_stat(A_WIS, STAT_DEC_NORMAL);
+						do_dec_stat(A_WIS, STAT_DEC_NORMAL);
 
 					if (!p_ptr->resist_chaos)
 					{
-						(void) set_image(p_ptr->image + rand_int(250) + 150);
+						set_image(p_ptr->image + rand_int(250) + 150);
 					}
 				}
 				break;
 			}
 
-			/* RF5_CAUSE_1 */
-		case 128 + 12:
+		case SF_CAUSE_1_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s points at you and curses.", m_name);
 				if (rand_int(100) < p_ptr->skill_sav)
@@ -3747,10 +3175,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_CAUSE_2 */
-		case 128 + 13:
+		case SF_CAUSE_2_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s points at you and curses horribly.", m_name);
 				if (rand_int(100) < p_ptr->skill_sav)
@@ -3765,10 +3192,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_CAUSE_3 */
-		case 128 + 14:
+		case SF_CAUSE_3_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles loudly.", m_name);
 				else msg_format("%^s points at you, incanting terribly!", m_name);
 				if (rand_int(100) < p_ptr->skill_sav)
@@ -3783,10 +3209,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_CAUSE_4 */
-		case 128 + 15:
+		case SF_CAUSE_4_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s screams the word 'DIE!'", m_name);
 				else msg_format("%^s points at you, screaming the word DIE!", m_name);
 				if (rand_int(100) < p_ptr->skill_sav)
@@ -3796,15 +3221,14 @@ static bool_ make_attack_spell(int m_idx)
 				else
 				{
 					take_hit(damroll(15, 15), ddesc);
-					(void)set_cut(p_ptr->cut + damroll(10, 10));
+					set_cut(p_ptr->cut + damroll(10, 10));
 				}
 				break;
 			}
 
-			/* RF5_BO_ACID */
-		case 128 + 16:
+		case SF_BO_ACID_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a acid bolt.", m_name);
 				bolt(m_idx, GF_ACID, damroll(7, 8) + (rlev / 3));
@@ -3813,10 +3237,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_ELEC */
-		case 128 + 17:
+		case SF_BO_ELEC_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a lightning bolt.", m_name);
 				bolt(m_idx, GF_ELEC, damroll(4, 8) + (rlev / 3));
@@ -3825,10 +3248,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_FIRE */
-		case 128 + 18:
+		case SF_BO_FIRE_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a fire bolt.", m_name);
 				bolt(m_idx, GF_FIRE, damroll(9, 8) + (rlev / 3));
@@ -3837,10 +3259,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_COLD */
-		case 128 + 19:
+		case SF_BO_COLD_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a frost bolt.", m_name);
 				bolt(m_idx, GF_COLD, damroll(6, 8) + (rlev / 3));
@@ -3849,17 +3270,15 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_POIS */
-		case 128 + 20:
+		case SF_BO_POIS_IDX:
 			{
 				/* XXX XXX XXX */
 				break;
 			}
 
-			/* RF5_BO_NETH */
-		case 128 + 21:
+		case SF_BO_NETH_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a nether bolt.", m_name);
 				bolt(m_idx, GF_NETHER, 30 + damroll(5, 5) + (rlev * 3) / 2);
@@ -3868,10 +3287,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_WATE */
-		case 128 + 22:
+		case SF_BO_WATE_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a water bolt.", m_name);
 				bolt(m_idx, GF_WATER, damroll(10, 10) + (rlev));
@@ -3879,10 +3297,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_MANA */
-		case 128 + 23:
+		case SF_BO_MANA_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a mana bolt.", m_name);
 				bolt(m_idx, GF_MANA, randint(rlev * 7 / 2) + 50);
@@ -3890,10 +3307,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_PLAS */
-		case 128 + 24:
+		case SF_BO_PLAS_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a plasma bolt.", m_name);
 				bolt(m_idx, GF_PLASMA, 10 + damroll(8, 7) + (rlev));
@@ -3901,10 +3317,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_BO_ICEE */
-		case 128 + 25:
+		case SF_BO_ICEE_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts an ice bolt.", m_name);
 				bolt(m_idx, GF_ICE, damroll(6, 6) + (rlev));
@@ -3913,10 +3328,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_MISSILE */
-		case 128 + 26:
+		case SF_MISSILE_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a magic missile.", m_name);
 				bolt(m_idx, GF_MISSILE, damroll(2, 6) + (rlev / 3));
@@ -3924,10 +3338,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF5_SCARE */
-		case 128 + 27:
+		case SF_SCARE_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles, and you hear scary noises.", m_name);
 				else msg_format("%^s casts a fearful illusion.", m_name);
 				if (p_ptr->resist_fear)
@@ -3940,16 +3353,15 @@ static bool_ make_attack_spell(int m_idx)
 				}
 				else
 				{
-					(void)set_afraid(p_ptr->afraid + rand_int(4) + 4);
+					set_afraid(p_ptr->afraid + rand_int(4) + 4);
 				}
 				update_smart_learn(m_idx, DRS_FEAR);
 				break;
 			}
 
-			/* RF5_BLIND */
-		case 128 + 28:
+		case SF_BLIND_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s casts a spell, burning your eyes!", m_name);
 				if (p_ptr->resist_blind)
@@ -3962,16 +3374,15 @@ static bool_ make_attack_spell(int m_idx)
 				}
 				else
 				{
-					(void)set_blind(12 + rand_int(4));
+					set_blind(12 + rand_int(4));
 				}
 				update_smart_learn(m_idx, DRS_BLIND);
 				break;
 			}
 
-			/* RF5_CONF */
-		case 128 + 29:
+		case SF_CONF_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles, and you hear puzzling noises.", m_name);
 				else msg_format("%^s creates a mesmerizing illusion.", m_name);
 				if (p_ptr->resist_conf)
@@ -3984,16 +3395,15 @@ static bool_ make_attack_spell(int m_idx)
 				}
 				else
 				{
-					(void)set_confused(p_ptr->confused + rand_int(4) + 4);
+					set_confused(p_ptr->confused + rand_int(4) + 4);
 				}
 				update_smart_learn(m_idx, DRS_CONF);
 				break;
 			}
 
-			/* RF5_SLOW */
-		case 128 + 30:
+		case SF_SLOW_IDX:
 			{
-				disturb(1);
+				disturb();
 				msg_format("%^s drains power from your muscles!", m_name);
 				if (p_ptr->free_act)
 				{
@@ -4005,16 +3415,15 @@ static bool_ make_attack_spell(int m_idx)
 				}
 				else
 				{
-					(void)set_slow(p_ptr->slow + rand_int(4) + 4);
+					set_slow(p_ptr->slow + rand_int(4) + 4);
 				}
 				update_smart_learn(m_idx, DRS_FREE);
 				break;
 			}
 
-			/* RF5_HOLD */
-		case 128 + 31:
+		case SF_HOLD_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s stares deep into your eyes!", m_name);
 				if (p_ptr->free_act)
@@ -4027,18 +3436,15 @@ static bool_ make_attack_spell(int m_idx)
 				}
 				else
 				{
-					(void)set_paralyzed(rand_int(4) + 4);
+					set_paralyzed(rand_int(4) + 4);
 				}
 				update_smart_learn(m_idx, DRS_FREE);
 				break;
 			}
 
-
-
-			/* RF6_HASTE */
-		case 160 + 0:
+		case SF_HASTE_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind)
 				{
 					msg_format("%^s mumbles.", m_name);
@@ -4065,10 +3471,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF6_HAND_DOOM */
-		case 160 + 1:
+		case SF_HAND_DOOM_IDX:
 			{
-				disturb(1);
+				disturb();
 				msg_format("%^s invokes the Hand of Doom!", m_name);
 				if (rand_int(100) < p_ptr->skill_sav)
 				{
@@ -4086,10 +3491,9 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF6_HEAL */
-		case 160 + 2:
+		case SF_HEAL_IDX:
 			{
-				disturb(1);
+				disturb();
 
 				/* Message */
 				if (blind)
@@ -4150,60 +3554,41 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF6_S_ANIMALS */
-		case 160 + 3:
+		case SF_BLINK_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons some animals!", m_name);
-				for (k = 0; k < 4; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_ANIMAL);
-				}
-				if (blind && count) msg_print("You hear something appear nearby.");
-				break;
-			}
-
-			/* RF6_BLINK */
-		case 160 + 4:
-			{
-				disturb(1);
+				disturb();
 				msg_format("%^s blinks away.", m_name);
 				teleport_away(m_idx, 10);
 				break;
 			}
 
-			/* RF6_TPORT */
-		case 160 + 5:
+		case SF_TPORT_IDX:
 			{
-				disturb(1);
+				disturb();
 				msg_format("%^s teleports away.", m_name);
 				teleport_away(m_idx, MAX_SIGHT * 2 + 5);
 				break;
 			}
 
-			/* RF6_TELE_TO */
-		case 160 + 6:
+		case SF_TELE_TO_IDX:
 			{
-				disturb(1);
+				disturb();
 				msg_format("%^s commands you to return.", m_name);
 				teleport_player_to(m_ptr->fy, m_ptr->fx);
 				break;
 			}
 
-			/* RF6_TELE_AWAY */
-		case 160 + 7:
+		case SF_TELE_AWAY_IDX:
 			{
-				disturb(1);
+				disturb();
 				msg_format("%^s teleports you away.", m_name);
 				teleport_player(100);
 				break;
 			}
 
-			/* RF6_TELE_LEVEL */
-		case 160 + 8:
+		case SF_TELE_LEVEL_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles strangely.", m_name);
 				else msg_format("%^s gestures at your feet.", m_name);
 				if (p_ptr->resist_nexus)
@@ -4222,30 +3607,18 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF6_DARKNESS */
-		case 160 + 9:
+		case SF_DARKNESS_IDX:
 			{
-				disturb(1);
+				disturb();
 				if (blind) msg_format("%^s mumbles.", m_name);
 				else msg_format("%^s gestures in shadow.", m_name);
-				(void)unlite_area(0, 3);
+				unlite_area(0, 3);
 				break;
 			}
 
-			/* RF6_TRAPS */
-		case 160 + 10:
+		case SF_FORGET_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles, and then cackles evilly.", m_name);
-				else msg_format("%^s casts a spell and cackles evilly.", m_name);
-				(void)trap_creation();
-				break;
-			}
-
-			/* RF6_FORGET */
-		case 160 + 11:
-			{
-				disturb(1);
+				disturb();
 				msg_format("%^s tries to blank your mind.", m_name);
 
 				if (rand_int(100) < p_ptr->skill_sav)
@@ -4259,330 +3632,185 @@ static bool_ make_attack_spell(int m_idx)
 				break;
 			}
 
-			/* RF6_ANIM_DEAD */
-		case 160 + 12:
-			break;
+		case SF_S_ANIMAL_IDX:
+		        {
+			        do_summon("summons an animal!", 1, SUMMON_ANIMAL, blind_msg_default);
+				break;
+		        }
 
-			/* RF6_S_BUG */
-		case 160 + 13:
+		case SF_S_ANIMALS_IDX:
+		        {
+			        do_summon("summons some animals!", 4, SUMMON_ANIMAL, blind_msg_default);
+				break;
+		        }
+
+		case SF_S_BUG_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically codes some software bugs.", m_name);
-				for (k = 0; k < 6; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_BUG);
-				}
-				if (blind && count) msg_print("You hear many things appear nearby.");
+			        do_summon("codes some software bugs.", 6, SUMMON_BUG, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_RNG */
-		case 160 + 14:
+		case SF_S_RNG_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically codes some RNGs.", m_name);
-				for (k = 0; k < 6; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_RNG);
-				}
-				if (blind && count) msg_print("You hear many things appear nearby.");
+			        do_summon("codes some RNGs.", 6, SUMMON_RNG, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_THUNDERLORD */
-		case 160 + 15:
+		case SF_S_THUNDERLORD_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons a Thunderlord!", m_name);
-				for (k = 0; k < 1; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_THUNDERLORD);
-				}
-				if (blind && count) msg_print("You hear something appear nearby.");
+			        do_summon("summons a Thunderlord!", 1, SUMMON_THUNDERLORD, blind_msg_default);
 				break;
 			}
 
-			/* RF6_SUMMON_KIN */
-		case 160 + 16:
+		case SF_S_KIN_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons %s %s.",
-					                m_name, m_poss,
-					                ((r_ptr->flags1) & RF1_UNIQUE ?
-					                 "minions" : "kin"));
-				summon_kin_type = r_ptr->d_char;  /* Big hack */
-
-				for (k = 0; k < 6; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_KIN);
-				}
-				if (blind && count) msg_print("You hear many things appear nearby.");
-
+			        // Describe the summons
+			        char action[256];
+				sprintf(action,
+				        "summons %s %s.",
+				        m_poss,
+				        (r_ptr->flags & RF_UNIQUE) ? "minions" : "kin");
+				// Force the correct type of "kin"
+				summon_kin_type = r_ptr->d_char;
+				// Summon
+				do_summon(action, 6, SUMMON_KIN, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_HI_DEMON */
-		case 160 + 17:
+		case SF_S_HI_DEMON_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons greater demons!", m_name);
-				if (blind && count) msg_print("You hear heavy steps nearby.");
-				summon_cyber();
+			        do_summon("summons greater demons!", 8, SUMMON_HI_DEMON, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_MONSTER */
-		case 160 + 18:
+		case SF_S_MONSTER_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons help!", m_name);
-				for (k = 0; k < 1; k++)
-				{
-					count += summon_specific(y, x, rlev, 0);
-				}
-				if (blind && count) msg_print("You hear something appear nearby.");
+			        do_summon("summons help!", 1, 0, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_MONSTERS */
-		case 160 + 19:
+		case SF_S_MONSTERS_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons monsters!", m_name);
-				for (k = 0; k < 8; k++)
-				{
-					count += summon_specific(y, x, rlev, 0);
-				}
-				if (blind && count) msg_print("You hear many things appear nearby.");
+			        do_summon("summons monsters!", 8, 0, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_ANT */
-		case 160 + 20:
+		case SF_S_ANT_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons ants.", m_name);
-				for (k = 0; k < 6; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_ANT);
-				}
-				if (blind && count) msg_print("You hear many things appear nearby.");
+			        do_summon("summons ants.", 6, SUMMON_ANT, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_SPIDER */
-		case 160 + 21:
+		case SF_S_SPIDER_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons spiders.", m_name);
-				for (k = 0; k < 6; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_SPIDER);
-				}
-				if (blind && count) msg_print("You hear many things appear nearby.");
+			        do_summon("summons spiders.", 6, SUMMON_SPIDER, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_HOUND */
-		case 160 + 22:
+		case SF_S_HOUND_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons hounds.", m_name);
-				for (k = 0; k < 6; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_HOUND);
-				}
-				if (blind && count) msg_print("You hear many things appear nearby.");
+			        do_summon("summons hounds.", 6, SUMMON_HOUND, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_HYDRA */
-		case 160 + 23:
+		case SF_S_HYDRA_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons hydras.", m_name);
-				for (k = 0; k < 6; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_HYDRA);
-				}
-				if (blind && count) msg_print("You hear many things appear nearby.");
+			        do_summon("summons hydras.", 6, SUMMON_HYDRA, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_ANGEL */
-		case 160 + 24:
+		case SF_S_ANGEL_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons an angel!", m_name);
-				for (k = 0; k < 1; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_ANGEL);
-				}
-				if (blind && count) msg_print("You hear something appear nearby.");
+			        do_summon("summons an angel!", 1, SUMMON_ANGEL, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_DEMON */
-		case 160 + 25:
+		case SF_S_DEMON_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons a demon!", m_name);
-				for (k = 0; k < 1; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_DEMON);
-				}
-				if (blind && count) msg_print("You hear something appear nearby.");
+			        do_summon("summons a demon!", 1, SUMMON_DEMON, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_UNDEAD */
-		case 160 + 26:
+		case SF_S_UNDEAD_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons an undead adversary!", m_name);
-				for (k = 0; k < 1; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_UNDEAD);
-				}
-				if (blind && count) msg_print("You hear something appear nearby.");
+			        do_summon("summons an undead adversary!", 1, SUMMON_UNDEAD, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_DRAGON */
-		case 160 + 27:
+		case SF_S_DRAGON_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons a dragon!", m_name);
-				for (k = 0; k < 1; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_DRAGON);
-				}
-				if (blind && count) msg_print("You hear something appear nearby.");
+			        do_summon("summons a dragon!", 1, SUMMON_DRAGON, blind_msg_default);
 				break;
 			}
 
-			/* RF6_S_HI_UNDEAD */
-		case 160 + 28:
+		case SF_S_HI_UNDEAD_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons greater undead!", m_name);
-				for (k = 0; k < 8; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_HI_UNDEAD);
-				}
-				if (blind && count)
-				{
-					msg_print("You hear many creepy things appear nearby.");
-				}
+			        summon_messages blind_msg {
+					"You hear a creepy thing appear nearby.",
+					"You hear many creepy things appear nearby."
+				};
+				do_summon("summons greater undead!", 8, SUMMON_HI_UNDEAD, blind_msg);
 				break;
 			}
 
-			/* RF6_S_HI_DRAGON */
-		case 160 + 29:
+		case SF_S_HI_DRAGON_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons ancient dragons!", m_name);
-				for (k = 0; k < 8; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_HI_DRAGON);
-				}
-				if (blind && count)
-				{
-					msg_print("You hear many powerful things appear nearby.");
-				}
+			        summon_messages blind_msg {
+					"You hear a powerful thing appear nearby.",
+					"You hear many powerful things appear nearby."
+				};
+				do_summon("summons ancient dragons!", 8, SUMMON_HI_DRAGON, blind_msg);
 				break;
 			}
 
-			/* RF6_S_WRAITH */
-		case 160 + 30:
+		case SF_S_WRAITH_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons Wraith!", m_name);
-
-
-				for (k = 0; k < 8; k++)
-				{
-					count += summon_specific(y, x, rlev, SUMMON_WRAITH);
-				}
-
-				if (blind && count)
-				{
-					msg_print("You hear immortal beings appear nearby.");
-				}
+			        summon_messages blind_msg {
+					"You hear an immortal being appear nearby.",
+					"You hear immortal beings appear nearby."
+				};
+				do_summon("summons Wraiths!", 8, SUMMON_WRAITH, blind_msg);
 				break;
 			}
 
-			/* RF6_S_UNIQUE */
-		case 160 + 31:
+		case SF_S_UNIQUE_IDX:
 			{
-				disturb(1);
-				if (blind) msg_format("%^s mumbles.", m_name);
-				else msg_format("%^s magically summons special opponents!", m_name);
-				for (k = 0; k < 8; k++)
+			        // Interrupt
+			        disturb();
+				// Message
+				if (blind)
 				{
-					count += summon_specific(y, x, rlev, SUMMON_UNIQUE);
+					msg_format("%^s mumbles.", m_name);
 				}
-				for (k = 0; k < 8; k++)
+				else
 				{
-					count += summon_specific(y, x, rlev, SUMMON_HI_UNDEAD);
+					msg_format("%^s magically summons special opponents!", m_name);
 				}
-				if (blind && count)
+				// Summon
+				int count = 0;
+				for (int k = 0; k < 8; k++)
 				{
-					msg_print("You hear many powerful things appear nearby.");
+					count += summon_specific(m_ptr->fy, m_ptr->fx, rlev, SUMMON_UNIQUE);
+				}
+				for (int k = 0; k < 8; k++)
+				{
+					count += summon_specific(m_ptr->fy, m_ptr->fx, rlev, SUMMON_HI_UNDEAD);
+				}
+				// Message
+				if (blind)
+				{
+					if (count == 1)
+					{
+						msg_print("You hear a powerful thing appear nearby.");
+					}
+					else if (count > 1)
+					{
+						msg_print("You hear many powerful things appear nearby.");
+					}
 				}
 				break;
 			}
 		}
-	}
-
-	/* Remember what the monster did to us */
-	if (seen)
-	{
-		/* Inate spell */
-		if (thrown_spell < 32*4)
-		{
-			r_ptr->r_flags4 |= (1L << (thrown_spell - 32 * 3));
-			if (r_ptr->r_cast_inate < MAX_UCHAR) r_ptr->r_cast_inate++;
-		}
-
-		/* Bolt or Ball */
-		else if (thrown_spell < 32*5)
-		{
-			r_ptr->r_flags5 |= (1L << (thrown_spell - 32 * 4));
-			if (r_ptr->r_cast_spell < MAX_UCHAR) r_ptr->r_cast_spell++;
-		}
-
-		/* Special spell */
-		else if (thrown_spell < 32*6)
-		{
-			r_ptr->r_flags6 |= (1L << (thrown_spell - 32 * 5));
-			if (r_ptr->r_cast_spell < MAX_UCHAR) r_ptr->r_cast_spell++;
-		}
-	}
-
-
-	/* Always take note of monsters that kill you */
-	if (death && (r_ptr->r_deaths < MAX_SHORT))
-	{
-		r_ptr->r_deaths++;
 	}
 
 	/* A spell was cast */
@@ -4688,7 +3916,10 @@ static int mon_will_run(int m_idx)
 static bool_ get_fear_moves_aux(int m_idx, int *yp, int *xp)
 {
 	/* Monster flowing disabled */
-	if (!flow_by_sound) return (FALSE);
+	if (!options->flow_by_sound)
+	{
+		return (FALSE);
+	}
 
 	/* Monster location */
 	monster_type *m_ptr = &m_list[m_idx];
@@ -4806,7 +4037,7 @@ static bool_ find_safety(int m_idx, int *yp, int *xp)
 				if (distance(y, x, fy, fx) != d) continue;
 
 				/* Check for "availability" (if monsters can flow) */
-				if (flow_by_sound)
+				if (options->flow_by_sound)
 				{
 					/* Ignore grids very far from the player */
 					if (cave[y][x].when < cave[p_ptr->py][p_ptr->px].when) continue;
@@ -4924,19 +4155,20 @@ static bool_ find_hiding(int m_idx, int *yp, int *xp)
 /* Find an appropriate corpse */
 void find_corpse(monster_type *m_ptr, int *y, int *x)
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	int k, last = -1;
 
 	for (k = 0; k < max_o_idx; k++)
 	{
 		object_type *o_ptr = &o_list[k];
-		monster_race *rt_ptr, *rt2_ptr;
 
 		if (!o_ptr->k_idx) continue;
 
 		if (o_ptr->tval != TV_CORPSE) continue;
 		if ((o_ptr->sval != SV_CORPSE_CORPSE) && (o_ptr->sval != SV_CORPSE_SKELETON)) continue;
 
-		rt_ptr = &r_info[o_ptr->pval2];
+		auto rt_ptr = &r_info[o_ptr->pval2];
 
 		/* Cannot incarnate into a higher level monster */
 		if (rt_ptr->level > m_ptr->level) continue;
@@ -4946,9 +4178,16 @@ void find_corpse(monster_type *m_ptr, int *y, int *x)
 
 		if (last != -1)
 		{
-			rt2_ptr = &r_info[o_list[last].pval2];
-			if (rt_ptr->level > rt2_ptr->level) last = k;
-			else continue;
+			auto rt2_ptr = &r_info[o_list[last].pval2];
+
+			if (rt_ptr->level > rt2_ptr->level)
+			{
+				last = k;
+			}
+			else
+			{
+				continue;
+			}
 		}
 		else
 		{
@@ -4969,6 +4208,8 @@ void find_corpse(monster_type *m_ptr, int *y, int *x)
  */
 static void get_target_monster(int m_idx)
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	monster_type *m_ptr = &m_list[m_idx];
 	int i, t = -1, d = 9999;
 
@@ -4978,7 +4219,7 @@ static void get_target_monster(int m_idx)
 		/* Access the monster */
 		monster_type *t_ptr = &m_list[i];
 		/* hack should call the function for ego monsters ... but no_target i not meant to be added by ego and it speeds up the code */
-		monster_race *rt_ptr = &r_info[t_ptr->r_idx];
+		auto rt_ptr = &r_info[t_ptr->r_idx];
 		int dd;
 
 		/* Ignore "dead" monsters */
@@ -4987,7 +4228,7 @@ static void get_target_monster(int m_idx)
 		if (m_idx == i) continue;
 
 		/* Cannot be targeted */
-		if (rt_ptr->flags7 & RF7_NO_TARGET) continue;
+		if (rt_ptr->flags & RF_NO_TARGET) continue;
 
 		if (is_enemy(m_ptr, t_ptr) && (los(m_ptr->fy, m_ptr->fx, t_ptr->fy, t_ptr->fx) &&
 		                               ((dd = distance(m_ptr->fy, m_ptr->fx, t_ptr->fy, t_ptr->fx)) < d)))
@@ -5047,13 +4288,13 @@ static bool_ get_moves(int m_idx, int *mm)
 	const auto r_ptr = m_ptr->race();
 
 	/* A possessor is not interrested in the player, it only wants a corpse */
-	if (r_ptr->flags7 & RF7_POSSESSOR)
+	if (r_ptr->flags & RF_POSSESSOR)
 	{
 		find_corpse(m_ptr, &y2, &x2);
 	}
 
 	/* Let quests redefine AI */
-	if (r_ptr->flags7 & RF7_AI_SPECIAL)
+	if (r_ptr->flags & RF_AI_SPECIAL)
 	{
 		struct hook_monster_ai_in in = { m_idx, &m_list[m_idx] };
 		struct hook_monster_ai_out out = { 0, 0 };
@@ -5066,7 +4307,7 @@ static bool_ get_moves(int m_idx, int *mm)
 
 	if (m_idx == p_ptr->control)
 	{
-		if ((r_ptr->flags7 & RF7_AI_PLAYER) || magik(85))
+		if ((r_ptr->flags & RF_AI_PLAYER) || magik(85))
 		{
 			if (distance(p_ptr->py, p_ptr->px, m_ptr->fy, m_ptr->fx) < 50)
 			{
@@ -5081,7 +4322,7 @@ static bool_ get_moves(int m_idx, int *mm)
 	int x = m_ptr->fx - x2;
 
 	/* Tease the player */
-	if (r_ptr->flags7 & RF7_AI_ANNOY)
+	if (r_ptr->flags & RF_AI_ANNOY)
 	{
 		if (distance(m_ptr->fy, m_ptr->fx, y2, x2) < 4)
 		{
@@ -5091,7 +4332,7 @@ static bool_ get_moves(int m_idx, int *mm)
 	}
 
 	/* Death orbs .. */
-	if (r_ptr->flags2 & RF2_DEATH_ORB)
+	if (r_ptr->flags & RF_DEATH_ORB)
 	{
 		if (!los(m_ptr->fy, m_ptr->fx, y2, x2))
 		{
@@ -5107,10 +4348,10 @@ static bool_ get_moves(int m_idx, int *mm)
 		* Animal packs try to get the player out of corridors
 		* (...unless they can move through walls -- TY)
 		*/
-		if ((r_ptr->flags1 & RF1_FRIENDS) &&
-		                (r_ptr->flags3 & RF3_ANIMAL) &&
-		                !((r_ptr->flags2 & (RF2_PASS_WALL)) ||
-		                  (r_ptr->flags2 & (RF2_KILL_WALL))))
+		if ((r_ptr->flags & RF_FRIENDS) &&
+		                (r_ptr->flags & RF_ANIMAL) &&
+		                !((r_ptr->flags & RF_PASS_WALL) ||
+		                  (r_ptr->flags & RF_KILL_WALL)))
 		{
 			int i, room = 0;
 
@@ -5134,7 +4375,7 @@ static bool_ get_moves(int m_idx, int *mm)
 		}
 
 		/* Monster groups try to surround the player */
-		if (!done && (r_ptr->flags1 & RF1_FRIENDS))
+		if (!done && (r_ptr->flags & RF_FRIENDS))
 		{
 			int i;
 
@@ -5194,10 +4435,10 @@ static bool_ get_moves(int m_idx, int *mm)
 			else
 			{
 				/* Attempt to avoid the player */
-				if (flow_by_sound)
+				if (options->flow_by_sound)
 				{
 					/* Adjust movement */
-					(void)get_fear_moves_aux(m_idx, &y, &x);
+					get_fear_moves_aux(m_idx, &y, &x);
 				}
 			}
 		}
@@ -5417,7 +4658,7 @@ static bool_ monst_attack_monst(int m_idx, int t_idx)
 	const auto tr_ptr = t_ptr->race();
 
 	/* Not allowed to attack */
-	if (r_ptr->flags1 & RF1_NEVER_BLOW) return FALSE;
+	if (r_ptr->flags & RF_NEVER_BLOW) return FALSE;
 
 	/* Total armor */
 	const int ac = t_ptr->ac;
@@ -5448,9 +4689,6 @@ static bool_ monst_attack_monst(int m_idx, int t_idx)
 	/* Scan through all four blows */
 	for (int ap_cnt = 0; ap_cnt < 4; ap_cnt++)
 	{
-		bool_ visible = FALSE;
-		bool_ obvious = FALSE;
-
 		int power = 0;
 		int damage = 0;
 
@@ -5481,9 +4719,6 @@ static bool_ monst_attack_monst(int m_idx, int t_idx)
 			/* break; */
 		}
 
-		/* Extract visibility (before blink) */
-		if (m_ptr->ml) visible = TRUE;
-
 		/* Extract the attack "power" */
 		power = get_attack_power(effect);
 
@@ -5492,7 +4727,7 @@ static bool_ monst_attack_monst(int m_idx, int t_idx)
 		if (!effect || check_hit2(power, rlev, ac))
 		{
 			/* Always disturbing */
-			if (disturb_other) disturb(1);
+			disturb_on_other();
 
 			/* Describe the attack method */
 			switch (method)
@@ -5679,9 +4914,6 @@ static bool_ monst_attack_monst(int m_idx, int t_idx)
 
 			}
 
-			/* Hack -- assume all attacks are obvious */
-			obvious = TRUE;
-
 			/* Roll out the damage */
 			damage = damroll(d_dice, d_side);
 
@@ -5838,15 +5070,13 @@ static bool_ monst_attack_monst(int m_idx, int t_idx)
 				if (touched)
 				{
 					/* Aura fire */
-					if ((tr_ptr->flags2 & RF2_AURA_FIRE) &&
-					                !(r_ptr->flags3 & RF3_IM_FIRE))
+					if ((tr_ptr->flags & RF_AURA_FIRE) &&
+					                !(r_ptr->flags & RF_IM_FIRE))
 					{
 						if (m_ptr->ml || t_ptr->ml)
 						{
 							blinked = FALSE;
 							monster_msg("%^s is suddenly very hot!", m_name);
-							if (t_ptr->ml)
-								tr_ptr->r_flags2 |= RF2_AURA_FIRE;
 						}
 						project(t_idx, 0, m_ptr->fy, m_ptr->fx,
 						        damroll (1 + ((t_ptr->level) / 26),
@@ -5855,14 +5085,12 @@ static bool_ monst_attack_monst(int m_idx, int t_idx)
 					}
 
 					/* Aura elec */
-					if ((tr_ptr->flags2 & (RF2_AURA_ELEC)) && !(r_ptr->flags3 & (RF3_IM_ELEC)))
+					if ((tr_ptr->flags & RF_AURA_ELEC) && !(r_ptr->flags & RF_IM_ELEC))
 					{
 						if (m_ptr->ml || t_ptr->ml)
 						{
 							blinked = FALSE;
 							monster_msg("%^s gets zapped!", m_name);
-							if (t_ptr->ml)
-								tr_ptr->r_flags2 |= RF2_AURA_ELEC;
 						}
 						project(t_idx, 0, m_ptr->fy, m_ptr->fx,
 						        damroll (1 + ((t_ptr->level) / 26),
@@ -5897,7 +5125,7 @@ static bool_ monst_attack_monst(int m_idx, int t_idx)
 					if (m_ptr->ml)
 					{
 						/* Disturbing */
-						disturb(1);
+						disturb();
 
 						/* Message */
 						monster_msg("%^s misses %s.", m_name, t_name);
@@ -5907,26 +5135,10 @@ static bool_ monst_attack_monst(int m_idx, int t_idx)
 				}
 			}
 		}
-
-
-		/* Analyze "visible" monsters only */
-		if (visible)
-		{
-			/* Count "obvious" attacks (and ones that cause damage) */
-			if (obvious || damage || (r_ptr->r_blows[ap_cnt] > 10))
-			{
-				/* Count attacks of this type */
-				if (r_ptr->r_blows[ap_cnt] < MAX_UCHAR)
-				{
-					r_ptr->r_blows[ap_cnt]++;
-				}
-			}
-		}
 	}
 
 	if (explode)
 	{
-		sound(SOUND_EXPLODE);
 		mon_take_hit_mon(m_idx, m_idx, m_ptr->hp + 1, &fear, " explodes into tiny shreds.");
 
 		blinked = FALSE;
@@ -5964,27 +5176,27 @@ static bool_ player_invis(monster_type * m_ptr)
 	s16b inv = p_ptr->invis;
 	s16b mlv = m_ptr->level;
 
-	if (r_ptr->flags3 & RF3_NO_SLEEP)
+	if (r_ptr->flags & RF_NO_SLEEP)
 		mlv += 10;
-	if (r_ptr->flags3 & RF3_DRAGON)
+	if (r_ptr->flags & RF_DRAGON)
 		mlv += 20;
-	if (r_ptr->flags3 & RF3_UNDEAD)
+	if (r_ptr->flags & RF_UNDEAD)
 		mlv += 15;
-	if (r_ptr->flags3 & RF3_DEMON)
+	if (r_ptr->flags & RF_DEMON)
 		mlv += 15;
-	if (r_ptr->flags3 & RF3_ANIMAL)
+	if (r_ptr->flags & RF_ANIMAL)
 		mlv += 15;
-	if (r_ptr->flags3 & RF3_ORC)
+	if (r_ptr->flags & RF_ORC)
 		mlv -= 15;
-	if (r_ptr->flags3 & RF3_TROLL)
+	if (r_ptr->flags & RF_TROLL)
 		mlv -= 10;
-	if (r_ptr->flags2 & RF2_STUPID)
+	if (r_ptr->flags & RF_STUPID)
 		mlv /= 2;
-	if (r_ptr->flags2 & RF2_SMART)
+	if (r_ptr->flags & RF_SMART)
 		mlv = (mlv * 5) / 4;
 	if (m_ptr->mflag & MFLAG_QUEST)
 		inv = 0;
-	if (r_ptr->flags2 & RF2_INVISIBLE)
+	if (r_ptr->flags & RF_INVISIBLE)
 		inv = 0;
 	if (m_ptr->mflag & MFLAG_CONTROL)
 		inv = 0;
@@ -6021,6 +5233,8 @@ static bool_ player_invis(monster_type * m_ptr)
  */
 static void process_monster(int m_idx, bool_ is_frien)
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	int i, d, oy, ox, ny, nx;
 
 	int mm[8];
@@ -6029,7 +5243,7 @@ static void process_monster(int m_idx, bool_ is_frien)
 	const bool_ inv = player_invis(m_ptr);
 
 	auto const r_ptr = m_ptr->race();
-	if (r_ptr->flags9 & RF9_DOPPLEGANGER) doppleganger = m_idx;
+	if (r_ptr->flags & RF_DOPPLEGANGER) doppleganger = m_idx;
 
 	/* Handle "bleeding" */
 	if (m_ptr->bleeding)
@@ -6136,18 +5350,7 @@ static void process_monster(int m_idx, bool_ is_frien)
 			{
 				/* Monster wakes up "a little bit" */
 				m_ptr->csleep -= d;
-
-				/* Notice the "not waking up" */
-				if (m_ptr->ml)
-				{
-					/* Hack -- Count the ignores */
-					if (r_ptr->r_ignore < MAX_UCHAR)
-					{
-						r_ptr->r_ignore++;
-					}
-				}
 			}
-
 			/* Just woke up */
 			else
 			{
@@ -6164,12 +5367,6 @@ static void process_monster(int m_idx, bool_ is_frien)
 
 					/* Dump a message */
 					msg_format("%^s wakes up.", m_name);
-
-					/* Hack -- Count the wakings */
-					if (r_ptr->r_wake < MAX_UCHAR)
-					{
-						r_ptr->r_wake++;
-					}
 				}
 			}
 		}
@@ -6259,12 +5456,12 @@ static void process_monster(int m_idx, bool_ is_frien)
 	bool_ gets_angry = FALSE;
 
 	/* No one wants to be your friend if you're aggravating */
-	if ((m_ptr->status > MSTATUS_NEUTRAL) && (m_ptr->status < MSTATUS_COMPANION) && (p_ptr->aggravate) && !(r_ptr->flags7 & RF7_PET))
+	if ((m_ptr->status > MSTATUS_NEUTRAL) && (m_ptr->status < MSTATUS_COMPANION) && (p_ptr->aggravate) && !(r_ptr->flags & RF_PET))
 		gets_angry = TRUE;
 
 	/* Paranoia... no friendly uniques outside wizard mode -- TY */
 	if ((m_ptr->status > MSTATUS_NEUTRAL) && (m_ptr->status < MSTATUS_COMPANION) && !(wizard) &&
-	                (r_ptr->flags1 & (RF1_UNIQUE)) && !(r_ptr->flags7 & RF7_PET))
+	                (r_ptr->flags & RF_UNIQUE) && !(r_ptr->flags & RF_PET))
 		gets_angry = TRUE;
 
 	if (gets_angry)
@@ -6320,17 +5517,17 @@ static void process_monster(int m_idx, bool_ is_frien)
 	ox = m_ptr->fx;
 
 	/* Attempt to "multiply" if able and allowed */
-	if ((r_ptr->flags4 & (RF4_MULTIPLY)) && (num_repro < MAX_REPRO))
+	if ((r_ptr->spells & SF_MULTIPLY) && (num_repro < MAX_REPRO))
 	{
 		if (ai_multiply(m_idx)) return;
 	}
 
 	if (randint(SPEAK_CHANCE) == 1)
 	{
-		if (player_has_los_bold(oy, ox) && (r_ptr->flags2 & RF2_CAN_SPEAK))
+		if (player_has_los_bold(oy, ox) && (r_ptr->flags & RF_CAN_SPEAK))
 		{
 			char m_name[80];
-			char monmessage[80];
+			char monmessage[1024];
 
 			/* Acquire the monster name/poss */
 			if (m_ptr->ml)
@@ -6394,36 +5591,26 @@ static void process_monster(int m_idx, bool_ is_frien)
 	}
 
 	/* 75% random movement */
-	else if ((r_ptr->flags1 & (RF1_RAND_50)) &&
-	                (r_ptr->flags1 & (RF1_RAND_25)) &&
+	else if ((r_ptr->flags & RF_RAND_50) &&
+			(r_ptr->flags & RF_RAND_25) &&
 	                (rand_int(100) < 75))
 	{
-		/* Memorize flags */
-		if (m_ptr->ml) r_ptr->r_flags1 |= (RF1_RAND_50);
-		if (m_ptr->ml) r_ptr->r_flags1 |= (RF1_RAND_25);
-
 		/* Try four "random" directions */
 		mm[0] = mm[1] = mm[2] = mm[3] = 5;
 	}
 
 	/* 50% random movement */
-	else if ((r_ptr->flags1 & (RF1_RAND_50)) &&
+	else if ((r_ptr->flags & RF_RAND_50) &&
 	                (rand_int(100) < 50))
 	{
-		/* Memorize flags */
-		if (m_ptr->ml) r_ptr->r_flags1 |= (RF1_RAND_50);
-
 		/* Try four "random" directions */
 		mm[0] = mm[1] = mm[2] = mm[3] = 5;
 	}
 
 	/* 25% random movement */
-	else if ((r_ptr->flags1 & (RF1_RAND_25)) &&
+	else if ((r_ptr->flags & RF_RAND_25) &&
 	                (rand_int(100) < 25))
 	{
-		/* Memorize flags */
-		if (m_ptr->ml) r_ptr->r_flags1 |= (RF1_RAND_25);
-
 		/* Try four "random" directions */
 		mm[0] = mm[1] = mm[2] = mm[3] = 5;
 	}
@@ -6447,12 +5634,6 @@ static void process_monster(int m_idx, bool_ is_frien)
 	/* Assume nothing */
 	bool_ did_open_door = FALSE;
 	bool_ did_bash_door = FALSE;
-	bool_ did_take_item = FALSE;
-	bool_ did_kill_item = FALSE;
-	bool_ did_move_body = FALSE;
-	bool_ did_kill_body = FALSE;
-	bool_ did_pass_wall = FALSE;
-	bool_ did_kill_wall = FALSE;
 
 	/* Take a zero-terminated array of "directions" */
 	for (i = 0; mm[i]; i++)
@@ -6481,16 +5662,9 @@ static void process_monster(int m_idx, bool_ is_frien)
 			do_move = TRUE;
 		}
 
-		/* Floor is trapped? */
-		else if (c_ptr->feat == FEAT_MON_TRAP)
-		{
-			/* Go ahead and move */
-			do_move = TRUE;
-		}
-
 		/* Hack -- check for Glyph of Warding */
 		if ((c_ptr->feat == FEAT_GLYPH) &&
-		                !(r_ptr->flags1 & RF1_NEVER_BLOW))
+		                !(r_ptr->flags & RF_NEVER_BLOW))
 		{
 			/* Assume no move allowed */
 			do_move = FALSE;
@@ -6516,7 +5690,7 @@ static void process_monster(int m_idx, bool_ is_frien)
 		}
 
 		/* Hack -- trees are obstacle */
-		else if ((cave[ny][nx].feat == FEAT_TREES) && (r_ptr->flags9 & RF9_KILL_TREES))
+		else if ((cave[ny][nx].feat == FEAT_TREES) && (r_ptr->flags & RF_KILL_TREES))
 		{
 			do_move = TRUE;
 
@@ -6540,44 +5714,38 @@ static void process_monster(int m_idx, bool_ is_frien)
 		}
 
 		/* Permanent wall */
-		else if (f_info[c_ptr->feat].flags1 & FF1_PERMANENT)
+		else if (f_info[c_ptr->feat].flags & FF_PERMANENT)
 		{
 			/* Nothing */
 		}
 
 
 		/* Some monsters can fly */
-		else if ((f_info[c_ptr->feat].flags1 & FF1_CAN_LEVITATE) && (r_ptr->flags7 & (RF7_CAN_FLY)))
+		else if ((f_info[c_ptr->feat].flags & FF_CAN_LEVITATE) && (r_ptr->flags & RF_CAN_FLY))
 		{
 			/* Pass through walls/doors/rubble */
 			do_move = TRUE;
 		}
 
 		/* Some monsters can fly */
-		else if ((f_info[c_ptr->feat].flags1 & FF1_CAN_FLY) && (r_ptr->flags7 & (RF7_CAN_FLY)))
+		else if ((f_info[c_ptr->feat].flags & FF_CAN_FLY) && (r_ptr->flags & RF_CAN_FLY))
 		{
 			/* Pass through trees/... */
 			do_move = TRUE;
 		}
 
 		/* Monster moves through walls (and doors) */
-		else if ((f_info[c_ptr->feat].flags1 & FF1_CAN_PASS) && (r_ptr->flags2 & (RF2_PASS_WALL)))
+		else if ((f_info[c_ptr->feat].flags & FF_CAN_PASS) && (r_ptr->flags & RF_PASS_WALL))
 		{
 			/* Pass through walls/doors/rubble */
 			do_move = TRUE;
-
-			/* Monster went through a wall */
-			did_pass_wall = TRUE;
 		}
 
 		/* Monster destroys walls (and doors) */
-		else if ((f_info[c_ptr->feat].flags1 & FF1_CAN_PASS) && (r_ptr->flags2 & (RF2_KILL_WALL)))
+		else if ((f_info[c_ptr->feat].flags & FF_CAN_PASS) && (r_ptr->flags & RF_KILL_WALL))
 		{
 			/* Eat through walls/doors/rubble */
 			do_move = TRUE;
-
-			/* Monster destroyed a wall */
-			did_kill_wall = TRUE;
 
 			if (randint(GRINDNOISE) == 1)
 			{
@@ -6595,18 +5763,15 @@ static void process_monster(int m_idx, bool_ is_frien)
 		}
 
 		/* Monster moves through walls (and doors) */
-		else if ((f_info[c_ptr->feat].flags1 & FF1_CAN_PASS) && (r_ptr->flags2 & (RF2_PASS_WALL)))
+		else if ((f_info[c_ptr->feat].flags & FF_CAN_PASS) && (r_ptr->flags & RF_PASS_WALL))
 		{
 			/* Pass through walls/doors/rubble */
 			do_move = TRUE;
-
-			/* Monster went through a wall */
-			did_pass_wall = TRUE;
 		}
 
 		/* Monster moves through webs */
-		else if ((f_info[c_ptr->feat].flags1 & FF1_WEB) &&
-		                (r_ptr->flags7 & RF7_SPIDER))
+		else if ((f_info[c_ptr->feat].flags & FF_WEB) &&
+		                (r_ptr->flags & RF_SPIDER))
 		{
 			/* Pass through webs */
 			do_move = TRUE;
@@ -6622,7 +5787,7 @@ static void process_monster(int m_idx, bool_ is_frien)
 			/* Take a turn */
 			do_turn = TRUE;
 
-			if ((r_ptr->flags2 & (RF2_OPEN_DOOR)) &&
+			if ((r_ptr->flags & RF_OPEN_DOOR) &&
 			                ((is_friend(m_ptr) <= 0) || p_ptr->pet_open_doors))
 			{
 				/* Closed doors and secret doors */
@@ -6657,7 +5822,7 @@ static void process_monster(int m_idx, bool_ is_frien)
 			}
 
 			/* Stuck doors -- attempt to bash them down if allowed */
-			if (may_bash && (r_ptr->flags2 & RF2_BASH_DOOR) &&
+			if (may_bash && (r_ptr->flags & RF_BASH_DOOR) &&
 			                ((is_friend(m_ptr) <= 0) || p_ptr->pet_open_doors))
 			{
 				int k;
@@ -6672,7 +5837,10 @@ static void process_monster(int m_idx, bool_ is_frien)
 					msg_print("You hear a door burst open!");
 
 					/* Disturb (sometimes) */
-					if (disturb_minor) disturb(0);
+					if (options->disturb_minor)
+					{
+						disturb();
+					}
 
 					/* The door was bashed open */
 					did_bash_door = TRUE;
@@ -6706,7 +5874,7 @@ static void process_monster(int m_idx, bool_ is_frien)
 			}
 		}
 		else if (do_move && (c_ptr->feat == FEAT_MINOR_GLYPH)
-		                && !(r_ptr->flags1 & RF1_NEVER_BLOW))
+		                && !(r_ptr->flags & RF_NEVER_BLOW))
 		{
 			/* Assume no move allowed */
 			do_move = FALSE;
@@ -6751,7 +5919,7 @@ static void process_monster(int m_idx, bool_ is_frien)
 			/* Access that cave grid's contents */
 			y_ptr = &m_list[c_ptr->m_idx];
 
-			if (!(r_ptr->flags3 & RF3_IM_COLD))
+			if (!(r_ptr->flags & RF_IM_COLD))
 			{
 				if ((m_ptr->hp - distance(ny, nx, oy, ox)*2) <= 0)
 				{
@@ -6791,7 +5959,7 @@ static void process_monster(int m_idx, bool_ is_frien)
 
 		/* Some monsters never attack */
 		if (do_move && (ny == p_ptr->py) && (nx == p_ptr->px) &&
-		                (r_ptr->flags1 & RF1_NEVER_BLOW))
+		                (r_ptr->flags & RF_NEVER_BLOW))
 		{
 			/* Do not move */
 			do_move = FALSE;
@@ -6801,7 +5969,7 @@ static void process_monster(int m_idx, bool_ is_frien)
 		if (do_move && (ny == p_ptr->py) && (nx == p_ptr->px))
 		{
 			/* Do the attack */
-			(void)make_attack_normal(m_idx, 1);
+			make_attack_normal(m_idx, 1);
 
 			/* Do not move */
 			do_move = FALSE;
@@ -6828,12 +5996,12 @@ static void process_monster(int m_idx, bool_ is_frien)
 			do_move = FALSE;
 
 			/* Kill weaker monsters */
-			if ((r_ptr->flags2 & RF2_KILL_BODY) &&
+			if ((r_ptr->flags & RF_KILL_BODY) &&
 			    (r_ptr->mexp > z_ptr->mexp) && (cave_floor_bold(ny, nx)) &&
 			    /* Friends don't kill friends... */
 			    !((is_friend(m_ptr) > 0) && (is_friend(m2_ptr) > 0)) &&
 			    /* Uniques aren't faceless monsters in a crowd */
-			    !(z_ptr->flags1 & RF1_UNIQUE) &&
+			    !(z_ptr->flags & RF_UNIQUE) &&
 			    /* Don't wreck quests */
 			    !(m2_ptr->mflag & (MFLAG_QUEST | MFLAG_QUEST2)) &&
 			    /* Don't punish summoners for relying on their friends */
@@ -6841,11 +6009,6 @@ static void process_monster(int m_idx, bool_ is_frien)
 			{
 				/* Allow movement */
 				do_move = TRUE;
-
-				/* Monster ate another monster */
-				did_kill_body = TRUE;
-
-				/* XXX XXX XXX Message */
 
 				/* Kill the monster */
 				delete_monster(ny, nx);
@@ -6872,17 +6035,12 @@ static void process_monster(int m_idx, bool_ is_frien)
 			}
 
 			/* Push past weaker monsters (unless leaving a wall) */
-			else if ((r_ptr->flags2 & RF2_MOVE_BODY) &&
+			else if ((r_ptr->flags & RF_MOVE_BODY) &&
 			                (r_ptr->mexp > z_ptr->mexp) && cave_floor_bold(ny, nx) &&
 			                (cave_floor_bold(m_ptr->fy, m_ptr->fx)))
 			{
 				/* Allow movement */
 				do_move = TRUE;
-
-				/* Monster pushed past another monster */
-				did_move_body = TRUE;
-
-				/* XXX XXX XXX Message */
 			}
 		}
 
@@ -6899,11 +6057,8 @@ static void process_monster(int m_idx, bool_ is_frien)
 		}
 
 		/* Some monsters never move */
-		if (do_move && (r_ptr->flags1 & RF1_NEVER_MOVE))
+		if (do_move && (r_ptr->flags & RF_NEVER_MOVE))
 		{
-			/* Hack -- memorize lack of attacks */
-			/* if (m_ptr->ml) r_ptr->r_flags1 |= (RF1_NEVER_MOVE); */
-
 			/* Do not move */
 			do_move = FALSE;
 		}
@@ -6966,150 +6121,130 @@ static void process_monster(int m_idx, bool_ is_frien)
 			}
 
 			/* Possible disturb */
-			if (m_ptr->ml && (disturb_move ||
+			if (m_ptr->ml && (options->disturb_move ||
 			                  ((m_ptr->mflag & (MFLAG_VIEW)) &&
-			                   disturb_near)))
+			                   options->disturb_near)))
 			{
 				/* Disturb */
-				if ((is_friend(m_ptr) < 0) || disturb_pets)
-					disturb(0);
+				if ((is_friend(m_ptr) < 0) || options->disturb_pets)
+					disturb();
 			}
 
-			/* Check for monster trap */
-			if (c_ptr->feat == FEAT_MON_TRAP)
-			{
-				if (mon_hit_trap(m_idx)) return;
-			}
-			else
-			{
-				/* Copy list of objects; we need a copy because we're mutating the list. */
-				auto const object_idxs(c_ptr->o_idxs);
 
-				/* Scan all objects in the grid */
-				for (auto const this_o_idx: object_idxs)
+			/* Copy list of objects; we need a copy because we're mutating the list. */
+			auto const object_idxs(c_ptr->o_idxs);
+
+			/* Scan all objects in the grid */
+			for (auto const this_o_idx: object_idxs)
+			{
+				/* Acquire object */
+				object_type * o_ptr = &o_list[this_o_idx];
+
+				/* Skip gold */
+				if (o_ptr->tval == TV_GOLD) continue;
+
+				/* Incarnate ? */
+				if ((o_ptr->tval == TV_CORPSE) && (r_ptr->flags & RF_POSSESSOR) &&
+						((o_ptr->sval == SV_CORPSE_CORPSE) || (o_ptr->sval == SV_CORPSE_SKELETON)))
 				{
-					/* Acquire object */
-					object_type * o_ptr = &o_list[this_o_idx];
+					if (ai_possessor(m_idx, this_o_idx)) return;
+				}
 
-					/* Skip gold */
-					if (o_ptr->tval == TV_GOLD) continue;
+				/* Take or Kill objects on the floor */
+				/* rr9: Pets will no longer pick up/destroy items */
+				if ((((r_ptr->flags & RF_TAKE_ITEM) &&
+						((is_friend(m_ptr) <= 0) || p_ptr->pet_pickup_items)) ||
+						(r_ptr->flags & RF_KILL_ITEM)) &&
+						(is_friend(m_ptr) <= 0))
+				{
+					char m_name[80];
+					char o_name[80];
 
-					/* Incarnate ? */
-					if ((o_ptr->tval == TV_CORPSE) && (r_ptr->flags7 & RF7_POSSESSOR) &&
-					                ((o_ptr->sval == SV_CORPSE_CORPSE) || (o_ptr->sval == SV_CORPSE_SKELETON)))
+					/* Extract some flags */
+					auto const flags = object_flags(o_ptr);
+
+					/* Acquire the object name */
+					object_desc(o_name, o_ptr, TRUE, 3);
+
+					/* Acquire the monster name */
+					monster_desc(m_name, m_ptr, 0x04);
+
+					/* React to objects that hurt the monster */
+					monster_race_flag_set flg;
+					if (flags & TR_KILL_DEMON) flg |= RF_DEMON;
+					if (flags & TR_KILL_UNDEAD) flg |= RF_UNDEAD;
+					if (flags & TR_SLAY_DRAGON) flg |= RF_DRAGON;
+					if (flags & TR_SLAY_TROLL) flg |= RF_TROLL;
+					if (flags & TR_SLAY_GIANT) flg |= RF_GIANT;
+					if (flags & TR_SLAY_ORC) flg |= RF_ORC;
+					if (flags & TR_SLAY_DEMON) flg |= RF_DEMON;
+					if (flags & TR_SLAY_UNDEAD) flg |= RF_UNDEAD;
+					if (flags & TR_SLAY_ANIMAL) flg |= RF_ANIMAL;
+					if (flags & TR_SLAY_EVIL) flg |= RF_EVIL;
+
+					/* The object cannot be picked up by the monster */
+					if (artifact_p(o_ptr) || (r_ptr->flags & flg))
 					{
-						if (ai_possessor(m_idx, this_o_idx)) return;
+						/* Only give a message for "take_item" */
+						if (r_ptr->flags & RF_TAKE_ITEM)
+						{
+							/* Describe observable situations */
+							if (m_ptr->ml && player_has_los_bold(ny, nx))
+							{
+								/* Dump a message */
+								msg_format("%^s tries to pick up %s, but fails.",
+									   m_name, o_name);
+							}
+						}
 					}
 
-					/* Take or Kill objects on the floor */
-					/* rr9: Pets will no longer pick up/destroy items */
-					if ((((r_ptr->flags2 & (RF2_TAKE_ITEM)) &&
-					                ((is_friend(m_ptr) <= 0) || p_ptr->pet_pickup_items)) ||
-					                (r_ptr->flags2 & (RF2_KILL_ITEM))) &&
-					                (is_friend(m_ptr) <= 0))
+					/* Pick up the item */
+					else if (r_ptr->flags & RF_TAKE_ITEM)
 					{
-						u32b f1, f2, f3, f4, f5, esp;
-
-						u32b flg3 = 0L;
-
-						char m_name[80];
-						char o_name[80];
-
-						/* Extract some flags */
-						object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-
-						/* Acquire the object name */
-						object_desc(o_name, o_ptr, TRUE, 3);
-
-						/* Acquire the monster name */
-						monster_desc(m_name, m_ptr, 0x04);
-
-						/* React to objects that hurt the monster */
-						if (f5 & (TR5_KILL_DEMON)) flg3 |= (RF3_DEMON);
-						if (f5 & (TR5_KILL_UNDEAD)) flg3 |= (RF3_UNDEAD);
-						if (f1 & (TR1_SLAY_DRAGON)) flg3 |= (RF3_DRAGON);
-						if (f1 & (TR1_SLAY_TROLL)) flg3 |= (RF3_TROLL);
-						if (f1 & (TR1_SLAY_GIANT)) flg3 |= (RF3_GIANT);
-						if (f1 & (TR1_SLAY_ORC)) flg3 |= (RF3_ORC);
-						if (f1 & (TR1_SLAY_DEMON)) flg3 |= (RF3_DEMON);
-						if (f1 & (TR1_SLAY_UNDEAD)) flg3 |= (RF3_UNDEAD);
-						if (f1 & (TR1_SLAY_ANIMAL)) flg3 |= (RF3_ANIMAL);
-						if (f1 & (TR1_SLAY_EVIL)) flg3 |= (RF3_EVIL);
-
-						/* The object cannot be picked up by the monster */
-						if (artifact_p(o_ptr) || (r_ptr->flags3 & flg3) ||
-						                (o_ptr->art_name))
+						/* Describe observable situations */
+						if (player_has_los_bold(ny, nx))
 						{
-							/* Only give a message for "take_item" */
-							if (r_ptr->flags2 & (RF2_TAKE_ITEM))
-							{
-								/* Take note */
-								did_take_item = TRUE;
-
-								/* Describe observable situations */
-								if (m_ptr->ml && player_has_los_bold(ny, nx))
-								{
-									/* Dump a message */
-									msg_format("%^s tries to pick up %s, but fails.",
-									           m_name, o_name);
-								}
-							}
+							/* Dump a message */
+							msg_format("%^s picks up %s.", m_name, o_name);
 						}
 
-						/* Pick up the item */
-						else if (r_ptr->flags2 & (RF2_TAKE_ITEM))
+						/* Put into inventory of monster */
 						{
-							/* Take note */
-							did_take_item = TRUE;
+							/* Excise the object */
+							excise_object_idx(this_o_idx);
 
-							/* Describe observable situations */
-							if (player_has_los_bold(ny, nx))
-							{
-								/* Dump a message */
-								msg_format("%^s picks up %s.", m_name, o_name);
-							}
+							/* Forget mark */
+							o_ptr->marked = FALSE;
 
-							/* Put into inventory of monster */
-							{
-								/* Excise the object */
-								excise_object_idx(this_o_idx);
+							/* Forget location */
+							o_ptr->iy = o_ptr->ix = 0;
 
-								/* Forget mark */
-								o_ptr->marked = FALSE;
+							/* Memorize monster */
+							o_ptr->held_m_idx = m_idx;
 
-								/* Forget location */
-								o_ptr->iy = o_ptr->ix = 0;
+							/* Carry object */
+							m_ptr->hold_o_idxs.push_back(this_o_idx);
+						}
+					}
 
-								/* Memorize monster */
-								o_ptr->held_m_idx = m_idx;
-
-								/* Carry object */
-								m_ptr->hold_o_idxs.push_back(this_o_idx);
-							}
+					/* Destroy the item */
+					else
+					{
+						/* Describe observable situations */
+						if (player_has_los_bold(ny, nx))
+						{
+							/* Dump a message */
+							msg_format("%^s crushes %s.", m_name, o_name);
 						}
 
-						/* Destroy the item */
-						else
-						{
-							/* Take note */
-							did_kill_item = TRUE;
-
-							/* Describe observable situations */
-							if (player_has_los_bold(ny, nx))
-							{
-								/* Dump a message */
-								msg_format("%^s crushes %s.", m_name, o_name);
-							}
-
-							/* Delete the object */
-							delete_object_idx(this_o_idx);
-						}
+						/* Delete the object */
+						delete_object_idx(this_o_idx);
 					}
 				}
 			}
 
 			/* Update monster light */
-			if (r_ptr->flags9 & RF9_HAS_LITE) p_ptr->update |= (PU_MON_LITE);
+			if (r_ptr->flags & RF_HAS_LITE) p_ptr->update |= (PU_MON_LITE);
 		}
 
 		/* Stop when done */
@@ -7131,35 +6266,6 @@ static void process_monster(int m_idx, bool_ is_frien)
 	{
 		/* Update some things */
 		p_ptr->update |= (PU_VIEW | PU_FLOW | PU_MONSTERS | PU_MON_LITE);
-	}
-
-
-	/* Learn things from observable monster */
-	if (m_ptr->ml)
-	{
-		/* Monster opened a door */
-		if (did_open_door) r_ptr->r_flags2 |= (RF2_OPEN_DOOR);
-
-		/* Monster bashed a door */
-		if (did_bash_door) r_ptr->r_flags2 |= (RF2_BASH_DOOR);
-
-		/* Monster tried to pick something up */
-		if (did_take_item) r_ptr->r_flags2 |= (RF2_TAKE_ITEM);
-
-		/* Monster tried to crush something */
-		if (did_kill_item) r_ptr->r_flags2 |= (RF2_KILL_ITEM);
-
-		/* Monster pushed past another monster */
-		if (did_move_body) r_ptr->r_flags2 |= (RF2_MOVE_BODY);
-
-		/* Monster ate another monster */
-		if (did_kill_body) r_ptr->r_flags2 |= (RF2_KILL_BODY);
-
-		/* Monster passed through a wall */
-		if (did_pass_wall) r_ptr->r_flags2 |= (RF2_PASS_WALL);
-
-		/* Monster destroyed a wall */
-		if (did_kill_wall) r_ptr->r_flags2 |= (RF2_KILL_WALL);
 	}
 
 
@@ -7259,8 +6365,10 @@ void summon_maint(int m_idx)
  * changes (flags, attacks, spells), we induce a redraw of the monster
  * recall window.
  */
-void process_monsters(void)
+void process_monsters()
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	int i, e;
 	int fx, fy;
 
@@ -7269,55 +6377,9 @@ void process_monsters(void)
 
 	monster_type *m_ptr;
 
-	int old_monster_race_idx;
-
-	u32b old_r_flags1 = 0L;
-	u32b old_r_flags2 = 0L;
-	u32b old_r_flags3 = 0L;
-	u32b old_r_flags4 = 0L;
-	u32b old_r_flags5 = 0L;
-	u32b old_r_flags6 = 0L;
-
-	byte old_r_blows0 = 0;
-	byte old_r_blows1 = 0;
-	byte old_r_blows2 = 0;
-	byte old_r_blows3 = 0;
-
-	byte old_r_cast_inate = 0;
-	byte old_r_cast_spell = 0;
-
 	/* Check the doppleganger */
-	if (doppleganger && !(r_info[m_list[doppleganger].r_idx].flags9 & RF9_DOPPLEGANGER))
+	if (doppleganger && !(r_info[m_list[doppleganger].r_idx].flags & RF_DOPPLEGANGER))
 		doppleganger = 0;
-
-	/* Memorize old race */
-	old_monster_race_idx = monster_race_idx;
-
-	/* Acquire knowledge */
-	if (monster_race_idx)
-	{
-		/* Acquire current monster */
-		monster_race *r_ptr = &r_info[monster_race_idx];
-
-		/* Memorize flags */
-		old_r_flags1 = r_ptr->r_flags1;
-		old_r_flags2 = r_ptr->r_flags2;
-		old_r_flags3 = r_ptr->r_flags3;
-		old_r_flags4 = r_ptr->r_flags4;
-		old_r_flags5 = r_ptr->r_flags5;
-		old_r_flags6 = r_ptr->r_flags6;
-
-		/* Memorize blows */
-		old_r_blows0 = r_ptr->r_blows[0];
-		old_r_blows1 = r_ptr->r_blows[1];
-		old_r_blows2 = r_ptr->r_blows[2];
-		old_r_blows3 = r_ptr->r_blows[3];
-
-		/* Memorize castings */
-		old_r_cast_inate = r_ptr->r_cast_inate;
-		old_r_cast_spell = r_ptr->r_cast_spell;
-	}
-
 
 	/* Hack -- calculate the "player noise" */
 	noise = (1L << (30 - p_ptr->skill_stl));
@@ -7411,7 +6473,7 @@ void process_monsters(void)
 
 		/* Hack -- Monsters can "smell" the player from far away */
 		/* Note that most monsters have "aaf" of "20" or so */
-		else if (flow_by_sound &&
+		else if (options->flow_by_sound &&
 		                (cave[p_ptr->py][p_ptr->px].when == cave[fy][fx].when) &&
 		                (cave[fy][fx].cost < MONSTER_FLOW_DEPTH) &&
 		                (cave[fy][fx].cost < r_ptr->aaf))
@@ -7446,30 +6508,4 @@ void process_monsters(void)
 
 	/* Reset global index */
 	hack_m_idx = 0;
-
-
-	/* Tracking a monster race (the same one we were before) */
-	if (monster_race_idx && (monster_race_idx == old_monster_race_idx))
-	{
-		/* Acquire monster race */
-		monster_race *r_ptr = &r_info[monster_race_idx];
-
-		/* Check for knowledge change */
-		if ((old_r_flags1 != r_ptr->r_flags1) ||
-		                (old_r_flags2 != r_ptr->r_flags2) ||
-		                (old_r_flags3 != r_ptr->r_flags3) ||
-		                (old_r_flags4 != r_ptr->r_flags4) ||
-		                (old_r_flags5 != r_ptr->r_flags5) ||
-		                (old_r_flags6 != r_ptr->r_flags6) ||
-		                (old_r_blows0 != r_ptr->r_blows[0]) ||
-		                (old_r_blows1 != r_ptr->r_blows[1]) ||
-		                (old_r_blows2 != r_ptr->r_blows[2]) ||
-		                (old_r_blows3 != r_ptr->r_blows[3]) ||
-		                (old_r_cast_inate != r_ptr->r_cast_inate) ||
-		                (old_r_cast_spell != r_ptr->r_cast_spell))
-		{
-			/* Window stuff */
-			p_ptr->window |= (PW_MONSTER);
-		}
-	}
 }

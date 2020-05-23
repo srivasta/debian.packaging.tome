@@ -1,32 +1,31 @@
 #pragma once
 
 #include "h-basic.h"
+#include "store_flag_set.hpp"
+#include "store_item.hpp"
 
-/**
- * Number of items to choose stock from
- */
-constexpr int STORE_CHOICES = 56;
+#include <vector>
 
 /**
  * Store descriptor.
  */
 struct store_info_type
 {
-	const char *name;               /* Name */
+	std::string name;                        /* Name */
 
-	s16b table[STORE_CHOICES][2];   /* Table -- Legal item kinds */
-	byte table_num;                 /* Number of items */
-	s16b max_obj;                   /* Number of items this store can hold */
+	std::vector<store_item> items;           /* Table -- Legal item kinds */
 
-	u16b owners[4];                 /* List of owners(refers to ow_info) */
+	s16b max_obj = 0;                        /* Number of items this store can hold */
 
-	u16b actions[6];                /* Actions(refers to ba_info) */
+	std::vector<u16b> owners;                /* List of owners; refers to ow_info */
 
-	byte d_attr;			/* Default building attribute */
-	char d_char;			/* Default building character */
+	std::vector<u16b> actions;               /* Actions; refers to ba_info */
 
-	byte x_attr;			/* Desired building attribute */
-	char x_char;			/* Desired building character */
+	byte d_attr = 0;                         /* Default building attribute */
+	char d_char = '\0';                      /* Default building character */
 
-	u32b flags1;                    /* Flags */
+	byte x_attr = 0;                         /* Desired building attribute */
+	char x_char = '\0';                      /* Desired building character */
+
+	store_flag_set flags;                    /* Flags */
 };

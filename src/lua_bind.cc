@@ -10,6 +10,7 @@
 
 #include "cmd7.hpp"
 #include "corrupt.hpp"
+#include "game.hpp"
 #include "init1.hpp"
 #include "monster2.hpp"
 #include "player_type.hpp"
@@ -85,6 +86,8 @@ s32b lua_get_level(spell_type *spell, s32b lvl, s32b max, s32b min, s32b bonus)
 
 static s32b get_level_device_1(spell_type *spell, s32b max, s32b min)
 {
+	auto const &s_info = game->s_info;
+
 	// Must be in "device" mode.
 	assert(get_level_use_stick > -1);
 	// Delegate
@@ -146,7 +149,7 @@ static s32b spell_chance_school(s32b s)
 	minfail = adj_mag_fail[stat_ind];
 
 	/* Must have Perfect Casting to get below 5% */
-	if (!(has_ability(AB_PERFECT_CASTING)))
+	if (!(p_ptr->has_ability(AB_PERFECT_CASTING)))
 	{
 		if (minfail < 5) minfail = 5;
 	}
@@ -185,7 +188,7 @@ s32b spell_chance_book(s32b s)
 	return spell_chance_school(s);
 }
 
-s32b get_level(s32b s, s32b max, s32b min)
+static s32b get_level_full(s32b s, s32b max, s32b min)
 {
 	auto spell = spell_at(s);
 	/** Ahah shall we use Magic device instead ? */
@@ -194,6 +197,16 @@ s32b get_level(s32b s, s32b max, s32b min)
 	} else {
 		return get_level_school_1(spell, max, min);
 	}
+}
+
+s32b get_level(s32b s, s32b max)
+{
+	return get_level_full(s, max, 0);
+}
+
+s32b get_level_s(int sp, int max)
+{
+	return get_level_full(sp, max, 1);
 }
 
 /* Level gen */
@@ -217,31 +230,6 @@ void load_map(const char *name, int *y, int *x)
 	process_dungeon_file(name, y, x, cur_hgt, cur_wid, TRUE, TRUE);
 }
 
-/*
- * Some misc functions
- */
-char *lua_input_box(cptr title, int max)
-{
-	static char buf[80];
-	int wid, hgt;
-
-	strcpy(buf, "");
-	Term_get_size(&wid, &hgt);
-	if (!input_box(title, hgt / 2, wid / 2, buf, (max > 79) ? 79 : max))
-		return buf;
-	return buf;
-}
-
-char lua_msg_box(cptr title)
-{
-	int wid, hgt;
-
-	Term_get_size(&wid, &hgt);
-	return msg_box(title, hgt / 2, wid / 2);
-}
-
-
-
 void increase_mana(int delta)
 {
 	p_ptr->csp += delta;
@@ -261,7 +249,7 @@ timer_type *TIMER_AGGRAVATE_EVIL = 0;
 
 void timer_aggravate_evil_enable()
 {
-    	TIMER_AGGRAVATE_EVIL->enabled = TRUE;
+	TIMER_AGGRAVATE_EVIL->enable();
 }
 
 void timer_aggravate_evil_callback()

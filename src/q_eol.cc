@@ -2,6 +2,7 @@
 
 #include "cave.hpp"
 #include "cave_type.hpp"
+#include "game.hpp"
 #include "generate.hpp"
 #include "hook_stair_in.hpp"
 #include "hook_quest_finish_in.hpp"
@@ -14,7 +15,6 @@
 #include "object2.hpp"
 #include "player_type.hpp"
 #include "tables.hpp"
-#include "traps.hpp"
 #include "util.hpp"
 #include "variable.hpp"
 #include "z-rand.hpp"
@@ -25,14 +25,17 @@
 
 GENERATE_MONSTER_LOOKUP_FN(get_eol, "Eol, the Dark Elf")
 
-static bool_ quest_eol_gen_hook(void *, void *, void *)
+static bool quest_eol_gen_hook(void *, void *, void *)
 {
 	int x, y;
 	bool_ done = FALSE;
 	int xsize = 50, ysize = 30, y0, x0;
 	int m_idx = 0;
 
-	if (p_ptr->inside_quest != QUEST_EOL) return FALSE;
+	if (p_ptr->inside_quest != QUEST_EOL)
+	{
+		return false;
+	}
 
 	x0 = 2 + (xsize / 2);
 	y0 = 2 + (ysize / 2);
@@ -95,11 +98,6 @@ static bool_ quest_eol_gen_hook(void *, void *, void *)
 				if (m_idx) m_list[m_idx].mflag |= MFLAG_QUEST;
 			}
 
-			if (magik(18))
-			{
-				place_trap(y, x);
-			}
-
 			/* Place player at one end */
 			p_ptr->py = y;
 			p_ptr->px = x;
@@ -107,16 +105,19 @@ static bool_ quest_eol_gen_hook(void *, void *, void *)
 
 	cave_set_feat(p_ptr->py, p_ptr->px, FEAT_LESS);
 
-	return TRUE;
+	return true;
 }
 
-static bool_ quest_eol_finish_hook(void *, void *in_, void *)
+static bool quest_eol_finish_hook(void *, void *in_, void *)
 {
 	struct hook_quest_finish_in *in = static_cast<struct hook_quest_finish_in *>(in_);
 	s32b q_idx = in->q_idx;
 	object_type forge, *q_ptr;
 
-	if (q_idx != QUEST_EOL) return FALSE;
+	if (q_idx != QUEST_EOL)
+	{
+		return false;
+	}
 
 	c_put_str(TERM_YELLOW, "A tragedy, but the deed needed to be done.", 8, 0);
 	c_put_str(TERM_YELLOW, "Accept my thanks, and that reward.", 9, 0);
@@ -130,24 +131,27 @@ static bool_ quest_eol_finish_hook(void *, void *in_, void *)
 	object_aware(q_ptr);
 	object_known(q_ptr);
 	q_ptr->ident |= IDENT_STOREB;
-	(void)inven_carry(q_ptr, FALSE);
+	inven_carry(q_ptr, FALSE);
 
 	/* Continue the plot */
 	*(quest[q_idx].plot) = QUEST_NIRNAETH;
-	quest[*(quest[q_idx].plot)].init(*(quest[q_idx].plot));
+	quest[*(quest[q_idx].plot)].init();
 
 	del_hook_new(HOOK_QUEST_FINISH, quest_eol_finish_hook);
 	process_hooks_restart = TRUE;
 
-	return TRUE;
+	return true;
 }
 
-static bool_ quest_eol_fail_hook(void *, void *in_, void *)
+static bool quest_eol_fail_hook(void *, void *in_, void *)
 {
 	struct hook_quest_fail_in *in = static_cast<struct hook_quest_fail_in *>(in_);
 	s32b q_idx = in->q_idx;
 
-	if (q_idx != QUEST_EOL) return FALSE;
+	if (q_idx != QUEST_EOL)
+	{
+		return false;
+	}
 
 	c_put_str(TERM_YELLOW, "You fled ! I did not think you would flee...", 8, 0);
 
@@ -157,16 +161,19 @@ static bool_ quest_eol_fail_hook(void *, void *in_, void *)
 	del_hook_new(HOOK_QUEST_FAIL, quest_eol_fail_hook);
 	process_hooks_restart = TRUE;
 
-	return TRUE;
+	return true;
 }
 
-static bool_ quest_eol_death_hook(void *, void *in_, void *)
+static bool quest_eol_death_hook(void *, void *in_, void *)
 {
 	struct hook_monster_death_in *in = static_cast<struct hook_monster_death_in *>(in_);
 	s32b m_idx = in->m_idx;
 	s32b r_idx = m_list[m_idx].r_idx;
 
-	if (p_ptr->inside_quest != QUEST_EOL) return FALSE;
+	if (p_ptr->inside_quest != QUEST_EOL)
+	{
+		return false;
+	}
 
 	if (r_idx == get_eol())
 	{
@@ -176,20 +183,28 @@ static bool_ quest_eol_death_hook(void *, void *in_, void *)
 		del_hook_new(HOOK_MONSTER_DEATH, quest_eol_death_hook);
 		process_hooks_restart = TRUE;
 
-		return (FALSE);
+		return false;
 	}
 
-	return FALSE;
+	return false;
 }
 
-static bool_ quest_eol_stair_hook(void *, void *in_, void *)
+static bool quest_eol_stair_hook(void *, void *in_, void *)
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	struct hook_stair_in *in = static_cast<struct hook_stair_in *>(in_);
-	monster_race *r_ptr = &r_info[get_eol()];
+	auto r_ptr = &r_info[get_eol()];
 
-	if (p_ptr->inside_quest != QUEST_EOL) return FALSE;
+	if (p_ptr->inside_quest != QUEST_EOL)
+	{
+		return false;
+	}
 
-	if (cave[p_ptr->py][p_ptr->px].feat != FEAT_LESS) return TRUE;
+	if (cave[p_ptr->py][p_ptr->px].feat != FEAT_LESS)
+	{
+		return true;
+	}
 
 	if (r_ptr->max_num)
 	{
@@ -198,21 +213,24 @@ static bool_ quest_eol_stair_hook(void *, void *in_, void *)
 			/* Flush input */
 			flush();
 
-			if (!get_check("Really abandon the quest?")) return TRUE;
+			if (!get_check("Really abandon the quest?"))
+			{
+				return true;
+			}
 
 			cmsg_print(TERM_YELLOW, "You flee away from Eol...");
 			cquest.status = QUEST_STATUS_FAILED;
 
 			del_hook_new(HOOK_STAIR, quest_eol_stair_hook);
 			process_hooks_restart = TRUE;
-			return (FALSE);
+			return false;
 		}
 	}
 
-	return FALSE;
+	return false;
 }
 
-bool_ quest_eol_init_hook(int q)
+void quest_eol_init_hook()
 {
 	if ((cquest.status >= QUEST_STATUS_TAKEN) && (cquest.status < QUEST_STATUS_FINISHED))
 	{
@@ -222,5 +240,4 @@ bool_ quest_eol_init_hook(int q)
 		add_hook_new(HOOK_QUEST_FAIL,    quest_eol_fail_hook,   "eol_fail",   NULL);
 		add_hook_new(HOOK_QUEST_FINISH,  quest_eol_finish_hook, "eol_finish", NULL);
 	}
-	return (FALSE);
 }

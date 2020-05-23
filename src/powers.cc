@@ -13,25 +13,27 @@
 #include "cmd1.hpp"
 #include "cmd2.hpp"
 #include "cmd7.hpp"
+#include "dungeon_flag.hpp"
+#include "feature_flag.hpp"
 #include "feature_type.hpp"
 #include "files.hpp"
+#include "game.hpp"
 #include "hooks.hpp"
 #include "mimic.hpp"
 #include "monster2.hpp"
 #include "monster3.hpp"
 #include "monster_race.hpp"
+#include "monster_race_flag.hpp"
 #include "monster_type.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
 #include "object_kind.hpp"
 #include "options.hpp"
 #include "player_type.hpp"
-#include "quark.hpp"
 #include "spells1.hpp"
 #include "spells2.hpp"
 #include "stats.hpp"
 #include "tables.hpp"
-#include "traps.hpp"
 #include "util.hpp"
 #include "util.h"
 #include "variable.h"
@@ -119,7 +121,7 @@ static bool_ power_chance(power_type *x_ptr)
 		return (TRUE);
 	}
 
-	if (flush_failure) flush();
+	flush_on_failure();
 	msg_print("You've failed to concentrate hard enough.");
 
 	return (FALSE);
@@ -127,6 +129,9 @@ static bool_ power_chance(power_type *x_ptr)
 
 static void power_activate(int power)
 {
+	auto const &f_info = game->edit_data.f_info;
+	auto const &k_info = game->edit_data.k_info;
+
 	s16b plev = p_ptr->lev;
 	char ch = 0;
 	int amber_power = 0;
@@ -195,11 +200,6 @@ static void power_activate(int power)
 			}
 		}
 		break;
-	case PWR_LAY_TRAP:
-		{
-			do_cmd_set_trap();
-		}
-		break;
 	case PWR_MAGIC_MAP:
 		{
 			msg_print("You sense the world around you.");
@@ -235,17 +235,17 @@ static void power_activate(int power)
 	case PWR_UNFEAR:
 		{
 			msg_print("You play tough.");
-			(void)set_afraid(0);
+			set_afraid(0);
 		}
 		break;
 
 	case PWR_BERSERK:
 		{
 			msg_print("RAAAGH!");
-			(void)set_afraid(0);
+			set_afraid(0);
 
-			(void)set_shero(p_ptr->shero + 10 + randint(plev));
-			(void)hp_player(30);
+			set_shero(p_ptr->shero + 10 + randint(plev));
+			hp_player(30);
 		}
 		break;
 
@@ -260,7 +260,7 @@ static void power_activate(int power)
 		{
 			if (!get_aim_dir(&dir)) break;
 			msg_print("You bash at a stone wall.");
-			(void)wall_to_mud(dir);
+			wall_to_mud(dir);
 		}
 		break;
 
@@ -311,7 +311,7 @@ static void power_activate(int power)
 			x_ptr_foo.diff = 7;
 			if (power_chance(&x_ptr_foo))
 			{
-				(void)set_light_speed(p_ptr->lightspeed + 3);
+				set_light_speed(p_ptr->lightspeed + 3);
 			}
 		}
 		break;
@@ -328,9 +328,8 @@ static void power_activate(int power)
 	case PWR_DETECT_TD:
 		{
 			msg_print("You examine your surroundings.");
-			(void)detect_traps(DEFAULT_RADIUS);
-			(void)detect_doors(DEFAULT_RADIUS);
-			(void)detect_stairs(DEFAULT_RADIUS);
+			detect_doors(DEFAULT_RADIUS);
+			detect_stairs(DEFAULT_RADIUS);
 		}
 		break;
 
@@ -390,7 +389,7 @@ static void power_activate(int power)
 		}
 		if (amber_power == 2)
 		{
-			if (dungeon_flags2 & DF2_NO_TELEPORT)
+			if (dungeon_flags & DF_NO_TELEPORT)
 			{
 				msg_print("No teleport on special levels ...");
 				break;
@@ -417,7 +416,7 @@ static void power_activate(int power)
 		}
 		if (amber_power == 3)
 		{
-			if (dungeon_flags2 & DF2_NO_TELEPORT)
+			if (dungeon_flags & DF_NO_TELEPORT)
 			{
 				msg_print("No recall on special levels..");
 				break;
@@ -511,7 +510,7 @@ static void power_activate(int power)
 			{
 				if (p_ptr->food < PY_FOOD_FULL)
 					/* No heal if we are "full" */
-					(void)hp_player(dummy);
+					hp_player(dummy);
 				else
 					msg_print("You were not hungry.");
 				/* Gain nutritional sustenance: 150/hp drained */
@@ -520,7 +519,7 @@ static void power_activate(int power)
 				/* But if we ARE Gorged,  it won't cure us */
 				dummy = p_ptr->food + MIN(5000, 100 * dummy);
 				if (p_ptr->food < PY_FOOD_MAX)   /* Not gorged already */
-					(void)set_food(dummy >= PY_FOOD_MAX ? PY_FOOD_MAX - 1 : dummy);
+					set_food(dummy >= PY_FOOD_MAX ? PY_FOOD_MAX - 1 : dummy);
 			}
 			else
 				msg_print("Yechh. That tastes foul.");
@@ -531,14 +530,14 @@ static void power_activate(int power)
 		{
 			msg_print("You emit an eldritch howl!");
 			if (!get_aim_dir(&dir)) break;
-			(void)fear_monster(dir, plev);
+			fear_monster(dir, plev);
 		}
 		break;
 
 	case PWR_REST_LIFE:
 		{
 			msg_print("You attempt to restore your lost energies.");
-			(void)restore_level();
+			restore_level();
 		}
 		break;
 
@@ -560,7 +559,7 @@ static void power_activate(int power)
 				m_ptr = &m_list[c_ptr->m_idx];
 				auto const r_ptr = m_ptr->race();
 
-				if ((r_ptr->flags1 & RF1_NEVER_MOVE) && (m_ptr->status == MSTATUS_PET) && (!(r_ptr->flags9 & RF9_SPECIAL_GENE)))
+				if ((r_ptr->flags & RF_NEVER_MOVE) && (m_ptr->status == MSTATUS_PET) && (!(r_ptr->flags & RF_SPECIAL_GENE)))
 				{
 					q_ptr = &forge;
 					object_prep(q_ptr, lookup_kind(TV_HYPNOS, 1));
@@ -654,7 +653,7 @@ static void power_activate(int power)
 		{
 			msg_print("Your eyes look mesmerising...");
 			if (get_aim_dir(&dir))
-				(void) charm_monster(dir, p_ptr->lev);
+				charm_monster(dir, p_ptr->lev);
 		}
 		break;
 
@@ -690,13 +689,13 @@ static void power_activate(int power)
 
 	case PWR_SMELL_MET:
 		{
-			(void)detect_treasure(DEFAULT_RADIUS);
+			detect_treasure(DEFAULT_RADIUS);
 		}
 		break;
 
 	case PWR_SMELL_MON:
 		{
-			(void)detect_monsters_normal(DEFAULT_RADIUS);
+			detect_monsters_normal(DEFAULT_RADIUS);
 		}
 		break;
 
@@ -720,7 +719,7 @@ static void power_activate(int power)
 				msg_print("You bite into thin air!");
 				break;
 			}
-			else if ((f_info[c_ptr->feat].flags1 & FF1_PERMANENT) || (c_ptr->feat == FEAT_MOUNTAIN))
+			else if ((f_info[c_ptr->feat].flags & FF_PERMANENT) || (c_ptr->feat == FEAT_MOUNTAIN))
 			{
 				msg_print("Ouch!  This wall is harder than your teeth!");
 				break;
@@ -740,25 +739,25 @@ static void power_activate(int power)
 				if ((c_ptr->feat >= FEAT_DOOR_HEAD) &&
 				                (c_ptr->feat <= FEAT_RUBBLE))
 				{
-					(void)set_food(p_ptr->food + 3000);
+					set_food(p_ptr->food + 3000);
 				}
 				else if ((c_ptr->feat >= FEAT_MAGMA) &&
 				                (c_ptr->feat <= FEAT_QUARTZ_K))
 				{
-					(void)set_food(p_ptr->food + 5000);
+					set_food(p_ptr->food + 5000);
 				}
 				else if ((c_ptr->feat >= FEAT_SANDWALL) &&
 				                (c_ptr->feat <= FEAT_SANDWALL_K))
 				{
-					(void)set_food(p_ptr->food + 500);
+					set_food(p_ptr->food + 500);
 				}
 				else
 				{
 					msg_print("This granite is very filling!");
-					(void)set_food(p_ptr->food + 10000);
+					set_food(p_ptr->food + 10000);
 				}
 			}
-			(void)wall_to_mud(dir);
+			wall_to_mud(dir);
 
 			oy = p_ptr->py;
 			ox = p_ptr->px;
@@ -780,20 +779,20 @@ static void power_activate(int power)
 	case PWR_SWAP_POS:
 		{
 			if (!get_aim_dir(&dir)) return;
-			(void)teleport_swap(dir);
+			teleport_swap(dir);
 		}
 		break;
 
 	case PWR_SHRIEK:
 		{
-			(void)fire_ball(GF_SOUND, 0, 4 * p_ptr->lev, 8);
-			(void)aggravate_monsters(0);
+			fire_ball(GF_SOUND, 0, 4 * p_ptr->lev, 8);
+			aggravate_monsters(0);
 		}
 		break;
 
 	case PWR_ILLUMINE:
 		{
-			(void)lite_area(damroll(2, (p_ptr->lev / 2)), (p_ptr->lev / 10) + 1);
+			lite_area(damroll(2, (p_ptr->lev / 2)), (p_ptr->lev / 10) + 1);
 		}
 		break;
 
@@ -821,7 +820,7 @@ static void power_activate(int power)
 
 	case PWR_MIDAS_TCH:
 		{
-			(void)alchemy();
+			alchemy();
 		}
 		break;
 
@@ -842,27 +841,27 @@ static void power_activate(int power)
 
 			if (rand_int(5) < num)
 			{
-				(void)set_oppose_acid(p_ptr->oppose_acid + dur);
+				set_oppose_acid(p_ptr->oppose_acid + dur);
 				num--;
 			}
 			if (rand_int(4) < num)
 			{
-				(void)set_oppose_elec(p_ptr->oppose_elec + dur);
+				set_oppose_elec(p_ptr->oppose_elec + dur);
 				num--;
 			}
 			if (rand_int(3) < num)
 			{
-				(void)set_oppose_fire(p_ptr->oppose_fire + dur);
+				set_oppose_fire(p_ptr->oppose_fire + dur);
 				num--;
 			}
 			if (rand_int(2) < num)
 			{
-				(void)set_oppose_cold(p_ptr->oppose_cold + dur);
+				set_oppose_cold(p_ptr->oppose_cold + dur);
 				num--;
 			}
 			if (num)
 			{
-				(void)set_oppose_pois(p_ptr->oppose_pois + dur);
+				set_oppose_pois(p_ptr->oppose_pois + dur);
 				num--;
 			}
 		}
@@ -978,7 +977,7 @@ static void power_activate(int power)
 
 	case PWR_RECALL:
 		{
-			if (!(dungeon_flags2 & DF2_ASK_LEAVE) || ((dungeon_flags2 & DF2_ASK_LEAVE) && !get_check("Leave this unique level forever? ")))
+			if (!(dungeon_flags & DF_ASK_LEAVE) || ((dungeon_flags & DF_ASK_LEAVE) && !get_check("Leave this unique level forever? ")))
 			{
 				recall_player(21, 15);
 			}
@@ -1000,7 +999,7 @@ static void power_activate(int power)
 			monster_type *m_ptr = &m_list[c_ptr->m_idx];
 			auto const r_ptr = m_ptr->race();
 
-			if (r_ptr->flags3 & RF3_EVIL)
+			if (r_ptr->flags & RF_EVIL)
 			{
 				/* Delete the monster, rather than killing it. */
 				delete_monster_idx(c_ptr->m_idx);

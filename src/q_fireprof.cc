@@ -1,26 +1,26 @@
 #include "q_fireprof.hpp"
 
 #include "cave_type.hpp"
+#include "dungeon_flag.hpp"
+#include "feature_flag.hpp"
 #include "feature_type.hpp"
 #include "hook_get_in.hpp"
 #include "hooks.hpp"
 #include "lua_bind.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
 #include "object_type.hpp"
 #include "player_type.hpp"
-#include "quark.hpp"
 #include "tables.hpp"
-#include "traps.hpp"
 #include "util.hpp"
 #include "variable.hpp"
 #include "z-rand.hpp"
 
 #include <cassert>
+#include <fmt/format.h>
 
 #define cquest (quest[QUEST_FIREPROOF])
-
-#define print_hook(fmt,...) do { fprintf(hook_file, fmt, ##__VA_ARGS__); } while (0)
 
 /*
  * Per-module "settings"
@@ -29,16 +29,16 @@ typedef struct fireproof_settings fireproof_settings;
 struct fireproof_settings
 {
 	byte tval; /* tval of object to use. */
+	byte sval; /* sval of object to use. */
 	cptr tval_name; /* descriptive name of tval */
 	cptr tval_name_plural; /* descriptive name of tval (plural) */
-	byte sval_max; /* max sval of object to use; sval will be 1<=X<=sval_max. */
 	s32b total_points; /* total number of points awarded */
 };
 
 static fireproof_settings const *fireproof_get_settings()
 {
 	static fireproof_settings fireproof_settings =
-		{ TV_RUNE2, "rune", "runes", 5, 24 };
+		{ TV_SCROLL, SV_SCROLL_FIRE, "scroll", "scrolls", 24 };
 	return &fireproof_settings;
 }
 
@@ -61,22 +61,13 @@ static void set_item_points_remaining(s32b v)
 	cquest.data[0] = settings->total_points - v;
 }
 
-static void fireproof_set_sval(int sval_max)
-{
-	cquest.data[1] = sval_max;
-}
-
-static int fireproof_get_sval()
-{
-	return cquest.data[1];
-}
-
 static bool item_tester_hook_eligible(object_type const *o_ptr)
 {
+	fireproof_settings const *settings = fireproof_get_settings();
 	/* check it's the 'marked' item */
-	return ((o_ptr->tval == fireproof_get_settings()->tval) &&
-	    (o_ptr->sval == fireproof_get_sval()) &&
-	    (o_ptr->pval2 == fireproof_get_sval()));
+	return ((o_ptr->tval == settings->tval) &&
+	    (o_ptr->sval == settings->sval) &&
+	    (o_ptr->pval2 == settings->sval));
 }
 
 static object_filter_t const &item_tester_hook_proofable()
@@ -90,7 +81,7 @@ static object_filter_t const &item_tester_hook_proofable()
 			TVal(TV_STAFF)),
 		// Must NOT already be fireproof
 		Not(
-			HasFlag3(TR3_IGNORE_FIRE)));
+			HasFlags(TR_IGNORE_FIRE)));
 	return instance;
 }
 
@@ -368,7 +359,7 @@ void quest_fireproof_building(bool_ *paid, bool_ *recreate)
 	}
 }
 
-static bool_ fireproof_get_hook(void *, void *in_, void *)
+static bool fireproof_get_hook(void *, void *in_, void *)
 {
 	struct hook_get_in *in = static_cast<struct hook_get_in *>(in_);
 	object_type *o_ptr = in->o_ptr;
@@ -378,24 +369,24 @@ static bool_ fireproof_get_hook(void *, void *in_, void *)
 	 * generated via random object placement */
 	if ((p_ptr->inside_quest == QUEST_FIREPROOF) &&
 	    (cquest.status != QUEST_STATUS_COMPLETED) &&
-	    (o_ptr->pval2 == fireproof_get_sval()))
+	    (o_ptr->pval2 == fireproof_get_settings()->sval))
 	{
 		/* ok mark the quest 'completed' */
 		cquest.status = QUEST_STATUS_COMPLETED;
 		cmsg_print(TERM_YELLOW, "Fine! Looks like you've found it.");
 	}
 
-	return FALSE;
+	return false;
 }
 
-static bool_ fireproof_stair_hook(void *, void *, void *)
+static bool fireproof_stair_hook(void *, void *, void *)
 {
 	/* only ask this if player about to go up stairs of quest and
 	 * hasn't retrieved item */
 	if ((p_ptr->inside_quest != QUEST_FIREPROOF) ||
 	    (cquest.status == QUEST_STATUS_COMPLETED))
 	{
-		return FALSE;
+		return false;
 	}
 	else
 	{
@@ -403,7 +394,7 @@ static bool_ fireproof_stair_hook(void *, void *, void *)
 
 		if (cave[p_ptr->py][p_ptr->px].feat != FEAT_LESS)
 		{
-			return FALSE;
+			return false;
 		}
 
 		/* flush all pending input */
@@ -417,17 +408,17 @@ static bool_ fireproof_stair_hook(void *, void *, void *)
 		{
 			/* fail the quest */
 			cquest.status = QUEST_STATUS_FAILED;
-			return FALSE;
+			return false;
 		}
 		else
 		{
 			/* if no, they stay in the quest */
-			return TRUE;
+			return true;
 		}
 	}
 }
 
-bool_ quest_fireproof_describe(FILE *hook_file)
+std::string quest_fireproof_describe()
 {
 	fireproof_settings const *settings = fireproof_get_settings();
 	int num_books, num_staff, num_scroll;
@@ -437,53 +428,48 @@ bool_ quest_fireproof_describe(FILE *hook_file)
 	num_staff = get_item_points_remaining() / FIREPROOF_STAFF_POINTS;
 	num_scroll = get_item_points_remaining() / FIREPROOF_SCROLL_POINTS;
 
+	fmt::MemoryWriter w;
+
 	if (status == QUEST_STATUS_TAKEN)
 	{
 		/* Quest taken */
-		print_hook("#####yAn Old Mages Quest!\n");
-		print_hook("Retrieve the strange %s for the old mage "
-			   "in Lothlorien.\n", settings->tval_name);
-		print_hook("\n");
+		w.write("#####yAn Old Mages Quest!\n");
+		w.write("Retrieve the strange {} for the old mage in Lothlorien.", settings->tval_name);
 	}
 	else if (status == QUEST_STATUS_COMPLETED)
 	{
 		/* essence retrieved, not taken to mage */
-		print_hook("#####yAn Old Mages Quest!\n");
-		print_hook("You have retrieved the %s for the old "
-			   "mage in Lothlorien. Perhaps you \n", settings->tval_name);
-		print_hook("should see about a reward.\n");
-		print_hook("\n");
+		w.write("#####yAn Old Mages Quest!\n");
+		w.write("You have retrieved the {} for the old mage in Lothlorien.\n", settings->tval_name);
+		w.write("Perhaps you should see about a reward.");
 	}
 	else if ((status == QUEST_STATUS_FINISHED) &&
 		 (get_item_points_remaining() > 0))
 	{
 		/* essence returned, not all books fireproofed */
-		print_hook("#####yAn Old Mages Quest!\n");
-		print_hook("You have retrieved the %s for the old "
-			   "mage in Lothlorien. He will still \n", settings->tval_name);
-		print_hook("fireproof %d book(s) or %d staff/staves "
-			   "or %d scroll(s) for you.\n",
-			   num_books, num_staff, num_scroll);
-		print_hook("\n");
+		w.write("#####yAn Old Mages Quest!\n");
+		w.write("You have retrieved the {} for the old "
+			"mage in Lothlorien. He will still\n", settings->tval_name);
+		w.write("fireproof {} book(s) or {} staff/staves "
+			"or {} scroll(s) for you.",
+			num_books, num_staff, num_scroll);
 	}
 
-	return TRUE;
+	return w.str();
 }
 
-static bool_ fireproof_gen_hook(void *, void *, void *)
+static bool fireproof_gen_hook(void *, void *, void *)
 {
 	fireproof_settings const *settings = fireproof_get_settings();
 
 	/* Only if player doing this quest */
 	if (p_ptr->inside_quest != QUEST_FIREPROOF)
 	{
-		return FALSE;
+		return false;
 	}
 
 	/* Go ahead */
 	{
-		int traps, trap_y, trap_x;
-
 		/* load the map */
 		{
 			int x0 = 2;
@@ -492,75 +478,30 @@ static bool_ fireproof_gen_hook(void *, void *, void *)
 		}
 
 		/* no teleport */
-		dungeon_flags2 = DF2_NO_TELEPORT;
+		dungeon_flags = DF_NO_TELEPORT;
 
-		/* determine type of item */
-		fireproof_set_sval(randint(settings->sval_max));
-
-		/* create essence */
+		/* create quest item */
 		{
-			int x, y;
 			object_type forge;
-
-			object_prep(&forge, lookup_kind(settings->tval, fireproof_get_sval()));
+			object_prep(&forge, lookup_kind(settings->tval, settings->sval));
 
 			/* mark item */
-			forge.pval2 = fireproof_get_sval();
-			forge.note = quark_add("quest");
+			forge.pval2 = settings->sval;
+			forge.inscription = "quest";
 
 			/* roll for co-ordinates in top half of map */
-			y = randint(3) + 2;
-			x = randint(45) + 2;
+			int const y = randint(3) + 2;
+			int const x = randint(45) + 2;
 
 			/* drop it */
 			drop_near(&forge, -1, y, x);
 		}
 
-		/* how many traps to generate */
-		traps = rand_range(10, 30);
-					
-		/* generate the traps */
-		while (traps > 0)
-		{
-			int tries = 0, trap_level = 0;
-
-			/* make sure it's a safe place */
-			while (tries == 0)
-			{
-				/* get grid coordinates */
-				trap_y = randint(19) + 2;
-				trap_x = randint(45) + 2;
-				cave_type *c_ptr = &cave[trap_y][trap_x];
-
-				/* are the coordinates on a stair, or a wall? */
-				if (((f_info[c_ptr->feat].flags1 & FF1_PERMANENT) != 0) ||
-				    ((f_info[c_ptr->feat].flags1 & FF1_FLOOR) == 0))
-				{
-					/* try again */
-					tries = 0;
-				}
-				else
-				{
-					/* not a stair, then stop this 'while' */
-					tries = 1;
-				}
-			}
-
-			/* randomise level of trap */
-			trap_level = rand_range(20, 40);
-
-			/* put the trap there */
-			place_trap_leveled(trap_y, trap_x, trap_level);
-
-			/* that's one less trap to place */
-			traps = traps - 1;
-		}
-		
-		return TRUE;
+		return true;
 	}
 }
 
-bool_ quest_fireproof_init_hook(int q)
+void quest_fireproof_init_hook()
 {
 	/* Only need hooks if the quest is unfinished. */
 	if ((cquest.status >= QUEST_STATUS_UNTAKEN) &&
@@ -570,8 +511,4 @@ bool_ quest_fireproof_init_hook(int q)
 		add_hook_new(HOOK_GET      , fireproof_get_hook  , "fireproof_get_hook",   NULL);
 		add_hook_new(HOOK_STAIR    , fireproof_stair_hook, "fireproof_stair_hook", NULL);
 	}
-
-	return FALSE;
 }
-
-#undef print_hook

@@ -16,6 +16,7 @@
 #include "cave_type.hpp"
 #include "cmd3.hpp"
 #include "files.hpp"
+#include "game.hpp"
 #include "hooks.hpp"
 #include "hook_quest_finish_in.hpp"
 #include "hook_quest_fail_in.hpp"
@@ -23,7 +24,9 @@
 #include "mimic.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
 #include "owner_type.hpp"
+#include "player_race_flag.hpp"
 #include "player_type.hpp"
 #include "q_library.hpp"
 #include "q_fireprof.hpp"
@@ -49,10 +52,11 @@ static int building_loc = 0;
 /*
  * A helper function for is_state
  */
-static bool_ is_state_aux(store_type *s_ptr, int state)
+static bool_ is_state_aux(store_type const *s_ptr, int state)
 {
-	owner_type *ow_ptr = &ow_info[s_ptr->owner];
+	auto const &ow_info = game->edit_data.ow_info;
 
+	auto ow_ptr = &ow_info[s_ptr->owner];
 
 	/* Check race */
 	if (ow_ptr->races[state][p_ptr->prace / 32] & (1 << p_ptr->prace))
@@ -74,7 +78,7 @@ static bool_ is_state_aux(store_type *s_ptr, int state)
 /*
  * Test if the state accords with the player
  */
-bool_ is_state(store_type *s_ptr, int state)
+bool_ is_state(store_type const *s_ptr, int state)
 {
 	if (state == STORE_NORMAL)
 	{
@@ -108,99 +112,95 @@ static void clear_bldg(int min_row, int max_row)
 /*
  * Display a building.
  */
-void show_building(store_type *s_ptr)
+void show_building(store_type const *s_ptr)
 {
-	char buff[20];
+	auto const &ba_info = game->edit_data.ba_info;
+	auto const &st_info = game->edit_data.st_info;
 
-	int i;
+	auto st_ptr = &st_info[s_ptr->st_idx];
 
-	byte action_color;
-
-	char tmp_str[80];
-
-	store_info_type *st_ptr = &st_info[s_ptr->st_idx];
-
-
-	for (i = 0; i < 6; i++)
+	for (std::size_t i = 0; i < st_ptr->actions.size(); i++)
 	{
-		store_action_type *ba_ptr = &ba_info[st_ptr->actions[i]];
+		auto ba_ptr = &ba_info[st_ptr->actions[i]];
 
-		if (ba_ptr->letter != '.')
+		byte action_color;
+		char buff[20];
+
+		if (ba_ptr->action_restr == 0)
 		{
-			if (ba_ptr->action_restr == 0)
+			if ((is_state(s_ptr, STORE_LIKED) && (ba_ptr->costs[STORE_LIKED] == 0)) ||
+			                (is_state(s_ptr, STORE_HATED) && (ba_ptr->costs[STORE_HATED] == 0)) ||
+			                (is_state(s_ptr, STORE_NORMAL) && (ba_ptr->costs[STORE_NORMAL] == 0)))
 			{
-				if ((is_state(s_ptr, STORE_LIKED) && (ba_ptr->costs[STORE_LIKED] == 0)) ||
-				                (is_state(s_ptr, STORE_HATED) && (ba_ptr->costs[STORE_HATED] == 0)) ||
-				                (is_state(s_ptr, STORE_NORMAL) && (ba_ptr->costs[STORE_NORMAL] == 0)))
-				{
-					action_color = TERM_WHITE;
-					buff[0] = '\0';
-				}
-				else if (is_state(s_ptr, STORE_LIKED))
-				{
-					action_color = TERM_L_GREEN;
-					strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_LIKED]);
-				}
-				else if (is_state(s_ptr, STORE_HATED))
-				{
-					action_color = TERM_RED;
-					strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_HATED]);
-				}
-				else
-				{
-					action_color = TERM_YELLOW;
-					strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_NORMAL]);
-				}
+				action_color = TERM_WHITE;
+				buff[0] = '\0';
 			}
-			else if (ba_ptr->action_restr == 1)
+			else if (is_state(s_ptr, STORE_LIKED))
 			{
-				if ((is_state(s_ptr, STORE_LIKED) && (ba_ptr->costs[STORE_LIKED] == 0)) ||
-				                (is_state(s_ptr, STORE_NORMAL) && (ba_ptr->costs[STORE_NORMAL] == 0)))
-				{
-					action_color = TERM_WHITE;
-					buff[0] = '\0';
-				}
-				else if (is_state(s_ptr, STORE_LIKED))
-				{
-					action_color = TERM_L_GREEN;
-					strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_LIKED]);
-				}
-				else if (is_state(s_ptr, STORE_HATED))
-				{
-					action_color = TERM_L_DARK;
-					strnfmt(buff, 20, "(closed)");
-				}
-				else
-				{
-					action_color = TERM_YELLOW;
-					strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_NORMAL]);
-				}
+				action_color = TERM_L_GREEN;
+				strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_LIKED]);
+			}
+			else if (is_state(s_ptr, STORE_HATED))
+			{
+				action_color = TERM_RED;
+				strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_HATED]);
 			}
 			else
 			{
-				if (is_state(s_ptr, STORE_LIKED) && (ba_ptr->costs[STORE_LIKED] == 0))
-				{
-					action_color = TERM_WHITE;
-					buff[0] = '\0';
-				}
-				else if (is_state(s_ptr, STORE_LIKED))
-				{
-					action_color = TERM_L_GREEN;
-					strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_LIKED]);
-				}
-				else
-				{
-					action_color = TERM_L_DARK;
-					strnfmt(buff, 20, "(closed)");
-				}
+				action_color = TERM_YELLOW;
+				strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_NORMAL]);
 			}
-
-			strnfmt(tmp_str, 80, " %c", ba_ptr->letter);
-			c_put_str(TERM_YELLOW, tmp_str, 21 + (i / 2), 17 + (30 * (i % 2)));
-
-			strnfmt(tmp_str, 80, ") %s %s", ba_ptr->name, buff);
-			c_put_str(action_color, tmp_str, 21 + (i / 2), 2 + 17 + (30 * (i % 2)));
 		}
+		else if (ba_ptr->action_restr == 1)
+		{
+			if ((is_state(s_ptr, STORE_LIKED) && (ba_ptr->costs[STORE_LIKED] == 0)) ||
+			                (is_state(s_ptr, STORE_NORMAL) && (ba_ptr->costs[STORE_NORMAL] == 0)))
+			{
+				action_color = TERM_WHITE;
+				buff[0] = '\0';
+			}
+			else if (is_state(s_ptr, STORE_LIKED))
+			{
+				action_color = TERM_L_GREEN;
+				strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_LIKED]);
+			}
+			else if (is_state(s_ptr, STORE_HATED))
+			{
+				action_color = TERM_L_DARK;
+				strnfmt(buff, 20, "(closed)");
+			}
+			else
+			{
+				action_color = TERM_YELLOW;
+				strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_NORMAL]);
+			}
+		}
+		else
+		{
+			if (is_state(s_ptr, STORE_LIKED) && (ba_ptr->costs[STORE_LIKED] == 0))
+			{
+				action_color = TERM_WHITE;
+				buff[0] = '\0';
+			}
+			else if (is_state(s_ptr, STORE_LIKED))
+			{
+				action_color = TERM_L_GREEN;
+				strnfmt(buff, 20, "(%dgp)", ba_ptr->costs[STORE_LIKED]);
+			}
+			else
+			{
+				action_color = TERM_L_DARK;
+				strnfmt(buff, 20, "(closed)");
+			}
+		}
+
+		char tmp_str[80];
+
+		strnfmt(tmp_str, 80, " %c", ba_ptr->letter);
+		c_put_str(TERM_YELLOW, tmp_str, 21 + (i / 2), 17 + (30 * (i % 2)));
+
+		strnfmt(tmp_str, 80, ") %s %s", ba_ptr->name.c_str(), buff);
+		c_put_str(action_color, tmp_str, 21 + (i / 2), 2 + 17 + (30 * (i % 2)));
 	}
 }
 
@@ -332,7 +332,7 @@ static bool_ gamble_comm(int cmd)
 	if (cmd == BACT_GAMBLE_RULES)
 	{
 		/* Peruse the gambling help file */
-		(void)show_file("gambling.txt", NULL, 0, 0);
+		show_file("gambling.txt", NULL);
 	}
 	else
 	{
@@ -541,7 +541,7 @@ static bool_ inn_comm(int cmd)
 
 
 	/* Extract race info */
-	vampire = ((race_flags1_p(PR1_VAMPIRE)) || (p_ptr->mimic_form == resolve_mimic_name("Vampire")));
+	vampire = ((race_flags_p(PR_VAMPIRE)) || (p_ptr->mimic_form == resolve_mimic_name("Vampire")));
 
 	switch (cmd)
 	{
@@ -551,7 +551,7 @@ static bool_ inn_comm(int cmd)
 			{
 				msg_print("The barkeep gives you some gruel and a beer.");
 				msg_print(NULL);
-				(void) set_food(PY_FOOD_MAX - 1);
+				set_food(PY_FOOD_MAX - 1);
 			}
 			else
 				msg_print("You're a vampire and I don't have any food for you!");
@@ -743,7 +743,7 @@ static bool_ castle_quest(int y, int x)
 		get_questinfo(plots[plot]);
 
 		/* Add the hooks */
-		quest[plots[plot]].init(plots[plot]);
+		quest[plots[plot]].init();
 
 		return (TRUE);
 	}
@@ -754,13 +754,13 @@ static bool_ castle_quest(int y, int x)
 /*
  * Displaying town history -KMW-
  */
-static void town_history(void)
+static void town_history()
 {
 	/* Save screen */
 	screen_save();
 
 	/* Peruse the building help file */
-	(void)show_file("bldg.txt", NULL, 0, 0);
+	show_file("bldg.txt", NULL);
 
 	/* Load screen */
 	screen_load();
@@ -770,7 +770,7 @@ static void town_history(void)
 /*
  * compare_weapon_aux2 -KMW-
  */
-static void compare_weapon_aux2(object_type *o_ptr, int numblows, int r, int c, int mult, const char *attr, u32b f1, u32b f2, u32b f3, byte color)
+static void compare_weapon_aux2(object_type *o_ptr, int numblows, int r, int c, int mult, const char *attr, byte color)
 {
 	char tmp_str[80];
 
@@ -788,80 +788,77 @@ static void compare_weapon_aux2(object_type *o_ptr, int numblows, int r, int c, 
  */
 static void compare_weapon_aux1(object_type *o_ptr, int col, int r)
 {
-	u32b f1, f2, f3, f4, f5, esp;
+	auto const f = object_flags(o_ptr);
 
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-
-
-	if (f1 & (TR1_SLAY_ANIMAL))
+	if (f & TR_SLAY_ANIMAL)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 2, "Animals:",
-		                    f1, f2, f3, TERM_YELLOW);
+				    TERM_YELLOW);
 	}
-	if (f1 & (TR1_SLAY_EVIL))
+	if (f & TR_SLAY_EVIL)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 2, "Evil:",
-		                    f1, f2, f3, TERM_YELLOW);
+				    TERM_YELLOW);
 	}
-	if (f1 & (TR1_SLAY_UNDEAD))
+	if (f & TR_SLAY_UNDEAD)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Undead:",
-		                    f1, f2, f3, TERM_YELLOW);
+				    TERM_YELLOW);
 	}
-	if (f1 & (TR1_SLAY_DEMON))
+	if (f & TR_SLAY_DEMON)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Demons:",
-		                    f1, f2, f3, TERM_YELLOW);
+				    TERM_YELLOW);
 	}
-	if (f1 & (TR1_SLAY_ORC))
+	if (f & TR_SLAY_ORC)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Orcs:",
-		                    f1, f2, f3, TERM_YELLOW);
+				    TERM_YELLOW);
 	}
-	if (f1 & (TR1_SLAY_TROLL))
+	if (f & TR_SLAY_TROLL)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Trolls:",
-		                    f1, f2, f3, TERM_YELLOW);
+				    TERM_YELLOW);
 	}
-	if (f1 & (TR1_SLAY_GIANT))
+	if (f & TR_SLAY_GIANT)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Giants:",
-		                    f1, f2, f3, TERM_YELLOW);
+				    TERM_YELLOW);
 	}
-	if (f1 & (TR1_SLAY_DRAGON))
+	if (f & TR_SLAY_DRAGON)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Dragons:",
-		                    f1, f2, f3, TERM_YELLOW);
+				    TERM_YELLOW);
 	}
-	if (f1 & (TR1_KILL_DRAGON))
+	if (f & TR_KILL_DRAGON)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 5, "Dragons:",
-		                    f1, f2, f3, TERM_YELLOW);
+				    TERM_YELLOW);
 	}
-	if (f1 & (TR1_BRAND_ACID))
+	if (f & TR_BRAND_ACID)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Acid:",
-		                    f1, f2, f3, TERM_RED);
+				    TERM_RED);
 	}
-	if (f1 & (TR1_BRAND_ELEC))
+	if (f & TR_BRAND_ELEC)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Elec:",
-		                    f1, f2, f3, TERM_RED);
+				    TERM_RED);
 	}
-	if (f1 & (TR1_BRAND_FIRE))
+	if (f & TR_BRAND_FIRE)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Fire:",
-		                    f1, f2, f3, TERM_RED);
+				    TERM_RED);
 	}
-	if (f1 & (TR1_BRAND_COLD))
+	if (f & TR_BRAND_COLD)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Cold:",
-		                    f1, f2, f3, TERM_RED);
+				    TERM_RED);
 	}
-	if (f1 & (TR1_BRAND_POIS))
+	if (f & TR_BRAND_POIS)
 	{
 		compare_weapon_aux2(o_ptr, p_ptr->num_blow, r++, col, 3, "Poison:",
-		                    f1, f2, f3, TERM_RED);
+				    TERM_RED);
 	}
 }
 
@@ -905,7 +902,7 @@ static bool item_tester_hook_melee_weapon(object_type const *o_ptr)
 /*
  * compare_weapons -KMW-
  */
-static bool_ compare_weapons(void)
+static bool_ compare_weapons()
 {
 	int item, i;
 
@@ -989,8 +986,7 @@ static bool_ compare_weapons(void)
  * sharpen arrows, repair armor, repair weapon
  * -KMW-
  */
-static bool_ fix_item(int istart, int iend, int ispecific, bool_ iac,
-                     int ireward, bool_ set_reward)
+static bool_ fix_item(int istart, int iend, int ispecific, bool_ iac)
 {
 	int i;
 
@@ -1084,7 +1080,7 @@ static bool_ fix_item(int istart, int iend, int ispecific, bool_ iac,
 /*
  * Research Item
  */
-static bool_ research_item(void)
+static bool_ research_item()
 {
 	clear_bldg(5, 18);
 	return (identify_fully());
@@ -1095,17 +1091,13 @@ static bool_ research_item(void)
 /*
  * Execute a building command
  */
-bool_ bldg_process_command(store_type *s_ptr, int i)
+bool_ bldg_process_command(const store_type *s_ptr, store_action_type const *ba_ptr)
 {
-	store_action_type *ba_ptr = &ba_info[st_info[s_ptr->st_idx].actions[i]];
-
 	int bact = ba_ptr->action;
 
 	int bcost;
 
 	bool_ paid = FALSE;
-
-	bool_ set_reward = FALSE;
 
 	bool_ recreate = FALSE;
 
@@ -1139,8 +1131,6 @@ bool_ bldg_process_command(store_type *s_ptr, int i)
 		msg_print(NULL);
 		return FALSE;
 	}
-
-	if (!bcost) set_reward = TRUE;
 
 	switch (bact)
 	{
@@ -1218,12 +1208,6 @@ bool_ bldg_process_command(store_type *s_ptr, int i)
 			break;
 		}
 
-	case BACT_RESEARCH_MONSTER:
-		{
-			paid = !research_mon();
-			break;
-		}
-
 	case BACT_COMPARE_WEAPONS:
 		{
 			paid = compare_weapons();
@@ -1232,15 +1216,13 @@ bool_ bldg_process_command(store_type *s_ptr, int i)
 
 	case BACT_ENCHANT_WEAPON:
 		{
-			paid = fix_item(INVEN_WIELD, INVEN_WIELD, 0, FALSE,
-			                BACT_ENCHANT_WEAPON, set_reward);
+		        paid = fix_item(INVEN_WIELD, INVEN_WIELD, 0, FALSE);
 			break;
 		}
 
 	case BACT_ENCHANT_ARMOR:
 		{
-			paid = fix_item(INVEN_BODY, INVEN_FEET, 0, TRUE,
-			                BACT_ENCHANT_ARMOR, set_reward);
+		        paid = fix_item(INVEN_BODY, INVEN_FEET, 0, TRUE);
 			break;
 		}
 
@@ -1306,15 +1288,13 @@ bool_ bldg_process_command(store_type *s_ptr, int i)
 
 	case BACT_ENCHANT_ARROWS:
 		{
-			paid = fix_item(0, INVEN_WIELD, TV_ARROW, FALSE,
-			                BACT_ENCHANT_ARROWS, set_reward);
+		        paid = fix_item(0, INVEN_WIELD, TV_ARROW, FALSE);
 			break;
 		}
 
 	case BACT_ENCHANT_BOW:
 		{
-			paid = fix_item(INVEN_BOW, INVEN_BOW, TV_BOW, FALSE,
-			                BACT_ENCHANT_BOW, set_reward);
+		        paid = fix_item(INVEN_BOW, INVEN_BOW, TV_BOW, FALSE);
 			break;
 		}
 
@@ -1445,7 +1425,7 @@ bool_ bldg_process_command(store_type *s_ptr, int i)
 /*
  * Enter quest level
  */
-void enter_quest(void)
+void enter_quest()
 {
 	if (!(cave[p_ptr->py][p_ptr->px].feat == FEAT_QUEST_ENTER))
 	{

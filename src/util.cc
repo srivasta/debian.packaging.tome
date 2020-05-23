@@ -8,6 +8,7 @@
 #include "cli_comm.hpp"
 #include "cmd3.hpp"
 #include "cmd4.hpp"
+#include "game.hpp"
 #include "init1.hpp"
 #include "messages.hpp"
 #include "monster_ego.hpp"
@@ -17,7 +18,6 @@
 #include "player_race.hpp"
 #include "player_race_mod.hpp"
 #include "player_type.hpp"
-#include "quark.hpp"
 #include "tables.h"
 #include "tables.hpp"
 #include "timer_type.hpp"
@@ -27,6 +27,7 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <chrono>
+#include <sstream>
 #include <thread>
 
 using boost::algorithm::iequals;
@@ -36,23 +37,23 @@ using std::chrono::milliseconds;
 /*
 * Find a default user name from the system.
 */
-void user_name(char *buf, int id)
+std::string user_name()
 {
 #ifdef SET_UID
+	/* Get the user id (?) */
+	int player_uid = getuid();
+
 	struct passwd *pw;
 
 	/* Look up the user name */
-	if ((pw = getpwuid(id)))
+	if ((pw = getpwuid(player_uid)))
 	{
-		(void)strcpy(buf, pw->pw_name);
-		buf[16] = '\0';
-
-		return;
+		return pw->pw_name;
 	}
 #endif /* SET_UID */
 
-	/* Oops.  Hack -- default to "PLAYER" */
-	strcpy(buf, "PLAYER");
+	/* Default to "PLAYER" if we don't have platform support */
+	return "PLAYER";
 }
 
 
@@ -69,8 +70,6 @@ void user_name(char *buf, int id)
 * system-specific path seperator, etc).  This would allow the program itself
 * to assume that all filenames are "Unix" filenames, and explicitly "extract"
 * such filenames if needed (by "path_parse()", or perhaps "path_canon()").
-*
-* Note that "path_temp" should probably return a "canonical" filename.
 *
 * Note that "my_fopen()" and "my_open()" and "my_make()" and "my_kill()"
 * and "my_move()" and "my_copy()" should all take "canonical" filenames.
@@ -126,7 +125,7 @@ errr path_parse(char *buf, int max, cptr file)
 
 	if (!u) return (1);
 
-	(void)strcpy(buf, u);
+	strcpy(buf, u);
 #else
 	/* Look up password data for user */
 	pw = getpwuid(getuid());
@@ -135,11 +134,11 @@ errr path_parse(char *buf, int max, cptr file)
 	if (!pw) return (1);
 
 	/* Make use of the info */
-	(void)strcpy(buf, pw->pw_dir);
+	strcpy(buf, pw->pw_dir);
 #endif
 
 	/* Append the rest of the filename, if any */
-	if (s) (void)strcat(buf, s);
+	if (s) strcat(buf, s);
 
 	/* Success */
 	return (0);
@@ -166,42 +165,6 @@ errr path_parse(char *buf, int max, cptr file)
 
 
 #endif /* SET_UID */
-
-
-/*
-* Hack -- acquire a "temporary" file name if possible
-*
-* This filename is always in "system-specific" form.
-*/
-errr path_temp(char *buf, int max)
-{
-#ifdef WINDOWS
-	static u32b tmp_counter;
-	static char valid_characters[] =
-			"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	char rand_ext[4];
-
-	rand_ext[0] = valid_characters[rand_int(sizeof (valid_characters))];
-	rand_ext[1] = valid_characters[rand_int(sizeof (valid_characters))];
-	rand_ext[2] = valid_characters[rand_int(sizeof (valid_characters))];
-	rand_ext[3] = '\0';
-	strnfmt(buf, max, "%s/t_%ud.%s", ANGBAND_DIR_XTRA, tmp_counter, rand_ext);
-	tmp_counter++;
-#else 
-	cptr s;
-
-	/* Temp file */
-	s = tmpnam(NULL);
-
-	/* Oops */
-	if (!s) return ( -1);
-
-	/* Format to length */
-	strnfmt(buf, max, "%s", s);
-#endif
-	/* Success */
-	return (0);
-}
 
 
 /*
@@ -381,7 +344,7 @@ errr fd_kill(cptr file)
 	if (path_parse(buf, 1024, file)) return ( -1);
 
 	/* Remove */
-	(void)remove(buf);
+	remove(buf);
 
 	/* XXX XXX XXX */
 	return (0);
@@ -403,7 +366,7 @@ errr fd_move(cptr file, cptr what)
 	if (path_parse(aux, 1024, what)) return ( -1);
 
 	/* Rename */
-	(void)rename(buf, aux);
+	rename(buf, aux);
 
 	/* XXX XXX XXX */
 	return (0);
@@ -551,7 +514,7 @@ errr fd_close(int fd)
 	if (fd < 0) return ( -1);
 
 	/* Close */
-	(void)close(fd);
+	close(fd);
 
 	/* XXX XXX XXX */
 	return (0);
@@ -1250,7 +1213,7 @@ static bool_ parse_under = FALSE;
 * This is not only more efficient, but also necessary to make sure
 * that various "inkey()" codes are not "lost" along the way.
 */
-void flush(void)
+void flush()
 {
 	/* Do it later */
 	flush_later = TRUE;
@@ -1258,31 +1221,33 @@ void flush(void)
 
 
 /*
+ * Flush input if the 'flush_failure' option is set.
+ */
+void flush_on_failure()
+{
+	if (options->flush_failure)
+	{
+		flush();
+	}
+}
+
+
+/*
 * Flush the screen, make a noise
 */
-void bell(void)
+void bell()
 {
 	/* Mega-Hack -- Flush the output */
 	Term_fresh();
 
 	/* Make a bell noise (if allowed) */
-	if (ring_bell)
+	if (options->ring_bell)
 	{
 		Term_bell();
 	}
 
 	/* Flush the input (later!) */
 	flush();
-}
-
-
-/*
-* Hack -- Make a (relevant?) sound
-*/
-void sound(int val)
-{
-	/* Ignore; sound not currently supported. */
-	return;
 }
 
 
@@ -1304,7 +1269,7 @@ void sound(int val)
 * macro trigger, 500 milliseconds must pass before the key sequence is
 * known not to be that macro trigger.  XXX XXX XXX
 */
-static char inkey_aux(void)
+static char inkey_aux()
 {
 	int k = 0, n, p = 0, w = 0;
 
@@ -1316,7 +1281,7 @@ static char inkey_aux(void)
 
 
 	/* Wait for a keypress */
-	(void)(Term_inkey(&ch, TRUE, TRUE));
+	(Term_inkey(&ch, TRUE, TRUE));
 
 
 	/* End "macro action" */
@@ -1393,7 +1358,7 @@ static char inkey_aux(void)
 		}
 
 		/* Wait for (and remove) a pending key */
-		(void)Term_inkey(&ch, TRUE, TRUE);
+		Term_inkey(&ch, TRUE, TRUE);
 
 		/* Return the key */
 		return (ch);
@@ -1538,13 +1503,13 @@ static char inkey_real(bool_ inkey_scan)
 
 
 	/* Access cursor state */
-	(void)Term_get_cursor(&v);
+	Term_get_cursor(&v);
 
 	/* Show the cursor if waiting, except sometimes in "command" mode */
-	if (!inkey_scan && (!inkey_flag || hilite_player || character_icky))
+	if (!inkey_scan && (!inkey_flag || options->hilite_player || character_icky))
 	{
 		/* Show the cursor */
-		(void)Term_set_cursor(1);
+		Term_set_cursor(1);
 	}
 
 
@@ -1633,7 +1598,7 @@ static char inkey_real(bool_ inkey_scan)
 
 
 		/* Handle "control-right-bracket" */
-		if ((ch == 29) || ((!rogue_like_commands) && (ch == KTRL('D'))))
+		if ((ch == 29) || ((!options->rogue_like_commands) && (ch == KTRL('D'))))
 		{
 			/* Strip this key */
 			ch = 0;
@@ -1704,7 +1669,7 @@ static char inkey_real(bool_ inkey_scan)
 	return (ch);
 }
 
-char inkey(void) {
+char inkey() {
 	return inkey_real(FALSE);
 }
 
@@ -1726,7 +1691,7 @@ static void msg_flush(int x)
 	while (1)
 	{
 		int cmd = inkey();
-		if (quick_messages) break;
+		if (options->quick_messages) break;
 		if ((cmd == ESCAPE) || (cmd == ' ')) break;
 		if ((cmd == '\n') || (cmd == '\r')) break;
 		bell();
@@ -1793,15 +1758,15 @@ void display_message(int x, int y, int split, byte color, cptr t)
 */
 void cmsg_print(byte color, cptr msg)
 {
-	static int p = 0;
+	auto &messages = game->messages;
 
-	int n;
-	int wid;
+	static int p = 0;
 
 	char *t;
 
 	char buf[1024];
 
+	int wid;
 	Term_get_size(&wid, nullptr);
 	int lim = wid - 8;
 
@@ -1809,7 +1774,7 @@ void cmsg_print(byte color, cptr msg)
 	if (!msg_flag) p = 0;
 
 	/* Message Length */
-	n = (msg ? strlen(msg) : 0);
+	int n = (msg ? strlen(msg) : 0);
 
 	/* Hack -- flush when requested or needed */
 	if (p && (!msg || ((p + n) > lim)))
@@ -1833,10 +1798,13 @@ void cmsg_print(byte color, cptr msg)
 
 
 	/* Memorize the message */
-	if (character_generated) message_add(msg, color);
+	if (character_generated)
+	{
+		messages.add(msg, color);
+	}
 
 	/* Handle "auto_more" */
-	if (auto_more)
+	if (options->auto_more)
 	{
 		/* Window stuff */
 		p_ptr->window |= (PW_MESSAGE);
@@ -1902,11 +1870,11 @@ void cmsg_print(byte color, cptr msg)
 	/* Display the tail of the message */
 	display_message(p, 0, n, color, t);
 
-	/* Memorize the tail */
-	/* if (character_generated) message_add(t); */
-
 	/* Window stuff */
-	p_ptr->window |= (PW_MESSAGE);
+	if (p_ptr)
+	{
+		p_ptr->window |= (PW_MESSAGE);
+	}
 
 	/* Remember the message */
 	msg_flag = TRUE;
@@ -1915,7 +1883,12 @@ void cmsg_print(byte color, cptr msg)
 	p += n + 1;
 
 	/* Optional refresh */
-	if (fresh_message) Term_fresh();
+	if (options->fresh_message) Term_fresh();
+}
+
+void cmsg_print(byte color, std::string const &msg)
+{
+	cmsg_print(color, msg.c_str());
 }
 
 /* Hack -- for compatibility and easy sake */
@@ -1936,7 +1909,7 @@ static int screen_depth = 0;
  *
  * This function must match exactly one call to "screen_load()".
  */
-void screen_save(void)
+void screen_save()
 {
 	/* Hack -- Flush messages */
 	msg_print(NULL);
@@ -1954,7 +1927,7 @@ void screen_save(void)
  *
  * This function must match exactly one call to "screen_save()".
  */
-void screen_load(void)
+void screen_load()
 {
 	/* Hack -- Flush messages */
 	msg_print(NULL);
@@ -1980,7 +1953,7 @@ void msg_format(cptr fmt, ...)
 	va_start(vp, fmt);
 
 	/* Format the args, save the length */
-	(void)vstrnfmt(buf, 1024, fmt, vp);
+	vstrnfmt(buf, 1024, fmt, vp);
 
 	/* End the Varargs Stuff */
 	va_end(vp);
@@ -1999,7 +1972,7 @@ void cmsg_format(byte color, cptr fmt, ...)
 	va_start(vp, fmt);
 
 	/* Format the args, save the length */
-	(void)vstrnfmt(buf, 1024, fmt, vp);
+	vstrnfmt(buf, 1024, fmt, vp);
 
 	/* End the Varargs Stuff */
 	va_end(vp);
@@ -2008,29 +1981,25 @@ void cmsg_format(byte color, cptr fmt, ...)
 	cmsg_print(color, buf);
 }
 
-
-
-/*
-* Display a string on the screen using an attribute.
-*
-* At the given location, using the given attribute, if allowed,
-* add the given string.  Do not clear the line.
-*/
 void c_put_str(byte attr, cptr str, int row, int col)
 {
-	/* Position cursor, Dump the attr/text */
 	Term_putstr(col, row, -1, attr, str);
 }
 
-/*
-* As above, but in "white"
-*/
+void c_put_str(byte attr, std::string const &str, int row, int col)
+{
+	Term_putstr(col, row, -1, attr, str.c_str());
+}
+
 void put_str(cptr str, int row, int col)
 {
-	/* Spawn */
 	Term_putstr(col, row, -1, TERM_WHITE, str);
 }
 
+void put_str(std::string const &str, int row, int col)
+{
+	Term_putstr(col, row, -1, TERM_WHITE, str.c_str());
+}
 
 
 /*
@@ -2046,16 +2015,20 @@ void c_prt(byte attr, cptr str, int row, int col)
 	Term_addstr( -1, attr, str);
 }
 
-/*
-* As above, but in "white"
-*/
+void c_prt(byte attr, std::string const &s, int row, int col)
+{
+	c_prt(attr, s.c_str(), row, col);
+}
+
 void prt(cptr str, int row, int col)
 {
-	/* Spawn */
 	c_prt(TERM_WHITE, str, row, col);
 }
 
-
+void prt(std::string const &s, int row, int col)
+{
+	prt(s.c_str(), row, col);
+}
 
 /*
  * Print some (colored) text to the screen at the current cursor position,
@@ -2083,10 +2056,10 @@ void text_out_to_screen(byte a, cptr str)
 
 
 	/* Obtain the size */
-	(void)Term_get_size(&wid, &h);
+	Term_get_size(&wid, &h);
 
 	/* Obtain the cursor */
-	(void)Term_locate(&x, &y);
+	Term_locate(&x, &y);
 
 	/* Wrapping boundary */
 	wrap = wid;
@@ -2193,7 +2166,7 @@ void text_out_to_file(byte a, cptr str)
 	cptr s = str;
 
 	/* Unused parameter */
-	(void)a;
+	a;
 
 	/* Process the string */
 	while (*s)
@@ -2380,6 +2353,23 @@ static int complete_command(char *buf, int clen, int mlen)
 	return strlen(buf) + 1;
 }
 
+
+bool askfor_aux(std::string *buf, std::size_t max_len)
+{
+	// Buffer
+	char cstr[1024];
+	// Sanity
+	assert(max_len < sizeof(cstr));
+	// Copy into temporary buffer
+	cstr[buf->size()] = '\0';
+	buf->copy(cstr, std::string::npos);
+	// Delegate
+	bool result  = askfor_aux(cstr, max_len);
+	// Copy back
+	(*buf) = cstr;
+	// Done
+	return result;
+}
 
 /*
 * Get some input at the cursor location.
@@ -2574,7 +2564,7 @@ bool_ get_check(cptr prompt)
 	while (TRUE)
 	{
 		i = inkey();
-		if (quick_messages) break;
+		if (options->quick_messages) break;
 		if (i == ESCAPE) break;
 		if (strchr("YyNn", i)) break;
 		bell();
@@ -2728,7 +2718,6 @@ static char request_command_buffer[256];
 * request_command().  This MUST have at least twice as many characters as
 * there are building actions in the actions[] array in store_info_type.
 */
-#define MAX_IGNORE_KEYMAPS 12
 char request_command_ignore_keymaps[MAX_IGNORE_KEYMAPS];
 
 /*
@@ -2925,7 +2914,7 @@ void request_command(int shopping)
 		if (cmd == '\\')
 		{
 			/* Get a real command */
-			(void)get_com("Command: ", &cmd_char);
+			get_com("Command: ", &cmd_char);
 
 			cmd = cmd_char;
 
@@ -2983,7 +2972,7 @@ void request_command(int shopping)
 	}
 
 	/* Hack -- Auto-repeat certain commands */
-	if (always_repeat && (command_arg <= 0))
+	if (options->always_repeat && (command_arg <= 0))
 	{
 		/* Hack -- auto repeat certain commands */
 		if (strchr("TBDoc+", command_cmd))
@@ -2996,18 +2985,19 @@ void request_command(int shopping)
 	/* Hack -- Scan equipment */
 	for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
 	{
-		cptr s;
-
 		object_type *o_ptr = &p_ptr->inventory[i];
 
 		/* Skip non-objects */
 		if (!o_ptr->k_idx) continue;
 
 		/* No inscription */
-		if (!o_ptr->note) continue;
+		if (o_ptr->inscription.empty())
+		{
+			continue;
+		}
 
 		/* Obtain the inscription */
-		s = quark_str(o_ptr->note);
+		auto s = o_ptr->inscription.c_str();
 
 		/* Find a '^' */
 		s = strchr(s, '^');
@@ -3152,7 +3142,7 @@ bool_ repeat_pull(int *what)
 	return (TRUE);
 }
 
-void repeat_check(void)
+void repeat_check()
 {
 	int what;
 
@@ -3196,7 +3186,7 @@ void repeat_check(void)
  *
  * Allow numbers of any size and save the last keypress.
  */
-u32b get_number(u32b def, u32b max, int y, int x, char *cmd)
+static u32b get_number(u32b def, u32b max, int y, int x, char *cmd)
 {
 	u32b res = def;
 
@@ -3293,7 +3283,10 @@ void get_count(int number, int max)
 	command_arg = number;
 
 	/* Hack -- Optional flush */
-	if (flush_command) flush();
+	if (options->flush_command)
+	{
+		flush();
+	}
 
 	/* Clear top line */
 	prt("", 0, 0);
@@ -3336,28 +3329,33 @@ void strlower(char *buf)
  */
 int test_monster_name(cptr name)
 {
-	int i;
+	auto const &r_info = game->edit_data.r_info;
 
-	/* Scan the monsters */
-	for (i = 1; i < max_r_idx; i++)
+	for (std::size_t i = 0; i < r_info.size(); i++)
 	{
-		monster_race *r_ptr = &r_info[i];
-		if (r_ptr->name && iequals(name, r_ptr->name)) return (i);
+		auto r_ptr = &r_info[i];
+		if (r_ptr->name && iequals(name, r_ptr->name))
+		{
+			return (i);
+		}
 	}
 	return (0);
 }
 
-int test_mego_name(cptr name)
+int test_mego_name(cptr needle)
 {
-	int i;
+	const auto &re_info = game->edit_data.re_info;
 
 	/* Scan the monsters */
-	for (i = 1; i < max_re_idx; i++)
+	for (std::size_t i = 0; i < re_info.size(); i++)
 	{
-		monster_ego *re_ptr = &re_info[i];
-		if (re_ptr->name && iequals(name, re_ptr->name)) return (i);
+		auto name = re_info[i].name;
+		if (name && iequals(name, needle))
+		{
+			return i;
+		}
 	}
-	return (0);
+	return 0;
 }
 
 /*
@@ -3366,18 +3364,20 @@ int test_mego_name(cptr name)
  * returned. Case doesn't matter. -DG-
  */
 
-int test_item_name(cptr name)
+int test_item_name(cptr needle)
 {
-	int i;
+	auto const &k_info = game->edit_data.k_info;
 
-	/* Scan the items */
-	for (i = 1; i < max_k_idx; i++)
+	for (std::size_t i = 0; i < k_info.size(); i++)
 	{
-		object_kind *k_ptr = &k_info[i];
-		/* If name matches, give us the number */
-		if (k_ptr->name && iequals(name, k_ptr->name)) return (i);
+		auto const &name = k_info[i].name;
+		if (name && iequals(needle, name))
+		{
+			return i;
+		}
 	}
-	return (0);
+
+	return 0;
 }
 
 /*
@@ -3402,41 +3402,53 @@ s32b bst(s32b what, s32b t)
 	}
 }
 
-cptr get_day(int day)
+std::string get_day(s32b day_no)
 {
-	static char buf[20];
-	cptr p = "th";
-
-	if ((day / 10) == 1) ;
-	else if ((day % 10) == 1) p = "st";
-	else if ((day % 10) == 2) p = "nd";
-	else if ((day % 10) == 3) p = "rd";
-
-	sprintf(buf, "%d%s", day, p);
-	return (buf);
+	// Convert the number
+	std::string day(std::to_string(day_no));
+	// Suffix
+	if ((day_no / 10) == 1)
+	{
+		return day + "th";
+	}
+	else if ((day_no % 10) == 1)
+	{
+		return day + "st";
+	}
+	else if ((day_no % 10) == 2)
+	{
+		return day + "nd";
+	}
+	else if ((day_no % 10) == 3)
+	{
+		return day + "rd";
+	}
+	else
+	{
+		return day + "th";
+	}
 }
 
-cptr get_player_race_name(int pr, int ps)
+std::string get_player_race_name(int pr, int ps)
 {
-	static char buf[50];
+	auto const &race_info = game->edit_data.race_info;
+	auto const &race_mod_info = game->edit_data.race_mod_info;
 
 	if (ps)
 	{
 		if (race_mod_info[ps].place)
 		{
-			sprintf(buf, "%s %s", race_info[pr].title, race_mod_info[ps].title);
+			return std::string(race_info[pr].title) + " " + race_mod_info[ps].title;
 		}
 		else
 		{
-			sprintf(buf, "%s %s", race_mod_info[ps].title, race_info[pr].title);
+			return std::string(race_mod_info[ps].title) + " " + race_info[pr].title;
 		}
 	}
 	else
 	{
-		sprintf(buf, "%s", race_info[pr].title);
+		return std::string(race_info[pr].title);
 	}
-
-	return (buf);
 }
 
 /*
@@ -3446,7 +3458,7 @@ int ask_menu(cptr ask, const std::vector<std::string> &items)
 {
 	int ret = -1, i, start = 0;
 	char c;
-	int size = items.size(); // Convert to int to avoid warnings
+	int size = static_cast<int>(items.size()); // Convert to int to avoid warnings
 
 	/* Enter "icky" mode */
 	character_icky = TRUE;
@@ -3524,10 +3536,6 @@ bool_ prefix(cptr s, cptr t)
 	/* Paranoia */
 	if (!s || !t)
 	{
-		if (alert_failure)
-		{
-			message_add("prefix() called with null argument!", TERM_RED);
-		}
 		return FALSE;
 	}
 
@@ -3573,56 +3581,59 @@ void draw_box(int y, int x, int h, int w)
 /*
  * Displays a scrollable boxed list with a selected item
  */
-void display_list(int y, int x, int h, int w, cptr title, cptr *list, int max, int begin, int sel, byte sel_color)
+void display_list(int y, int x, int h, int w, cptr title, std::vector<std::string> const &list, std::size_t begin, std::size_t sel, byte sel_color)
 {
-	int i;
-
 	draw_box(y, x, h, w);
 	c_put_str(TERM_L_BLUE, title, y, x + ((w - strlen(title)) / 2));
 
-	for (i = 0; i < h - 1; i++)
+	for (int i = 0; i < h - 1; i++)
 	{
 		byte color = TERM_WHITE;
 
-		if (i + begin >= max) break;
+		if (i + begin >= list.size())
+		{
+			break;
+		}
 
 		if (i + begin == sel) color = sel_color;
-		c_put_str(color, list[i + begin], y + 1 + i, x + 1);
+		c_put_str(color, list[i + begin].c_str(), y + 1 + i, x + 1);
 	}
 }
 
-/*
- * Creates an input box
- */
-bool_ input_box(cptr text, int y, int x, char *buf, int max)
+bool input_box_auto(std::string const &prompt, std::string *buf, std::size_t max)
 {
-	int smax = strlen(text);
+	int wid, hgt;
+	Term_get_size(&wid, &hgt);
 
-	if (max > smax) smax = max;
-	smax++;
+	auto const y = hgt / 2;
+	auto const x = wid / 2;
+
+	auto const smax = std::max(prompt.size(), max) + 1;
 
 	draw_box(y - 1, x - (smax / 2), 3, smax);
-	c_put_str(TERM_WHITE, text, y, x - (strlen(text) / 2));
+	c_put_str(TERM_WHITE, prompt.c_str(), y, x - (prompt.size() / 2));
 
 	Term_gotoxy(x - (smax / 2) + 1, y + 1);
 	return askfor_aux(buf, max);
 }
 
-/*
- * Creates a msg bbox and ask a question
- */
-char msg_box(cptr text, int y, int x)
+std::string input_box_auto(std::string const &title, std::size_t max)
 {
-	if (x == -1)
-	{
-		int wid = 0, hgt = 0;
-		Term_get_size(&wid, &hgt);
-		x = wid / 2;
-		y = hgt / 2;
-	}
+	std::string buf;
+	input_box_auto(title, &buf, max);
+	return buf;
+}
 
-	draw_box(y - 1, x - ((strlen(text) + 1) / 2), 2, strlen(text) + 1);
-	c_put_str(TERM_WHITE, text, y, x - ((strlen(text) + 1) / 2) + 1);
+char msg_box_auto(std::string const &text)
+{
+	int wid, hgt;
+	Term_get_size(&wid, &hgt);
+
+	auto const y = hgt / 2;
+	auto const x = wid / 2;
+
+	draw_box(y - 1, x - ((text.size() + 1) / 2), 2, text.size() + 1);
+	c_put_str(TERM_WHITE, text.c_str(), y, x - ((text.size() + 1) / 2) + 1);
 	return inkey();
 }
 
@@ -3631,25 +3642,16 @@ char msg_box(cptr text, int y, int x)
  */
 timer_type *new_timer(void (*callback)(), s32b delay)
 {
-	timer_type *t_ptr = new timer_type();
+	auto &timers = game->timers;
 
-	static_assert(std::is_pod<timer_type>::value, "Cannot memset a non-POD type");
-	memset(t_ptr, 0, sizeof(timer_type));
-
-	t_ptr->next = gl_timers;
-	gl_timers = t_ptr;
-
-	t_ptr->callback = callback;
-	t_ptr->delay = delay;
-	t_ptr->countdown = delay;
-	t_ptr->enabled = FALSE;
-
+	timer_type *t_ptr = new timer_type(callback, delay);
+	timers.push_back(t_ptr);
 	return t_ptr;
 }
 
 int get_keymap_mode()
 {
-	if (rogue_like_commands)
+	if (options->rogue_like_commands)
 	{
 		return KEYMAP_MODE_ROGUE;
 	}

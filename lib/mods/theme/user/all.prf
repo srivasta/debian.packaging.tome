@@ -50,9 +50,6 @@ Y:disturb_near
 # Option 'Disturb whenever map panel changes'
 Y:disturb_panel
 
-# Option 'Disturb whenever leaving trap-detected area'
-Y:disturb_detect
-
 # Option 'Disturb whenever player state changes'
 Y:disturb_state
 
@@ -61,9 +58,6 @@ X:disturb_minor
 
 # Option 'Disturb whenever random things happen'
 X:disturb_other
-
-# Option 'Alert user to critical hitpoints'
-Y:alert_hitpoint
 
 # Option 'Alert user to various failures'
 Y:alert_failure
@@ -82,9 +76,6 @@ X:disturb_pets
 
 # Option 'Automatically open doors'
 Y:easy_open
-
-# Option 'Automatically disarm traps'
-Y:easy_disarm
 
 # Option 'Automatically tunnel walls'
 Y:easy_tunnel

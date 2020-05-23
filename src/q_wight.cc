@@ -9,8 +9,8 @@
 #include "monster2.hpp"
 #include "monster_type.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
 #include "player_type.hpp"
-#include "quark.hpp"
 #include "tables.hpp"
 #include "util.hpp"
 #include "variable.hpp"
@@ -22,13 +22,16 @@
 
 GENERATE_MONSTER_LOOKUP_FN(get_wight_king, "The Wight-King of the Barrow-downs")
 
-static bool_ quest_wight_gen_hook(void *, void *, void *)
+static bool quest_wight_gen_hook(void *, void *, void *)
 {
 	int x, y;
 	int xstart = 2;
 	int ystart = 2;
 
-	if (p_ptr->inside_quest != QUEST_WIGHT) return FALSE;
+	if (p_ptr->inside_quest != QUEST_WIGHT)
+	{
+		return false;
+	}
 
 	/* Start with perm walls */
 	for (y = 0; y < cur_hgt; y++)
@@ -50,6 +53,7 @@ static bool_ quest_wight_gen_hook(void *, void *, void *)
 	process_dungeon_file("wights.map", &ystart, &xstart, cur_hgt, cur_wid, TRUE, TRUE);
 
 	for (x = 3; x < xstart; x++)
+	{
 		for (y = 3; y < ystart; y++)
 		{
 			if (cave[y][x].feat == FEAT_MARKER)
@@ -74,25 +78,31 @@ static bool_ quest_wight_gen_hook(void *, void *, void *)
 
 					/* Name the rags */
 
-					q_ptr->art_name = quark_add("of the Wight");
+					q_ptr->artifact_name = "of the Wight";
 
-					q_ptr->art_flags1 |= ( TR1_INT | TR1_SEARCH );
-					q_ptr->art_flags2 |= ( TR2_RES_BLIND | TR2_SENS_FIRE | TR2_RES_CONF );
-					q_ptr->art_flags3 |= ( TR3_IGNORE_ACID | TR3_IGNORE_ELEC |
-					                       TR3_IGNORE_FIRE | TR3_IGNORE_COLD | TR3_SEE_INVIS);
+					q_ptr->art_flags |=
+						TR_INT |
+						TR_RES_BLIND |
+						TR_SENS_FIRE |
+						TR_RES_CONF |
+						TR_IGNORE_ACID |
+						TR_IGNORE_ELEC |
+						TR_IGNORE_FIRE |
+						TR_IGNORE_COLD |
+						TR_SEE_INVIS |
+						TR_CURSED |
+						TR_HEAVY_CURSE;
 
-					/* For game balance... */
-					q_ptr->art_flags3 |= (TR3_CURSED | TR3_HEAVY_CURSE);
 					q_ptr->ident |= IDENT_CURSED;
 
 					if (randint(2) == 1)
 					{
-						q_ptr->art_flags1 |= (TR1_SPELL);
+						q_ptr->art_flags |= TR_SPELL;
 						q_ptr->pval = 6;
 					}
 					else
 					{
-						q_ptr->art_flags1 |= (TR1_MANA);
+						q_ptr->art_flags |= TR_MANA;
 						q_ptr->pval = 2;
 					}
 
@@ -117,17 +127,21 @@ static bool_ quest_wight_gen_hook(void *, void *, void *)
 				}
 			}
 		}
+	}
 
-	return TRUE;
+	return true;
 }
 
-static bool_ quest_wight_death_hook(void *, void *in_, void *)
+static bool quest_wight_death_hook(void *, void *in_, void *)
 {
 	struct hook_monster_death_in *in = static_cast<struct hook_monster_death_in *>(in_);
 	s32b m_idx = in->m_idx;
 	s32b r_idx = m_list[m_idx].r_idx;
 
-	if (p_ptr->inside_quest != QUEST_WIGHT) return FALSE;
+	if (p_ptr->inside_quest != QUEST_WIGHT)
+	{
+		return false;
+	}
 
 	if (r_idx == get_wight_king())
 	{
@@ -141,33 +155,36 @@ static bool_ quest_wight_death_hook(void *, void *in_, void *)
 		del_hook_new(HOOK_MONSTER_DEATH, quest_wight_death_hook);
 		process_hooks_restart = TRUE;
 
-		return (FALSE);
+		return false;
 	}
 
-	return (FALSE);
+	return false;
 }
 
-static bool_ quest_wight_finish_hook(void *, void *in_, void *)
+static bool quest_wight_finish_hook(void *, void *in_, void *)
 {
 	struct hook_quest_finish_in *in = static_cast<struct hook_quest_finish_in *>(in_);
 	s32b q_idx = in->q_idx;
 
-	if (q_idx != QUEST_WIGHT) return FALSE;
+	if (q_idx != QUEST_WIGHT)
+	{
+		return false;
+	}
 
 	c_put_str(TERM_YELLOW, "I heard about your noble deeds.", 8, 0);
 	c_put_str(TERM_YELLOW, "Keep what you found ..  may it serve you well.", 9, 0);
 
 	/* Continue the plot */
 	*(quest[q_idx].plot) = QUEST_NAZGUL;
-	quest[*(quest[q_idx].plot)].init(*(quest[q_idx].plot));
+	quest[*(quest[q_idx].plot)].init();
 
 	del_hook_new(HOOK_QUEST_FINISH, quest_wight_finish_hook);
 	process_hooks_restart = TRUE;
 
-	return TRUE;
+	return true;
 }
 
-bool_ quest_wight_init_hook(int q_idx)
+void quest_wight_init_hook()
 {
 	if ((cquest.status >= QUEST_STATUS_TAKEN) && (cquest.status < QUEST_STATUS_FINISHED))
 	{
@@ -175,5 +192,4 @@ bool_ quest_wight_init_hook(int q_idx)
 		add_hook_new(HOOK_GEN_QUEST,     quest_wight_gen_hook,    "wight_gen",    NULL);
 		add_hook_new(HOOK_QUEST_FINISH,  quest_wight_finish_hook, "wight_finish", NULL);
 	}
-	return (FALSE);
 }

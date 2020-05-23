@@ -919,30 +919,6 @@ void school_spells_init()
 	}
 
 	{
-		spell_type *spell = spell_new(&DISARM, "Disarm");
-		spell_type_describe(spell, "Destroys doors and traps");
-		spell_type_describe(spell, "At level 10 it destroys doors and traps, then reveals and unlocks any secret");
-		spell_type_describe(spell, "doors");
-		spell_type_set_mana(spell, 2, 4);
-		spell_type_set_difficulty(spell, 3, 15);
-		spell_type_init_mage(spell,
-				     RANDOM,
-				     SCHOOL_CONVEYANCE,
-				     no_info,
-				     convey_disarm);
-
-		spell_type_set_device_charges(spell, "10+d15");
-
-		{
-			device_allocation *device_allocation = device_allocation_new(TV_STAFF);
-			device_allocation->rarity = 4;
-			range_init(&device_allocation->base_level, 1, 10);
-			range_init(&device_allocation->max_level, 10, 50);
-			spell_type_add_device_allocation(spell, device_allocation);
-		}
-	}
-
-	{
 		spell_type *spell = spell_new(&TELEPORT, "Teleportation");
 		spell_type_describe(spell, "Teleports you around the level. The casting time decreases with level");
 		spell_type_set_mana(spell, 8, 14);
@@ -1143,7 +1119,7 @@ void school_spells_init()
 		spell_type_describe(spell, "Asks for an object and identifies it");
 		spell_type_describe(spell, "At level 17 it identifies all objects in the inventory");
 		spell_type_describe(spell, "At level 27 it identifies all objects in the inventory and in a");
-		spell_type_describe(spell, "radius on the floor, as well as probing monsters in that radius");
+		spell_type_describe(spell, "radius on the floor");
 		spell_type_set_mana(spell, 10, 50);
 		spell_type_set_difficulty(spell, 8, 40);
 		spell_type_init_mage(spell,
@@ -2321,8 +2297,7 @@ void school_spells_init()
 	{
 		spell_type *spell = spell_new(&MUSIC_MIND, "Clairaudience(IV)");
 		spell_type_describe(spell, "Allows you to sense monster minds as long as you sing.");
-		spell_type_describe(spell, "At level 10 it identifies all objects in a radius on the floor,");
-		spell_type_describe(spell, "as well as probing monsters in that radius.");
+		spell_type_describe(spell, "At level 10 it identifies all objects in a radius on the floor.");
 		spell_type_describe(spell, "Consumes the amount of mana each turn.");
 		spell_type_set_mana(spell, 15, 30);
 		spell_type_set_difficulty(spell, 25, 75);

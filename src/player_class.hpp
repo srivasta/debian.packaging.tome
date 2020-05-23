@@ -2,104 +2,48 @@
 
 #include "body.hpp"
 #include "h-basic.h"
+#include "object_flag_set.hpp"
+#include "object_proto.hpp"
 #include "player_defs.hpp"
+#include "player_level_flag.hpp"
+#include "player_race_flag_set.hpp"
+#include "player_shared.hpp"
 #include "player_spec.hpp"
-
-/**
- * Maximum number of specialties.
- */
-constexpr int MAX_SPEC = 20;
+#include "skill_modifiers.hpp"
 
 /**
  * Player descriptor and runtime data.
  */
 struct player_class
 {
-	const char *title;              /* Type of class */
-	char *desc;                     /* Small desc of the class */
-	const char *titles[PY_MAX_LEVEL / 5];
-					/* Titles */
+	std::string title;                                   /* Type of class */
+	std::string desc;                                    /* Small desc of the class */
+	const char *titles[PY_MAX_LEVEL / 5] { };            /* Titles */
 
-	s16b c_adj[6];	                /* Class stat modifier */
+	int display_order_idx;                               /* Display order index; lowest first */
 
-	s16b c_dis;			/* class disarming */
-	s16b c_dev;			/* class magic devices */
-	s16b c_sav;			/* class saving throws */
-	s16b c_stl;			/* class stealth */
-	s16b c_srh;			/* class searching ability */
-	s16b c_fos;			/* class searching frequency */
-	s16b c_thn;			/* class to hit (normal) */
-	s16b c_thb;			/* class to hit (bows) */
+	player_shared ps;
 
-	s16b x_dis;			/* extra disarming */
-	s16b x_dev;			/* extra magic devices */
-	s16b x_sav;			/* extra saving throws */
-	s16b x_stl;			/* extra stealth */
-	s16b x_srh;			/* extra searching ability */
-	s16b x_fos;			/* extra searching frequency */
-	s16b x_thn;			/* extra to hit (normal) */
-	s16b x_thb;			/* extra to hit (bows) */
+	player_race_flag_set flags;
 
-	s16b c_mhp;			/* Class hit-dice adjustment */
-	s16b c_exp;			/* Class experience factor */
+	s16b mana = 0;
+	s16b blow_num = 0;
+	s16b blow_wgt = 0;
+	s16b blow_mul = 0;
+	s16b extra_blows = 0;
 
-	s16b powers[4];        /* Powers of the class */
+	std::vector<object_proto> object_protos;
 
-	s16b spell_book;		/* Tval of spell books (if any) */
-	s16b spell_stat;		/* Stat for spells (if any)  */
-	s16b spell_lev;          /* The higher it is the higher the spells level are */
-	s16b spell_fail;         /* The higher it is the higher the spells failure are */
-	s16b spell_mana;         /* The higher it is the higher the spells mana are */
-	s16b spell_first;        /* Level of first spell */
-	s16b spell_weight;       /* Weight that hurts spells */
-	byte max_spell_level;   /* Maximun spell level */
-	byte magic_max_spell;  /* Maximun numbner of spells one can learn by natural means */
+	char body_parts[BODY_MAX] { };                          /* To help to decide what to use when body changing */
 
-	u32b flags1;            /* flags */
-	u32b flags2;            /* flags */
+	std::array<player_level_flag, PY_MAX_LEVEL+1> lflags;
 
-	s16b mana;
-	s16b blow_num;
-	s16b blow_wgt;
-	s16b blow_mul;
-	s16b extra_blows;
+	struct skill_modifiers skill_modifiers;
 
-	s32b sense_base;
-	s32b sense_pl;
-	s32b sense_plus;
-	byte sense_heavy;
-	byte sense_heavy_magic;
+	u32b gods = 0;
 
-	s16b obj_tval[5];
-	s16b obj_sval[5];
-	s16b obj_pval[5];
-	s16b obj_dd[5];
-	s16b obj_ds[5];
-	s16b obj_num;
+	std::vector<player_spec> spec;
 
-	char body_parts[BODY_MAX];      /* To help to decide what to use when body changing */
-
-	u32b oflags1[PY_MAX_LEVEL + 1];
-	u32b oflags2[PY_MAX_LEVEL + 1];
-	u32b oflags3[PY_MAX_LEVEL + 1];
-	u32b oflags4[PY_MAX_LEVEL + 1];
-	u32b oflags5[PY_MAX_LEVEL + 1];
-	u32b oesp[PY_MAX_LEVEL + 1];
-	s16b opval[PY_MAX_LEVEL + 1];
-
-	char skill_basem[MAX_SKILLS];
-	u32b skill_base[MAX_SKILLS];
-	char skill_modm[MAX_SKILLS];
-	s16b skill_mod[MAX_SKILLS];
-
-	u32b gods;
-
-	player_spec spec[MAX_SPEC];
-
-	struct
-	{
-		s16b    ability;
-		s16b    level;
-	} abilities[10];                /* Abilitiers to be gained by level(doesnt take prereqs in account) */
+	std::vector<player_race_ability_type> abilities;        /* Abilities to be gained by level; ignores prereqs */
 };
 

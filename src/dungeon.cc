@@ -10,7 +10,6 @@
 #include "dungeon.h"
 
 #include "birth.hpp"
-#include "birth.h"
 #include "cave.hpp"
 #include "cave_type.hpp"
 #include "cmd1.hpp"
@@ -21,10 +20,13 @@
 #include "cmd6.hpp"
 #include "cmd7.hpp"
 #include "corrupt.hpp"
+#include "dungeon_flag.hpp"
 #include "dungeon_info_type.hpp"
+#include "feature_flag.hpp"
 #include "feature_type.hpp"
 #include "files.h"
 #include "files.hpp"
+#include "game.hpp"
 #include "generate.hpp"
 #include "gen_evol.hpp"
 #include "gods.hpp"
@@ -40,21 +42,23 @@
 #include "monster2.hpp"
 #include "monster3.hpp"
 #include "monster_race.hpp"
+#include "monster_race_flag.hpp"
 #include "monster_type.hpp"
 #include "modules.hpp"
 #include "notes.hpp"
 #include "object1.hpp"
 #include "object2.hpp"
+#include "object_flag.hpp"
 #include "object_kind.hpp"
 #include "object_type.hpp"
 #include "options.hpp"
 #include "player_race.hpp"
+#include "player_race_flag.hpp"
 #include "player_race_mod.hpp"
 #include "player_spec.hpp"
 #include "player_type.hpp"
 #include "powers.hpp"
 #include "quest.hpp"
-#include "quark.hpp"
 #include "skills.hpp"
 #include "spell_type.hpp"
 #include "spells1.hpp"
@@ -130,7 +134,9 @@ static byte value_check_aux1(object_type const *o_ptr)
 
 static byte value_check_aux1_magic(object_type const *o_ptr)
 {
-	object_kind *k_ptr = &k_info[o_ptr->k_idx];
+	auto const &k_info = game->edit_data.k_info;
+
+	auto k_ptr = &k_info[o_ptr->k_idx];
 
 
 	switch (o_ptr->tval)
@@ -219,7 +225,9 @@ static byte value_check_aux2(object_type const *o_ptr)
 
 static byte value_check_aux2_magic(object_type const *o_ptr)
 {
-	object_kind *k_ptr = &k_info[o_ptr->k_idx];
+	auto const &k_info = game->edit_data.k_info;
+
+	auto k_ptr = &k_info[o_ptr->k_idx];
 
 
 	switch (o_ptr->tval)
@@ -284,7 +292,7 @@ static byte value_check_aux2_magic(object_type const *o_ptr)
 /*
  * Can a player be resurrected?
  */
-static bool_ granted_resurrection(void)
+static bool_ granted_resurrection()
 {
 	if (praying_to(GOD_ERU))
 	{
@@ -321,7 +329,6 @@ static sense_function_t select_sense(object_type *o_ptr, sense_function_t combat
 	case TV_HARD_ARMOR:
 	case TV_DRAG_ARMOR:
 	case TV_BOOMERANG:
-	case TV_TRAPKIT:
 		{
 			return combat;
 		}
@@ -473,7 +480,7 @@ void sense_objects(std::vector<int> const &object_idxs)
 	squeltch_inventory();
 }
 
-void sense_inventory(void)
+void sense_inventory()
 {
 	static std::vector<int> idxs;
 	// Initialize static vector if necessary
@@ -491,7 +498,7 @@ void sense_inventory(void)
 /*
  * Go to any level (ripped off from wiz_jump)
  */
-static void pattern_teleport(void)
+static void pattern_teleport()
 {
 	/* Ask for level */
 	if (get_check("Teleport level? "))
@@ -544,27 +551,27 @@ static void pattern_teleport(void)
 /*
  * Returns TRUE if we are on the Straight Road...
  */
-static bool_ pattern_effect(void)
+static bool_ pattern_effect()
 {
 	if ((cave[p_ptr->py][p_ptr->px].feat < FEAT_PATTERN_START) ||
 	                (cave[p_ptr->py][p_ptr->px].feat > FEAT_PATTERN_XTRA2)) return (FALSE);
 
 	if (cave[p_ptr->py][p_ptr->px].feat == FEAT_PATTERN_END)
 	{
-		(void)set_poisoned(0);
-		(void)set_image(0);
-		(void)set_stun(0);
-		(void)set_cut(0);
-		(void)set_blind(0);
-		(void)set_afraid(0);
-		(void)do_res_stat(A_STR, TRUE);
-		(void)do_res_stat(A_INT, TRUE);
-		(void)do_res_stat(A_WIS, TRUE);
-		(void)do_res_stat(A_DEX, TRUE);
-		(void)do_res_stat(A_CON, TRUE);
-		(void)do_res_stat(A_CHR, TRUE);
-		(void)restore_level();
-		(void)hp_player(1000);
+		set_poisoned(0);
+		set_image(0);
+		set_stun(0);
+		set_cut(0);
+		set_blind(0);
+		set_afraid(0);
+		do_res_stat(A_STR, TRUE);
+		do_res_stat(A_INT, TRUE);
+		do_res_stat(A_WIS, TRUE);
+		do_res_stat(A_DEX, TRUE);
+		do_res_stat(A_CON, TRUE);
+		do_res_stat(A_CHR, TRUE);
+		restore_level();
+		hp_player(1000);
 		cave_set_feat(p_ptr->py, p_ptr->px, FEAT_PATTERN_OLD);
 		msg_print("This section of the Straight Road looks less powerful.");
 	}
@@ -606,16 +613,14 @@ static bool_ pattern_effect(void)
  */
 static void recharged_notice(object_type *o_ptr)
 {
-	char o_name[80];
-
-	cptr s;
-
-
 	/* No inscription */
-	if (!o_ptr->note) return;
+	if (o_ptr->inscription.empty())
+	{
+		return;
+	}
 
 	/* Find a '!' */
-	s = strchr(quark_str(o_ptr->note), '!');
+	auto s = strchr(o_ptr->inscription.c_str(), '!');
 
 	/* Process notification request. */
 	while (s)
@@ -624,6 +629,7 @@ static void recharged_notice(object_type *o_ptr)
 		if (s[1] == '!')
 		{
 			/* Describe (briefly) */
+			char o_name[80];
 			object_desc(o_name, o_ptr, FALSE, 0);
 
 			/* Notify the player */
@@ -770,8 +776,10 @@ static void regenmana(int percent)
  *
  * XXX XXX XXX Should probably be done during monster turns.
  */
-static void regen_monsters(void)
+static void regen_monsters()
 {
+	auto const &r_info = game->edit_data.r_info;
+
 	int i, frac;
 
 	object_type *o_ptr = &p_ptr->inventory[INVEN_CARRY];
@@ -779,7 +787,7 @@ static void regen_monsters(void)
 
 	if (o_ptr->k_idx)
 	{
-		monster_race *r_ptr = &r_info[o_ptr->pval];
+		auto r_ptr = &r_info[o_ptr->pval];
 
 		/* Allow regeneration (if needed) */
 		if (o_ptr->pval2 < o_ptr->pval3)
@@ -791,7 +799,7 @@ static void regen_monsters(void)
 			if (!frac) frac = 1;
 
 			/* Hack -- Some monsters regenerate quickly */
-			if (r_ptr->flags2 & (RF2_REGENERATE)) frac *= 2;
+			if (r_ptr->flags & RF_REGENERATE) frac *= 2;
 
 
 			/* Hack -- Regenerate */
@@ -828,7 +836,7 @@ static void regen_monsters(void)
 
 			/* Hack -- Some monsters regenerate quickly */
 			auto const r_ptr = m_ptr->race();
-			if (r_ptr->flags2 & (RF2_REGENERATE)) frac *= 2;
+			if (r_ptr->flags & RF_REGENERATE) frac *= 2;
 
 			/* Hack -- Regenerate */
 			m_ptr->hp += frac;
@@ -848,17 +856,10 @@ static void regen_monsters(void)
  *
  * Should belong to object1.c, renamed to object_decays() -- pelpel
  */
-static bool_ decays(object_type *o_ptr)
+static bool decays(object_type *o_ptr)
 {
-	u32b f1, f2, f3, f4, f5, esp;
-
-
-	/* Extract some flags */
-	object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
-
-	if (f3 & TR3_DECAY) return (TRUE);
-
-	return (FALSE);
+	auto const flags = object_flags(o_ptr);
+	return bool(flags & TR_DECAY);
 }
 
 
@@ -900,9 +901,11 @@ static void check_music()
  */
 static void apply_effect(int y, int x)
 {
+	auto const &f_info = game->edit_data.f_info;
+
 	cave_type *c_ptr = &cave[y][x];
 
-	feature_type *f_ptr = &f_info[c_ptr->feat];
+	auto f_ptr = &f_info[c_ptr->feat];
 
 
 	if (f_ptr->d_frequency[0] != 0)
@@ -963,7 +966,7 @@ static void process_world_corruptions()
 				}
 				else
 				{
-					disturb(0);
+					disturb();
 					msg_print("Your corruption takes over you, you teleport!");
 					teleport_player(50);
 				}
@@ -1018,8 +1021,8 @@ static bool_ grace_delay_trigger()
  */
 static void process_world_gods()
 {
-	const char *race_name = rp_ptr->title;
-	const char *subrace_name = rmp_ptr->title;
+	auto const &race_name = rp_ptr->title;
+	auto const &subrace_name = rmp_ptr->title;
 
 	if (p_ptr->pgod == GOD_VARDA)
 	{
@@ -1031,10 +1034,10 @@ static void process_world_gods()
 				inc_piety(GOD_ALL, 2);
 			}
 
-			if (streq(race_name, "Orc") ||
-			    streq(race_name, "Troll") ||
-			    streq(race_name, "Dragon") ||
-			    streq(race_name, "Demon"))
+			if ((race_name == "Orc") ||
+			    (race_name == "Troll") ||
+			    (race_name == "Dragon") ||
+			    (race_name == "Demon"))
 			{
 				/* Varda hates evil races */
 				inc_piety(GOD_ALL, -2);
@@ -1057,16 +1060,16 @@ static void process_world_gods()
 		{
 			int i;
 			/* Ulmo likes the Edain (except Easterlings) */
-			if (streq(race_name, "Human") ||
-			    streq(race_name, "Dunadan") ||
-			    streq(race_name, "Druadan") ||
-			    streq(race_name, "RohanKnight"))
+			if ((race_name == "Human") ||
+			    (race_name == "Dunadan") ||
+			    (race_name == "Druadan") ||
+			    (race_name == "RohanKnight"))
 			{
 				inc_piety(GOD_ALL, 2);
 			}
-			else if (streq(race_name, "Easterling") ||
-				 streq(race_name, "Demon") ||
-				 streq(race_name, "Orc"))
+			else if ((race_name == "Easterling") ||
+				 (race_name == "Demon") ||
+				 (race_name == "Orc"))
 			{
 				/* hated races */
 				inc_piety(GOD_ALL, -2);
@@ -1101,10 +1104,10 @@ static void process_world_gods()
 
 			/* Aule likes Dwarves and Dark Elves (Eol's
 			 * influence here) */
-			if  (!(streq(race_name, "Dwarf") ||
-			       streq(race_name, "Petty-dwarf") ||
-			       streq(race_name, "Gnome") ||
-			       streq(race_name, "Dark-Elf")))
+			if  (!((race_name == "Dwarf") ||
+			       (race_name == "Petty-dwarf") ||
+			       (race_name == "Gnome") ||
+			       (race_name == "Dark-Elf")))
 			{
 				inc_piety(GOD_ALL, -1);
 			}
@@ -1180,20 +1183,20 @@ static void process_world_gods()
 		if (grace_delay_trigger())
 		{
 			/* He loves astral beings  */
-			if (streq(subrace_name, "LostSoul"))
+			if (subrace_name == "LostSoul")
 			{
 				inc_piety(GOD_ALL, 1);
 			}
 
 			/* He likes High Elves only, though, as races */
-			if (!streq(race_name, "High-Elf"))
+			if (!(race_name == "High-Elf"))
 			{
 				inc_piety(GOD_ALL, -1);
 			}
 
 			/* Really hates vampires and demons */
-			if (streq(subrace_name, "Vampire") ||
-			    streq(race_name, "Demon"))
+			if ((subrace_name == "Vampire") ||
+			    (race_name == "Demon"))
 			{
 				inc_piety(GOD_ALL, -10);
 			}
@@ -1217,9 +1220,12 @@ static void process_world_gods()
  * Note that a single movement in the overhead wilderness mode
  * consumes 132 times as much energy as a normal one...
  */
-static void process_world(void)
+static void process_world()
 {
-	timer_type *t_ptr;
+	auto const &d_info = game->edit_data.d_info;
+	auto const &r_info = game->edit_data.r_info;
+	auto const &f_info = game->edit_data.f_info;
+	auto &timers = game->timers;
 
 	int x, y, i, j;
 
@@ -1227,13 +1233,11 @@ static void process_world(void)
 	bool_ cave_no_regen = FALSE;
 	int upkeep_factor = 0;
 
-	dungeon_info_type *d_ptr = &d_info[dungeon_type];
+	auto d_ptr = &d_info[dungeon_type];
 
 	cave_type *c_ptr;
 
 	object_type *o_ptr;
-	u32b f1 = 0 , f2 = 0 , f3 = 0, f4 = 0, f5 = 0, esp = 0;
-
 
 	/*
 	 * Every 10 game turns -- which means this section is invoked once
@@ -1264,22 +1268,14 @@ static void process_world(void)
 		check_music();
 	}
 
-	/* Handle the timers */
-	for (t_ptr = gl_timers; t_ptr != NULL; t_ptr = t_ptr->next)
+	/* Process timers */
+	for (auto &&timer: timers)
 	{
-		if (!t_ptr->enabled) continue;
-
-		t_ptr->countdown--;
-		if (!t_ptr->countdown)
-		{
-			t_ptr->countdown = t_ptr->delay;
-			assert(t_ptr->callback != NULL);
-			t_ptr->callback();
-		}
+		timer->count_down();
 	}
 
 	/* Check the fate */
-	if (fate_option && (p_ptr->lev > 10))
+	if (options->fate_option && (p_ptr->lev > 10))
 	{
 		/*
 		 * WAS: == 666 against randint(50000).
@@ -1295,20 +1291,20 @@ static void process_world(void)
 
 	if (o_ptr->k_idx)
 	{
-		monster_race *r_ptr = &r_info[o_ptr->pval];
+		auto r_ptr = &r_info[o_ptr->pval];
 
 		if ((randint(1000) < r_ptr->level - ((p_ptr->lev * 2) + get_skill(SKILL_SYMBIOTIC))))
 		{
 			msg_format("%s breaks free from hypnosis!",
-			           symbiote_name(TRUE));
+			           symbiote_name(true).c_str());
 			carried_make_attack_normal(o_ptr->pval);
 		}
 	}
 
 	/*** Attempt timed autosave ***/
-	if (autosave_t && autosave_freq)
+	if (options->autosave_t && options->autosave_freq)
 	{
-		if ((turn % ((s32b)autosave_freq * 10)) == 0)
+		if ((turn % (static_cast<s32b>(options->autosave_freq) * 10)) == 0)
 		{
 			is_autosave = TRUE;
 			msg_print("Autosaving the game...");
@@ -1346,10 +1342,13 @@ static void process_world(void)
 						c_ptr = &cave[y][x];
 
 						/* Assume lit */
-						c_ptr->info |= (CAVE_GLOW);
+						c_ptr->info |= CAVE_GLOW;
 
 						/* Hack -- Memorize lit grids if allowed */
-						if (view_perma_grids) c_ptr->info |= (CAVE_MARK);
+						if (options->view_perma_grids)
+						{
+							c_ptr->info |= CAVE_MARK;
+						}
 
 						/* Hack -- Notice spot */
 						note_spot(y, x);
@@ -1403,9 +1402,9 @@ static void process_world(void)
 	                (rand_int(d_info[(dun_level) ? dungeon_type : DUNGEON_WILDERNESS].max_m_alloc_chance) == 0))
 	{
 		/* Make a new monster */
-		if (!(dungeon_flags2 & DF2_NO_NEW_MONSTER))
+		if (!(dungeon_flags & DF_NO_NEW_MONSTER))
 		{
-			(void)alloc_monster(MAX_SIGHT + 5, FALSE);
+			alloc_monster(MAX_SIGHT + 5, FALSE);
 		}
 	}
 
@@ -1491,16 +1490,16 @@ static void process_world(void)
 		int feature = cave[p_ptr->py][p_ptr->px].feat;
 
 		/* Player can walk through or fly over trees */
-		if ((has_ability(AB_TREE_WALK) || p_ptr->fly) && (feature == FEAT_TREES))
+		if ((p_ptr->has_ability(AB_TREE_WALK) || p_ptr->fly) && (feature == FEAT_TREES))
 		{
 			/* Do nothing */
 		}
 		/* Player can climb over mountains */
-		else if ((p_ptr->climb) && (f_info[feature].flags1 & FF1_CAN_CLIMB))
+		else if ((p_ptr->climb) && (f_info[feature].flags & FF_CAN_CLIMB))
 		{
 			/* Do nothing */
 		}
-		else if (race_flags1_p(PR1_SEMI_WRAITH) && (!p_ptr->wraith_form) && (f_info[cave[p_ptr->py][p_ptr->px].feat].flags1 & FF1_CAN_PASS))
+		else if (race_flags_p(PR_SEMI_WRAITH) && (!p_ptr->wraith_form) && (f_info[cave[p_ptr->py][p_ptr->px].feat].flags & FF_CAN_PASS))
 		{
 			int amt = 1 + ((p_ptr->lev) / 5);
 
@@ -1581,10 +1580,10 @@ static void process_world(void)
 			o_ptr = &p_ptr->inventory[INVEN_WIELD];
 
 			/* Examine the sword */
-			object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+			auto const flags = object_flags(o_ptr);
 
 			/* Hitpoints multiplier consume a lot of food */
-			if (o_ptr->k_idx && (f2 & (TR2_LIFE))) i += o_ptr->pval * 5;
+			if (o_ptr->k_idx && (flags & TR_LIFE)) i += o_ptr->pval * 5;
 
 			/* Slow digestion takes less food */
 			if (p_ptr->slow_digest) i -= 10;
@@ -1593,7 +1592,7 @@ static void process_world(void)
 			if (i < 1) i = 1;
 
 			/* Digest some food */
-			(void)set_food(p_ptr->food - i);
+			set_food(p_ptr->food - i);
 		}
 	}
 
@@ -1601,7 +1600,7 @@ static void process_world(void)
 	else
 	{
 		/* Digest a lot of food */
-		(void)set_food(p_ptr->food - 100);
+		set_food(p_ptr->food - 100);
 	}
 
 	/* Starve to death (slowly) */
@@ -1642,10 +1641,10 @@ static void process_world(void)
 			{
 				/* Message */
 				msg_print("You faint from the lack of food.");
-				disturb(1);
+				disturb();
 
 				/* Hack -- faint (bypass free action) */
-				(void)set_paralyzed(1 + rand_int(5));
+				set_paralyzed(1 + rand_int(5));
 			}
 		}
 	}
@@ -1665,8 +1664,8 @@ static void process_world(void)
 	}
 
 
-	/* Searching or Resting */
-	if (p_ptr->searching || resting)
+	/* Resting boosts regeneration */
+	if (resting)
 	{
 		regen_amount = regen_amount * 2;
 	}
@@ -1675,7 +1674,7 @@ static void process_world(void)
 	{
 		int upkeep_divider = 20;
 
-		if (has_ability(AB_PERFECT_CASTING))
+		if (p_ptr->has_ability(AB_PERFECT_CASTING))
 			upkeep_divider = 15;
 
 		if (total_friends > 1 + (p_ptr->lev / (upkeep_divider)))
@@ -1725,7 +1724,7 @@ static void process_world(void)
 				dec++;
 			}
 
-			if (race_flags1_p(PR1_ELF))
+			if (race_flags_p(PR_ELF))
 			{
 				dec -= wisdom_scale(2);
 			}
@@ -1744,7 +1743,7 @@ static void process_world(void)
 				dec++;
 			}
 
-			if (race_flags1_p(PR1_ELF))
+			if (race_flags_p(PR_ELF))
 			{
 				dec += 5 - wisdom_scale(4);
 			}
@@ -1769,7 +1768,7 @@ static void process_world(void)
 			int dec = 5 - wisdom_scale(3);
 
 			/* Blech what an hideous hack */
-			if (!strcmp(rp_ptr->title, "Ent"))
+			if (!(rp_ptr->title == "Ent"))
 			{
 				dec -= wisdom_scale(2);
 			}
@@ -1833,26 +1832,26 @@ static void process_world(void)
 	/* Hack -- Hallucinating */
 	if (p_ptr->image)
 	{
-		(void)set_image(p_ptr->image - 1);
+		set_image(p_ptr->image - 1);
 	}
 
 	/* Holy Aura */
 	if (p_ptr->holy)
 	{
-		(void)set_holy(p_ptr->holy - 1);
+		set_holy(p_ptr->holy - 1);
 	}
 
 	/* Soul absorbtion */
 	if (p_ptr->absorb_soul)
 	{
-		(void)set_absorb_soul(p_ptr->absorb_soul - 1);
+		set_absorb_soul(p_ptr->absorb_soul - 1);
 	}
 
 	/* Undead loose Death Points */
 	if (p_ptr->necro_extra & CLASS_UNDEAD)
 	{
 		int old_chp = p_ptr->chp;
-		int warning = (p_ptr->mhp * hitpoint_warn / 10);
+		int warning = (p_ptr->mhp * options->hitpoint_warn / 10);
 
 		/* Bypass invulnerability and wraithform */
 		p_ptr->chp--;
@@ -1866,13 +1865,10 @@ static void process_world(void)
 		/* Dead player */
 		if (p_ptr->chp < 0)
 		{
-			bool_ old_quick = quick_messages;
-
-			/* Sound */
-			sound(SOUND_DEATH);
+			bool_ old_quick = options->quick_messages;
 
 			/* Hack -- Note death */
-			if (!last_words)
+			if (!options->last_words)
 			{
 				msg_print("You die.");
 				msg_print(NULL);
@@ -1881,14 +1877,16 @@ static void process_world(void)
 			{
 				char death_message[80];
 
-				(void)get_rnd_line("death.txt", death_message);
+				get_rnd_line("death.txt", death_message);
 				msg_print(death_message);
 			}
 
-			/* Note cause of death */
-			(void)strcpy(died_from, "being undead too long");
-
-			if (p_ptr->image) strcat(died_from, "(?)");
+			/* Note cause of death; hallucinating characters don't get to know. */
+			game->died_from = "being undead too long";
+			if (p_ptr->image)
+			{
+				game->died_from = "(?)";
+			}
 
 			/* No longer a winner */
 			total_winner = FALSE;
@@ -1899,12 +1897,12 @@ static void process_world(void)
 			/* Note death */
 			death = TRUE;
 
-			quick_messages = FALSE;
+			options->quick_messages = FALSE;
 			if (get_check("Make a last screenshot? "))
 			{
 				do_cmd_html_dump();
 			}
-			quick_messages = old_quick;
+			options->quick_messages = old_quick;
 
 			/* Dead */
 			return;
@@ -1914,9 +1912,10 @@ static void process_world(void)
 		if (p_ptr->chp < warning)
 		{
 			/* Hack -- bell on first notice */
-			if (alert_hitpoint && (old_chp > warning)) bell();
-
-			sound(SOUND_WARN);
+			if (old_chp > warning)
+			{
+				bell();
+			}
 
 			/* Message */
 			msg_print("*** LOW DEATHPOINT WARNING! ***");
@@ -1927,29 +1926,29 @@ static void process_world(void)
 	/* True Strike */
 	if (p_ptr->strike)
 	{
-		(void)set_strike(p_ptr->strike - 1);
+		set_strike(p_ptr->strike - 1);
 	}
 
 	/* Timed project */
 	if (p_ptr->tim_project)
 	{
-		(void)set_project(p_ptr->tim_project - 1, p_ptr->tim_project_gf, p_ptr->tim_project_dam, p_ptr->tim_project_rad, p_ptr->tim_project_flag);
+		set_project(p_ptr->tim_project - 1, p_ptr->tim_project_gf, p_ptr->tim_project_dam, p_ptr->tim_project_rad, p_ptr->tim_project_flag);
 	}
 
 	/* Timed roots */
 	if (p_ptr->tim_roots)
 	{
-		(void)set_roots(p_ptr->tim_roots - 1, p_ptr->tim_roots_ac, p_ptr->tim_roots_dam);
+		set_roots(p_ptr->tim_roots - 1, p_ptr->tim_roots_ac, p_ptr->tim_roots_dam);
 	}
 
 	/* Timed breath */
 	if (p_ptr->tim_water_breath)
 	{
-		(void)set_tim_breath(p_ptr->tim_water_breath - 1, FALSE);
+		set_tim_breath(p_ptr->tim_water_breath - 1, FALSE);
 	}
 	if (p_ptr->tim_magic_breath)
 	{
-		(void)set_tim_breath(p_ptr->tim_magic_breath - 1, TRUE);
+		set_tim_breath(p_ptr->tim_magic_breath - 1, TRUE);
 	}
 
 	/* Timed precognition */
@@ -1961,41 +1960,41 @@ static void process_world(void)
 	/* Timed regen */
 	if (p_ptr->tim_regen)
 	{
-		(void)set_tim_regen(p_ptr->tim_regen - 1, p_ptr->tim_regen_pow);
+		set_tim_regen(p_ptr->tim_regen - 1, p_ptr->tim_regen_pow);
 	}
 
 	/* Timed Disrupt shield */
 	if (p_ptr->disrupt_shield)
 	{
-		(void)set_disrupt_shield(p_ptr->disrupt_shield - 1);
+		set_disrupt_shield(p_ptr->disrupt_shield - 1);
 	}
 
 	/* Timed Parasite */
 	if (p_ptr->parasite)
 	{
-		(void)set_parasite(p_ptr->parasite - 1, p_ptr->parasite_r_idx);
+		set_parasite(p_ptr->parasite - 1, p_ptr->parasite_r_idx);
 	}
 
 	/* Timed Reflection */
 	if (p_ptr->tim_reflect)
 	{
-		(void)set_tim_reflect(p_ptr->tim_reflect - 1);
+		set_tim_reflect(p_ptr->tim_reflect - 1);
 	}
 
 	/* Timed Prob Travel */
 	if (p_ptr->prob_travel)
 	{
-		(void)set_prob_travel(p_ptr->prob_travel - 1);
+		set_prob_travel(p_ptr->prob_travel - 1);
 	}
 
 	/* Timed Levitation */
 	if (p_ptr->tim_ffall)
 	{
-		(void)set_tim_ffall(p_ptr->tim_ffall - 1);
+		set_tim_ffall(p_ptr->tim_ffall - 1);
 	}
 	if (p_ptr->tim_fly)
 	{
-		(void)set_tim_fly(p_ptr->tim_fly - 1);
+		set_tim_fly(p_ptr->tim_fly - 1);
 	}
 
 	/* Thunderstorm */
@@ -2037,37 +2036,37 @@ static void process_world(void)
 			        PROJECT_KILL | PROJECT_ITEM | PROJECT_HIDE);
 		}
 
-		(void)set_tim_thunder(p_ptr->tim_thunder - 1, p_ptr->tim_thunder_p1, p_ptr->tim_thunder_p2);
+		set_tim_thunder(p_ptr->tim_thunder - 1, p_ptr->tim_thunder_p1, p_ptr->tim_thunder_p2);
 	}
 
 	/* Poisonned hands */
 	if (p_ptr->tim_poison)
 	{
-		(void)set_poison(p_ptr->tim_poison - 1);
+		set_poison(p_ptr->tim_poison - 1);
 	}
 
 	/* Brightness */
 	if (p_ptr->tim_lite)
 	{
-		(void)set_lite(p_ptr->tim_lite - 1);
+		set_lite(p_ptr->tim_lite - 1);
 	}
 
 	/* Blindness */
 	if (p_ptr->blind)
 	{
-		(void)set_blind(p_ptr->blind - 1);
+		set_blind(p_ptr->blind - 1);
 	}
 
 	/* Timed no_breeds */
 	if (no_breeds)
 	{
-		(void)set_no_breeders(no_breeds - 1);
+		set_no_breeders(no_breeds - 1);
 	}
 
 	/* Timed mimic */
 	if (p_ptr->tim_mimic)
 	{
-		(void)set_mimic(p_ptr->tim_mimic - 1, p_ptr->mimic_form, p_ptr->mimic_level);
+		set_mimic(p_ptr->tim_mimic - 1, p_ptr->mimic_form, p_ptr->mimic_level);
 	}
 
 	/* Timed special move commands */
@@ -2079,25 +2078,25 @@ static void process_world(void)
 	/* Timed invisibility */
 	if (p_ptr->tim_invisible)
 	{
-		(void)set_invis(p_ptr->tim_invisible - 1, p_ptr->tim_inv_pow);
+		set_invis(p_ptr->tim_invisible - 1, p_ptr->tim_inv_pow);
 	}
 
 	/* Times see-invisible */
 	if (p_ptr->tim_invis)
 	{
-		(void)set_tim_invis(p_ptr->tim_invis - 1);
+		set_tim_invis(p_ptr->tim_invis - 1);
 	}
 
 	/* Timed esp */
 	if (p_ptr->tim_esp)
 	{
-		(void)set_tim_esp(p_ptr->tim_esp - 1);
+		set_tim_esp(p_ptr->tim_esp - 1);
 	}
 
 	/* Timed infra-vision */
 	if (p_ptr->tim_infra)
 	{
-		(void)set_tim_infra(p_ptr->tim_infra - 1);
+		set_tim_infra(p_ptr->tim_infra - 1);
 	}
 
 	/* Paralysis */
@@ -2109,139 +2108,109 @@ static void process_world(void)
 	/* Confusion */
 	if (p_ptr->confused)
 	{
-		(void)set_confused(p_ptr->confused - 1);
+		set_confused(p_ptr->confused - 1);
 	}
 
 	/* Afraid */
 	if (p_ptr->afraid)
 	{
-		(void)set_afraid(p_ptr->afraid - 1);
+		set_afraid(p_ptr->afraid - 1);
 	}
 
 	/* Fast */
 	if (p_ptr->fast)
 	{
-		(void)set_fast(p_ptr->fast - 1, p_ptr->speed_factor);
+		set_fast(p_ptr->fast - 1, p_ptr->speed_factor);
 	}
 
 	/* Light speed */
 	if (p_ptr->lightspeed)
 	{
-		(void)set_light_speed(p_ptr->lightspeed - 1);
+		set_light_speed(p_ptr->lightspeed - 1);
 	}
 
 	/* Slow */
 	if (p_ptr->slow)
 	{
-		(void)set_slow(p_ptr->slow - 1);
+		set_slow(p_ptr->slow - 1);
 	}
 
 	/* Protection from evil */
 	if (p_ptr->protevil)
 	{
-		(void)set_protevil(p_ptr->protevil - 1);
-	}
-
-	/* Protection from good */
-	if (p_ptr->protgood)
-	{
-		(void)set_protgood(p_ptr->protgood - 1);
-	}
-
-	/* Protection from undead */
-	if (p_ptr->protundead)
-	{
-		(void)set_protundead(p_ptr->protundead - 1);
+		set_protevil(p_ptr->protevil - 1);
 	}
 
 	/* Invulnerability */
 	if (p_ptr->invuln)
 	{
-		(void)set_invuln(p_ptr->invuln - 1);
+		set_invuln(p_ptr->invuln - 1);
 	}
 
 	/* Wraith form */
 	if (p_ptr->tim_wraith)
 	{
-		(void)set_shadow(p_ptr->tim_wraith - 1);
+		set_shadow(p_ptr->tim_wraith - 1);
 	}
 
 	/* Heroism */
 	if (p_ptr->hero)
 	{
-		(void)set_hero(p_ptr->hero - 1);
+		set_hero(p_ptr->hero - 1);
 	}
 
 	/* Super Heroism */
 	if (p_ptr->shero)
 	{
-		(void)set_shero(p_ptr->shero - 1);
+		set_shero(p_ptr->shero - 1);
 	}
 
 	/* Blessed */
 	if (p_ptr->blessed)
 	{
-		(void)set_blessed(p_ptr->blessed - 1);
+		set_blessed(p_ptr->blessed - 1);
 	}
 
 	/* Shield */
 	if (p_ptr->shield)
 	{
-		(void)set_shield(p_ptr->shield - 1, p_ptr->shield_power, p_ptr->shield_opt, p_ptr->shield_power_opt, p_ptr->shield_power_opt2);
+		set_shield(p_ptr->shield - 1, p_ptr->shield_power, p_ptr->shield_opt, p_ptr->shield_power_opt, p_ptr->shield_power_opt2);
 	}
 
 	/* Oppose Acid */
 	if (p_ptr->oppose_acid)
 	{
-		(void)set_oppose_acid(p_ptr->oppose_acid - 1);
+		set_oppose_acid(p_ptr->oppose_acid - 1);
 	}
 
 	/* Oppose Lightning */
 	if (p_ptr->oppose_elec)
 	{
-		(void)set_oppose_elec(p_ptr->oppose_elec - 1);
+		set_oppose_elec(p_ptr->oppose_elec - 1);
 	}
 
 	/* Oppose Fire */
 	if (p_ptr->oppose_fire)
 	{
-		(void)set_oppose_fire(p_ptr->oppose_fire - 1);
+		set_oppose_fire(p_ptr->oppose_fire - 1);
 	}
 
 	/* Oppose Cold */
 	if (p_ptr->oppose_cold)
 	{
-		(void)set_oppose_cold(p_ptr->oppose_cold - 1);
+		set_oppose_cold(p_ptr->oppose_cold - 1);
 	}
 
 	/* Oppose Poison */
 	if (p_ptr->oppose_pois)
 	{
-		(void)set_oppose_pois(p_ptr->oppose_pois - 1);
-	}
-
-	/* Oppose Light & Dark */
-	if (p_ptr->oppose_ld)
-	{
-		(void)set_oppose_ld(p_ptr->oppose_ld - 1);
+		set_oppose_pois(p_ptr->oppose_pois - 1);
 	}
 
 	/* Oppose Chaos & Confusion */
 	if (p_ptr->oppose_cc)
 	{
-		(void)set_oppose_cc(p_ptr->oppose_cc - 1);
-	}
-
-	/* Oppose Sound & Shards */
-	if (p_ptr->oppose_ss)
-	{
-		(void)set_oppose_ss(p_ptr->oppose_ss - 1);
-	}
-
-	/* Oppose Nexus */
-	if (p_ptr->oppose_nex)
-	{
-		(void)set_oppose_nex(p_ptr->oppose_nex - 1);
+		set_oppose_cc(p_ptr->oppose_cc - 1);
 	}
 
 	/* Timed mimicry */
@@ -2266,7 +2235,7 @@ static void process_world(void)
 				att &= ~(CLASS_LEGS);
 				att &= ~(CLASS_WALL);
 
-				if (disturb_state) disturb(0);
+				disturb_on_state();
 			}
 
 			p_ptr->update |= (PU_BODY);
@@ -2283,7 +2252,7 @@ static void process_world(void)
 		int adjust = (adj_con_fix[p_ptr->stat_ind[A_CON]] + 1);
 
 		/* Apply some healing */
-		(void)set_poisoned(p_ptr->poisoned - adjust);
+		set_poisoned(p_ptr->poisoned - adjust);
 	}
 
 	/* Stun */
@@ -2292,7 +2261,7 @@ static void process_world(void)
 		int adjust = (adj_con_fix[p_ptr->stat_ind[A_CON]] + 1);
 
 		/* Apply some healing */
-		(void)set_stun(p_ptr->stun - adjust);
+		set_stun(p_ptr->stun - adjust);
 	}
 
 	/* Cut */
@@ -2304,7 +2273,7 @@ static void process_world(void)
 		if (p_ptr->cut > 1000) adjust = 0;
 
 		/* Apply some healing */
-		(void)set_cut(p_ptr->cut - adjust);
+		set_cut(p_ptr->cut - adjust);
 	}
 
 	/* Hack - damage done by the dungeon -SC- */
@@ -2327,7 +2296,7 @@ static void process_world(void)
 					{
 						int l, dam = 0;
 
-						if (!(dungeon_flags1 & DF1_DAMAGE_FEAT))
+						if (!(dungeon_flags & DF_DAMAGE_FEAT))
 						{
 							/* If the grid is empty, skip it */
 							if ((cave[j][k].o_idxs.empty()) &&
@@ -2560,14 +2529,14 @@ static void process_world(void)
 	}
 
 	/* Arg cannot breath? */
-	if ((dungeon_flags2 & DF2_WATER_BREATH) && (!p_ptr->water_breath))
+	if ((dungeon_flags & DF_WATER_BREATH) && (!p_ptr->water_breath))
 	{
 		cmsg_print(TERM_L_RED, "You cannot breathe water!  You suffocate!");
 		take_hit(damroll(3, p_ptr->lev), "suffocating");
 	}
-	if ((dungeon_flags2 & DF2_NO_BREATH) && (!p_ptr->magical_breath))
+	if ((dungeon_flags & DF_NO_BREATH) && (!p_ptr->magical_breath))
 	{
-		cmsg_print(TERM_L_RED, "There is no air there!  You suffocate!");
+		cmsg_print(TERM_L_RED, "There is no air here!  You suffocate!");
 		take_hit(damroll(3, p_ptr->lev), "suffocating");
 	}
 
@@ -2579,8 +2548,6 @@ static void process_world(void)
 	 */
 	if (((turn % 3000) == 0) && p_ptr->black_breath)
 	{
-		u32b f1, f2, f3, f4, f5;
-
 		bool_ be_silent = FALSE;
 
 		/* check all equipment for the Black Breath flag. */
@@ -2592,10 +2559,10 @@ static void process_world(void)
 			if (!o_ptr->k_idx) continue;
 
 			/* Extract the item flags */
-			object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+			auto const flags = object_flags(o_ptr);
 
 			/* No messages if object has the flag, to avoid annoyance. */
-			if (f4 & (TR4_BLACK_BREATH)) be_silent = TRUE;
+			if (flags & TR_BLACK_BREATH) be_silent = TRUE;
 
 		}
 		/* If we are allowed to speak, warn and disturb. */
@@ -2603,7 +2570,7 @@ static void process_world(void)
 		if (!be_silent)
 		{
 			cmsg_print(TERM_L_DARK, "The Black Breath saps your soul!");
-			disturb(0);
+			disturb();
 		}
 	}
 
@@ -2617,10 +2584,10 @@ static void process_world(void)
 	if (o_ptr->tval == TV_LITE)
 	{
 		/* Extract the item flags */
-		object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+		auto const flags = object_flags(o_ptr);
 
 		/* Hack -- Use some fuel */
-		if ((f4 & TR4_FUEL_LITE) && (o_ptr->timeout > 0))
+		if ((flags & TR_FUEL_LITE) && (o_ptr->timeout > 0))
 		{
 			/* Decrease life-span */
 			o_ptr->timeout--;
@@ -2642,14 +2609,17 @@ static void process_world(void)
 			/* The light is now out */
 			else if (o_ptr->timeout < 1)
 			{
-				disturb(0);
+				disturb();
 				cmsg_print(TERM_YELLOW, "Your light has gone out!");
 			}
 
 			/* The light is getting dim */
 			else if ((o_ptr->timeout < 100) && (o_ptr->timeout % 10 == 0))
 			{
-				if (disturb_minor) disturb(0);
+				if (options->disturb_minor)
+				{
+					disturb();
+				}
 				cmsg_print(TERM_YELLOW, "Your light is growing faint.");
 			}
 		}
@@ -2671,14 +2641,14 @@ static void process_world(void)
 		byte chance = 0;
 		int plev = p_ptr->lev;
 
-		if (race_flags1_p(PR1_RESIST_BLACK_BREATH)) chance = 2;
+		if (race_flags_p(PR_RESIST_BLACK_BREATH)) chance = 2;
 		else chance = 5;
 
 		if ((rand_int(100) < chance) && (p_ptr->exp > 0))
 		{
 			p_ptr->exp -= 1 + plev / 5;
 			p_ptr->max_exp -= 1 + plev / 5;
-			(void)do_dec_stat(rand_int(6), STAT_DEC_NORMAL);
+			do_dec_stat(rand_int(6), STAT_DEC_NORMAL);
 			check_experience();
 		}
 	}
@@ -2692,7 +2662,7 @@ static void process_world(void)
 		if (p_ptr->csp < 0)
 		{
 			p_ptr->csp = 0;
-			disturb(0);
+			disturb();
 		}
 
 		/* Redraw */
@@ -2711,7 +2681,7 @@ static void process_world(void)
 		if (p_ptr->csp < 0)
 		{
 			p_ptr->csp = 0;
-			disturb(0);
+			disturb();
 
 			p_ptr->maintain_sum = 0;
 		}
@@ -2738,7 +2708,7 @@ static void process_world(void)
 
 		if (p_ptr->chp == 0)
 		{
-			disturb(0);
+			disturb();
 		}
 
 		/* Redraw */
@@ -2766,17 +2736,17 @@ static void process_world(void)
 		/* Get the object */
 		o_ptr = &p_ptr->inventory[i];
 
-		object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+		auto const flags = object_flags(o_ptr);
 
 
 		/* TY Curse */
-		if ((f3 & TR3_TY_CURSE) && (rand_int(TY_CURSE_CHANCE) == 0))
+		if ((flags & TR_TY_CURSE) && (rand_int(TY_CURSE_CHANCE) == 0))
 		{
 			activate_ty_curse();
 		}
 
 		/* DG Curse */
-		if ((f4 & TR4_DG_CURSE) && (rand_int(DG_CURSE_CHANCE) == 0))
+		if ((flags & TR_DG_CURSE) && (rand_int(DG_CURSE_CHANCE) == 0))
 		{
 			activate_dg_curse();
 
@@ -2785,7 +2755,7 @@ static void process_world(void)
 		}
 
 		/* Auto Curse */
-		if ((f3 & TR3_AUTO_CURSE) && (rand_int(AUTO_CURSE_CHANCE) == 0))
+		if ((flags & TR_AUTO_CURSE) && (rand_int(AUTO_CURSE_CHANCE) == 0))
 		{
 			/* The object recurse itself ! */
 			o_ptr->ident |= IDENT_CURSED;
@@ -2795,26 +2765,24 @@ static void process_world(void)
 		 * Hack: Uncursed teleporting items (e.g. Dragon Weapons)
 		 * can actually be useful!
 		 */
-		if ((f3 & TR3_TELEPORT) && (rand_int(100) < 1))
+		if ((flags & TR_TELEPORT) && (rand_int(100) < 1))
 		{
 			if ((o_ptr->ident & IDENT_CURSED) && !p_ptr->anti_tele)
 			{
-				disturb(0);
+				disturb();
 
 				/* Teleport player */
 				teleport_player(40);
 			}
 			else
 			{
-				if (p_ptr->wild_mode ||
-				                (o_ptr->note && strchr(quark_str(o_ptr->note), '.')))
+				if (p_ptr->wild_mode || strchr(o_ptr->inscription.c_str(), '.'))
 				{
-					/* Do nothing */
-					/* msg_print("Teleport aborted.") */;
+					/* Suppress teleportation */
 				}
 				else if (get_check("Teleport? "))
 				{
-					disturb(0);
+					disturb();
 					teleport_player(50);
 				}
 			}
@@ -2825,7 +2793,7 @@ static void process_world(void)
 		if (!o_ptr->k_idx) continue;
 
 		/* Hack: Skip wielded lights that need fuel (already handled above) */
-		if ((i == INVEN_LITE) && (o_ptr->tval == TV_LITE) && (f4 & TR4_FUEL_LITE)) continue;
+		if ((i == INVEN_LITE) && (o_ptr->tval == TV_LITE) && (flags & TR_FUEL_LITE)) continue;
 
 		/* Recharge activatable objects */
 		if (o_ptr->timeout > 0)
@@ -2839,16 +2807,6 @@ static void process_world(void)
 				recharged_notice(o_ptr);
 				j++;
 			}
-		}
-
-		/* Recharge second spell in Mage Staffs of Spells */
-		if (is_ego_p(o_ptr, EGO_MSTAFF_SPELL) && (o_ptr->xtra2 > 0))
-		{
-			/* Recharge */
-			o_ptr->xtra2--;
-
-			/* Notice changes */
-			if (o_ptr->xtra2 == 0) j++;
 		}
 	}
 
@@ -2868,10 +2826,10 @@ static void process_world(void)
 		if (!o_ptr->k_idx) continue;
 
 		/* Examine the rod */
-		object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+		auto const flags = object_flags(o_ptr);
 
 		/* Temporary items are destroyed */
-		if (f5 & TR5_TEMPORARY)
+		if (flags & TR_TEMPORARY)
 		{
 			o_ptr->timeout--;
 
@@ -2888,7 +2846,7 @@ static void process_world(void)
 		if ((o_ptr->tval == TV_ROD_MAIN) && (o_ptr->timeout < o_ptr->pval2))
 		{
 			/* Increase the rod's mana. */
-			o_ptr->timeout += (f4 & TR4_CHARGING) ? 2 : 1;
+			o_ptr->timeout += (flags & TR_CHARGING) ? 2 : 1;
 
 			/* Always notice */
 			j++;
@@ -2902,7 +2860,7 @@ static void process_world(void)
 		}
 
 		/* Examine all charging random artifacts */
-		if ((f5 & TR5_ACTIVATE_NO_WIELD) && (o_ptr->timeout > 0))
+		if ((flags & TR_ACTIVATE_NO_WIELD) && (o_ptr->timeout > 0))
 		{
 			/* Charge it */
 			o_ptr->timeout--;
@@ -2923,11 +2881,11 @@ static void process_world(void)
 			{
 				if (o_ptr->timeout > 0)
 				{
-					if (dungeon_flags1 & DF1_HOT)
+					if (dungeon_flags & DF_HOT)
 					{
 						o_ptr->pval -= 2;
 					}
-					else if ((dungeon_flags1 & DF1_COLD) && rand_int(2))
+					else if ((dungeon_flags & DF_COLD) && rand_int(2))
 					{
 						if (magik(50)) o_ptr->pval--;
 					}
@@ -2967,7 +2925,7 @@ static void process_world(void)
 					monster_type *m_ptr = &m_list[cave[my][mx].m_idx];
 					auto const r_ptr = m_ptr->race();
 
-					if ((r_ptr->flags9 & RF9_IMPRESED) && can_create_companion())
+					if ((r_ptr->flags & RF_IMPRESED) && can_create_companion())
 					{
 						msg_format("And you have given the imprint to your %s!", r_ptr->name);
 						m_ptr->status = MSTATUS_COMPANION;
@@ -3003,10 +2961,10 @@ static void process_world(void)
 		if (!o_ptr->k_idx) continue;
 
 		/* Examine the rod */
-		object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+		auto const flags = object_flags(o_ptr);
 
 		/* Temporary items are destroyed */
-		if (f5 & TR5_TEMPORARY)
+		if (flags & TR_TEMPORARY)
 		{
 			o_ptr->timeout--;
 
@@ -3024,7 +2982,7 @@ static void process_world(void)
 		if ((o_ptr->tval == TV_ROD_MAIN) && (o_ptr->timeout < o_ptr->pval2))
 		{
 			/* Increase the rod's mana. */
-			o_ptr->timeout += (f4 & TR4_CHARGING) ? 2 : 1;
+			o_ptr->timeout += (flags & TR_CHARGING) ? 2 : 1;
 
 			/* Do not overflow */
 			if (o_ptr->timeout >= o_ptr->pval2)
@@ -3041,11 +2999,11 @@ static void process_world(void)
 			{
 				if (o_ptr->timeout > 0)
 				{
-					if (dungeon_flags1 & DF1_HOT)
+					if (dungeon_flags & DF_HOT)
 					{
 						o_ptr->pval -= 2;
 					}
-					else if ((dungeon_flags1 & DF1_COLD) && rand_int(2))
+					else if ((dungeon_flags & DF_COLD) && rand_int(2))
 					{
 						if (magik(50)) o_ptr->pval--;
 					}
@@ -3099,7 +3057,7 @@ static void process_world(void)
 		}
 
 		/* No recall. sorry */
-		else if (dungeon_flags2 & DF2_NO_RECALL_OUT)
+		else if (dungeon_flags & DF_NO_RECALL_OUT)
 		{
 			cmsg_print(TERM_L_DARK, "You cannot recall from here.");
 			p_ptr->word_recall = 0;
@@ -3147,7 +3105,7 @@ static void process_world(void)
 			if (p_ptr->word_recall == 0)
 			{
 				/* Disturbing! */
-				disturb(0);
+				disturb();
 
 				/* Determine the level */
 				if (p_ptr->inside_quest)
@@ -3186,9 +3144,6 @@ static void process_world(void)
 					p_ptr->leaving = TRUE;
 					p_ptr->wild_mode = FALSE;
 				}
-
-				/* Sound */
-				sound(SOUND_TPLEVEL);
 			}
 		}
 	}
@@ -3198,7 +3153,7 @@ static void process_world(void)
 /*
  * Verify use of "wizard" mode
  */
-static bool_ enter_wizard_mode(void)
+static bool_ enter_wizard_mode()
 {
 	/* Ask first time, but not while loading a dead char with the -w option */
 	if (!noscore && !(p_ptr->chp < 0))
@@ -3226,7 +3181,7 @@ static bool_ enter_wizard_mode(void)
 /*
  * Verify use of "debug" commands
  */
-static bool_ enter_debug_mode(void)
+static bool_ enter_debug_mode()
 {
 	/* Ask first time */
 	if (!noscore && !wizard)
@@ -3257,8 +3212,10 @@ static bool_ enter_debug_mode(void)
  *
  * XXX XXX XXX Make some "blocks"
  */
-static void process_command(void)
+static void process_command()
 {
+	auto const &wf_info = game->edit_data.wf_info;
+
 	char error_m[80];
 
 	/* Handle repeating the last command */
@@ -3412,7 +3369,7 @@ static void process_command(void)
 		{
 			if (do_control_walk()) break;
 
-			do_cmd_walk(always_pickup, TRUE);
+			do_cmd_walk(options->always_pickup);
 
 			break;
 		}
@@ -3422,7 +3379,7 @@ static void process_command(void)
 		{
 			if (do_control_walk()) break;
 
-			do_cmd_walk(!always_pickup, TRUE);
+			do_cmd_walk(!options->always_pickup);
 
 			break;
 		}
@@ -3442,7 +3399,7 @@ static void process_command(void)
 	case ',':
 		{
 			if (do_control_pickup()) break;
-			do_cmd_stay(always_pickup);
+			do_cmd_stay(options->always_pickup);
 			break;
 		}
 
@@ -3450,7 +3407,7 @@ static void process_command(void)
 	case 'g':
 		{
 			if (p_ptr->control) break;
-			do_cmd_stay(!always_pickup);
+			do_cmd_stay(!options->always_pickup);
 			break;
 		}
 
@@ -3461,23 +3418,6 @@ static void process_command(void)
 			do_cmd_rest();
 			break;
 		}
-
-		/* Search for traps/doors */
-	case 's':
-		{
-			if (p_ptr->control) break;
-			do_cmd_search();
-			break;
-		}
-
-		/* Toggle search mode */
-	case 'S':
-		{
-			if (p_ptr->control) break;
-			do_cmd_toggle_search();
-			break;
-		}
-
 
 		/*** Stairs and Doors and Chests and Traps ***/
 
@@ -3492,16 +3432,8 @@ static void process_command(void)
 		/* Go up staircase */
 	case '<':
 		{
-			object_type *o_ptr;
-			u32b f1 = 0 , f2 = 0 , f3 = 0, f4 = 0, f5 = 0, esp = 0;
-
-
-			/* Check for light being wielded */
-			o_ptr = &p_ptr->inventory[INVEN_LITE];
-			/* Burn some fuel in the current lite */
-			if (o_ptr->tval == TV_LITE)
-				/* Extract the item flags */
-				object_flags(o_ptr, &f1, &f2, &f3, &f4, &f5, &esp);
+			/* Get the light being wielded */
+			auto o_ptr = &p_ptr->inventory[INVEN_LITE];
 
 			/* Cannot move if rooted in place */
 			if (p_ptr->tim_roots) break;
@@ -3572,8 +3504,9 @@ static void process_command(void)
 			/* Special cases */
 			else
 			{
-				if ((wf_info[wild_map[p_ptr->py][p_ptr->px].feat].entrance >= 1000) ||
-				                (wild_map[p_ptr->py][p_ptr->px].entrance > 1000))
+				auto const &wilderness = game->wilderness;
+				auto const &tile = wilderness(p_ptr->px, p_ptr->py);
+				if ((wf_info[tile.feat].entrance >= 1000) || (tile.entrance > 1000))
 				{
 					p_ptr->wilderness_x = p_ptr->px;
 					p_ptr->wilderness_y = p_ptr->py;
@@ -3649,15 +3582,6 @@ static void process_command(void)
 			if (!p_ptr->wild_mode) do_cmd_bash();
 			break;
 		}
-
-		/* Disarm a trap or chest */
-	case 'D':
-		{
-			if (p_ptr->control) break;
-			if (!p_ptr->wild_mode) do_cmd_disarm();
-			break;
-		}
-
 
 		/*** Magic and Prayers ***/
 
@@ -3924,7 +3848,7 @@ static void process_command(void)
 			if (p_ptr->control) break;
 			if (p_ptr->wild_mode) break;
 
-			if (race_flags1_p(PR1_NO_GOD))
+			if (race_flags_p(PR_NO_GOD))
 			{
 				msg_print("You cannot worship gods.");
 			}
@@ -4186,12 +4110,7 @@ static void process_command(void)
 			do_cmd_macro_recorder();
 			break;
 		}
-	case CMD_BLUNDER:
-		{
-			if (do_control_walk()) break;
-			do_cmd_walk(always_pickup, FALSE);
-			break;
-		}
+
 		/* Hack -- Unknown command */
 	default:
 		{
@@ -4201,7 +4120,6 @@ static void process_command(void)
 			if (rand_int(100) < insanity)
 			{
 				get_rnd_line("error.txt", error_m);
-				sound(SOUND_ILLEGAL);
 				msg_print(error_m);
 			}
 			else
@@ -4224,8 +4142,11 @@ static void process_command(void)
  * must come first just in case somebody manages to corrupt
  * the savefiles by clever use of menu commands or something.
  */
-static void process_player(void)
+static void process_player()
 {
+	auto const &f_info = game->edit_data.f_info;
+	auto const &k_info = game->edit_data.k_info;
+
 	int i, j;
 
 	int speed_use;
@@ -4266,7 +4187,7 @@ static void process_player(void)
 			/* Stop resting */
 			if ((p_ptr->chp == p_ptr->mhp) && (p_ptr->csp >= p_ptr->msp))
 			{
-				disturb(0);
+				disturb();
 			}
 		}
 
@@ -4297,14 +4218,14 @@ static void process_player(void)
 
 			if (stop)
 			{
-				disturb(0);
+				disturb();
 			}
 			p_ptr->redraw |= (PR_FRAME);
 		}
 	}
 
 	/* Handle "abort" */
-	if (!avoid_abort)
+	if (!options->avoid_abort)
 	{
 		/* Check for "player abort" (semi-efficiently for resting) */
 		if (running || command_rep || (resting && !(resting & 0x0F)))
@@ -4316,7 +4237,7 @@ static void process_player(void)
 				flush();
 
 				/* Disturb */
-				disturb(0);
+				disturb();
 
 				/* Hack -- Show a Message */
 				msg_print("Cancelled.");
@@ -4344,14 +4265,17 @@ static void process_player(void)
 
 		/* Hack -- mark current wilderness location as known */
 		if (!p_ptr->wild_mode && dun_level == 0)
-			wild_map[p_ptr->wilderness_y][p_ptr->wilderness_x].known = TRUE;
+		{
+			auto &wilderness = game->wilderness;
+			wilderness(p_ptr->wilderness_x, p_ptr->wilderness_y).known = TRUE;
+		}
 
 
 		/* Place the cursor on the player */
 		move_cursor_relative(p_ptr->py, p_ptr->px);
 
 		/* Refresh (optional) */
-		if (fresh_before) Term_fresh();
+		if (options->fresh_before) Term_fresh();
 
 		/* Hack -- Pack Overflow */
 		if (p_ptr->inventory[INVEN_PACK].k_idx)
@@ -4366,7 +4290,7 @@ static void process_player(void)
 			o_ptr = &p_ptr->inventory[item];
 
 			/* Disturbing */
-			disturb(0);
+			disturb();
 
 			/* Warning */
 			msg_print("Your pack overflows!");
@@ -4494,7 +4418,7 @@ static void process_player(void)
 
 
 			/* Shimmer monsters if needed */
-			if (!avoid_other && shimmer_monsters)
+			if (!options->avoid_other && shimmer_monsters)
 			{
 				/* Clear the flag */
 				shimmer_monsters = FALSE;
@@ -4512,7 +4436,7 @@ static void process_player(void)
 					auto const r_ptr = m_ptr->race();
 
 					/* Skip non-multi-hued monsters */
-					if (!(r_ptr->flags1 & (RF1_ATTR_MULTI))) continue;
+					if (!(r_ptr->flags & RF_ATTR_MULTI)) continue;
 
 					/* Reset the flag */
 					shimmer_monsters = TRUE;
@@ -4523,7 +4447,7 @@ static void process_player(void)
 			}
 
 			/* Shimmer objects if needed and requested */
-			if (!avoid_other && !avoid_shimmer && shimmer_objects)
+			if (!options->avoid_other && !options->avoid_shimmer && shimmer_objects)
 			{
 				/* Clear the flag */
 				shimmer_objects = FALSE;
@@ -4533,13 +4457,13 @@ static void process_player(void)
 				{
 					/* Acquire object -- for speed only base items are allowed to shimmer */
 					object_type *o_ptr = &o_list[i];
-					object_kind *k_ptr = &k_info[o_ptr->k_idx];
+					auto k_ptr = &k_info[o_ptr->k_idx];
 
 					/* Skip dead or carried objects */
 					if ((!o_ptr->k_idx) || (!o_ptr->ix)) continue;
 
 					/* Skip non-multi-hued monsters */
-					if (!(k_ptr->flags5 & (TR5_ATTR_MULTI))) continue;
+					if (!(k_ptr->flags & TR_ATTR_MULTI)) continue;
 
 					/* Reset the flag */
 					shimmer_objects = TRUE;
@@ -4559,7 +4483,7 @@ static void process_player(void)
 			 * fast, and that's why shimmering has been limited to small
 			 * number of monsters -- pelpel
 			 */
-			if (!avoid_other && !avoid_shimmer &&
+			if (!options->avoid_other && !options->avoid_shimmer &&
 			                !resting && !running)
 			{
 				for (j = panel_row_min; j <= panel_row_max; j++)
@@ -4567,20 +4491,15 @@ static void process_player(void)
 					for (i = panel_col_min; i <= panel_col_max; i++)
 					{
 						cave_type *c_ptr = &cave[j][i];
-						feature_type *f_ptr;
-
-						/* Apply terrain feature mimics */
-						if (c_ptr->mimic)
-						{
-							f_ptr = &f_info[c_ptr->mimic];
-						}
-						else
-						{
-							f_ptr = &f_info[f_info[c_ptr->feat].mimic];
-						}
+						auto f_ptr = c_ptr->mimic
+							? &f_info[c_ptr->mimic]
+							: &f_info[f_info[c_ptr->feat].mimic];
 
 						/* Skip normal features */
-						if (!(f_ptr->flags1 & (FF1_ATTR_MULTI))) continue;
+						if (!(f_ptr->flags & FF_ATTR_MULTI))
+						{
+							continue;
+						}
 
 						/* Redraw a shimmering spot */
 						lite_spot(j, i);
@@ -4652,7 +4571,7 @@ static void process_player(void)
 			 *
 			 * Forget everything when requested hehe I'm *NASTY*
 			 */
-			if (dun_level && (dungeon_flags1 & DF1_FORGET))
+			if (dun_level && (dungeon_flags & DF_FORGET))
 			{
 				wiz_dark();
 			}
@@ -4675,8 +4594,10 @@ static void process_player(void)
  * This function will not exit until the level is completed,
  * the user dies, or the game is terminated.
  */
-static void dungeon(void)
+static void dungeon()
 {
+	auto const &d_info = game->edit_data.d_info;
+
 	/* Reset various flags */
 	hack_mind = FALSE;
 
@@ -4707,7 +4628,7 @@ static void dungeon(void)
 
 
 	/* Disturb */
-	disturb(1);
+	disturb();
 
 	/* Track maximum player level */
 	if (p_ptr->max_plv < p_ptr->lev)
@@ -4733,12 +4654,12 @@ static void dungeon(void)
 	if (!dun_level) create_down_shaft = create_up_shaft = FALSE;
 
 	/* Option -- no connected stairs */
-	if (!dungeon_stair) create_down_stair = create_up_stair = FALSE;
-	if (!dungeon_stair) create_down_shaft = create_up_shaft = FALSE;
+	if (!options->dungeon_stair) create_down_stair = create_up_stair = FALSE;
+	if (!options->dungeon_stair) create_down_shaft = create_up_shaft = FALSE;
 
 	/* no connecting stairs on special levels */
-	if (!(dungeon_flags2 & DF2_NO_STAIR)) create_down_stair = create_up_stair = FALSE;
-	if (!(dungeon_flags2 & DF2_NO_STAIR)) create_down_shaft = create_up_shaft = FALSE;
+	if (!(dungeon_flags & DF_NO_STAIR)) create_down_stair = create_up_stair = FALSE;
+	if (!(dungeon_flags & DF_NO_STAIR)) create_down_shaft = create_up_shaft = FALSE;
 
 	/* Make a stairway. */
 	if ((create_up_stair || create_down_stair ||
@@ -4754,19 +4675,19 @@ static void dungeon(void)
 			/* Make stairs */
 			if (create_down_stair)
 			{
-				cave_set_feat(p_ptr->py, p_ptr->px, (dungeon_flags1 & DF1_FLAT) ? FEAT_WAY_MORE : FEAT_MORE);
+				cave_set_feat(p_ptr->py, p_ptr->px, (dungeon_flags & DF_FLAT) ? FEAT_WAY_MORE : FEAT_MORE);
 			}
 			else if (create_down_shaft)
 			{
-				cave_set_feat(p_ptr->py, p_ptr->px, (dungeon_flags1 & DF1_FLAT) ? FEAT_WAY_MORE : FEAT_SHAFT_DOWN);
+				cave_set_feat(p_ptr->py, p_ptr->px, (dungeon_flags & DF_FLAT) ? FEAT_WAY_MORE : FEAT_SHAFT_DOWN);
 			}
 			else if (create_up_shaft)
 			{
-				cave_set_feat(p_ptr->py, p_ptr->px, (dungeon_flags1 & DF1_FLAT) ? FEAT_WAY_LESS : FEAT_SHAFT_UP);
+				cave_set_feat(p_ptr->py, p_ptr->px, (dungeon_flags & DF_FLAT) ? FEAT_WAY_LESS : FEAT_SHAFT_UP);
 			}
 			else
 			{
-				cave_set_feat(p_ptr->py, p_ptr->px, (dungeon_flags1 & DF1_FLAT) ? FEAT_WAY_LESS : FEAT_LESS);
+				cave_set_feat(p_ptr->py, p_ptr->px, (dungeon_flags & DF_FLAT) ? FEAT_WAY_LESS : FEAT_LESS);
 			}
 		}
 
@@ -4941,7 +4862,7 @@ static void dungeon(void)
 		move_cursor_relative(p_ptr->py, p_ptr->px);
 
 		/* Optional fresh */
-		if (fresh_after) Term_fresh();
+		if (options->fresh_after) Term_fresh();
 
 		/* Hack -- Notice death or departure */
 		if (!alive || death) break;
@@ -4969,7 +4890,7 @@ static void dungeon(void)
 		move_cursor_relative(p_ptr->py, p_ptr->px);
 
 		/* Optional fresh */
-		if (fresh_after) Term_fresh();
+		if (options->fresh_after) Term_fresh();
 
 		/* Hack -- Notice death or departure */
 		if (!alive || death) break;
@@ -4982,7 +4903,7 @@ static void dungeon(void)
 		process_hooks_new(HOOK_END_TURN, NULL, NULL);
 
 		/* Make it pulsate and live !!!! */
-		if ((dungeon_flags1 & DF1_EVOLVE) && dun_level)
+		if ((dungeon_flags & DF_EVOLVE) && dun_level)
 		{
 			if (!(turn % 10)) evolve_level(TRUE);
 		}
@@ -5003,7 +4924,7 @@ static void dungeon(void)
 		move_cursor_relative(p_ptr->py, p_ptr->px);
 
 		/* Optional fresh */
-		if (fresh_after) Term_fresh();
+		if (options->fresh_after) Term_fresh();
 
 		/* Hack -- Notice death or departure */
 		if (!alive || death) break;
@@ -5051,13 +4972,14 @@ static void dungeon(void)
 /*
  * Load some "user pref files"
  */
-static void load_all_pref_files(void)
+static void load_all_pref_files()
 {
 	char buf[1024];
 
+	std::string const &player_name = game->player_name;
 
 	/* Access the "race" pref file */
-	sprintf(buf, "%s.prf", rp_ptr->title);
+	sprintf(buf, "%s.prf", rp_ptr->title.c_str());
 
 	/* Process that file */
 	process_pref_file(buf);
@@ -5069,7 +4991,7 @@ static void load_all_pref_files(void)
 	process_pref_file(buf);
 
 	/* Access the "character" pref file */
-	sprintf(buf, "%s.prf", player_name);
+	sprintf(buf, "%s.prf", player_name.c_str());
 
 	/* Process that file */
 	process_pref_file(buf);
@@ -5080,7 +5002,7 @@ static void load_all_pref_files(void)
 	 * the providence of rules and such to avoid the same
 	 * duplication problems as caused when saving macros/keymaps. */
 	boost::filesystem::path userDirectory(ANGBAND_DIR_USER);
-	if (automatizer_load(userDirectory / (std::string(player_name) + ".atm")))
+	if (automatizer_load(userDirectory / (player_name + ".atm")))
 	{
 		// Done
 	}
@@ -5092,13 +5014,11 @@ static void load_all_pref_files(void)
 
 /*
  * Actually play a game
- *
- * If the "new_game" parameter is true, then, after loading the
- * savefile, we will commit suicide, if necessary, to allow the
- * player to start a new game.
  */
-void play_game(bool_ new_game)
+void play_game()
 {
+	auto const &d_info = game->edit_data.d_info;
+
 	int i, tmp_dun;
 
 	bool_ cheat_death = FALSE;
@@ -5126,10 +5046,11 @@ void play_game(bool_ new_game)
 
 
 	/* Hack -- turn off the cursor */
-	(void)Term_set_cursor(0);
+	Term_set_cursor(0);
 
 	/* Character list */
-	if (!new_game && !no_begin_screen) new_game = begin_screen();
+	bool_ new_game = FALSE;
+	if (!no_begin_screen) new_game = begin_screen();
 	no_begin_screen = FALSE;
 
 	/* Attempt to load */
@@ -5148,20 +5069,6 @@ void play_game(bool_ new_game)
 		/* The dungeon is not ready */
 		character_dungeon = FALSE;
 	}
-	else
-	{
-		int i;
-
-		/* Init new skills to their defaults */
-		for (i = old_max_s_idx; i < max_s_idx; i++)
-		{
-			s32b value = 0, mod = 0;
-
-			compute_skills(&value, &mod, i);
-
-			init_skill(value, mod, i);
-		}
-	}
 
 	/* Process old character */
 	if (!new_game)
@@ -5170,52 +5077,8 @@ void play_game(bool_ new_game)
 		process_player_name(FALSE);
 	}
 
-	/* Init the RNG */
-	if (Rand_quick)
-	{
-		u32b seed;
-
-		/* Basic seed */
-		seed = (time(NULL));
-
-#ifdef SET_UID
-
-		/* Mutate the seed on Unix machines */
-		seed = ((seed >> 3) * (getpid() << 1));
-
-#endif
-
-		/* Use the complex RNG */
-		Rand_quick = FALSE;
-
-		/* Seed the "complex" RNG */
-		Rand_state_init(seed);
-	}
-
-	/* Extract the options */
-	for (i = 0; option_info[i].o_desc; i++)
-	{
-		int os = option_info[i].o_page;
-		int ob = option_info[i].o_bit;
-
-		/* Set the "default" options */
-		if (option_info[i].o_var)
-		{
-			/* Set */
-			if (option_flag[os] & (1L << ob))
-			{
-				/* Set */
-				(*option_info[i].o_var) = TRUE;
-			}
-
-			/* Clear */
-			else
-			{
-				/* Clear */
-				(*option_info[i].o_var) = FALSE;
-			}
-		}
-	}
+	/* Force "complex" RNG */
+	set_complex_rng();
 
 	/* Roll new character */
 	if (new_game)
@@ -5226,8 +5089,8 @@ void play_game(bool_ new_game)
 		/* The dungeon is not ready */
 		character_dungeon = FALSE;
 
-		/* Hack -- seed for flavors */
-		seed_flavor = rand_int(0x10000000);
+		/* Set the seed for flavors */
+		seed_flavor() = seed_t::system();
 
 		/* Roll up a new character */
 		player_birth();
@@ -5239,7 +5102,7 @@ void play_game(bool_ new_game)
 
 		/* Hack -- enter the world */
 		/* Mega-hack Vampires and Spectres start at midnight */
-		if (race_flags1_p(PR1_UNDEAD))
+		if (race_flags_p(PR_UNDEAD))
 		{
 			turn = (10L * DAY / 2) + 1;
 		}
@@ -5283,8 +5146,8 @@ void play_game(bool_ new_game)
 	load_all_pref_files();
 
 	/* Set or clear "rogue_like_commands" if requested */
-	if (arg_force_original) rogue_like_commands = FALSE;
-	if (arg_force_roguelike) rogue_like_commands = TRUE;
+	if (arg_force_original) options->rogue_like_commands = FALSE;
+	if (arg_force_roguelike) options->rogue_like_commands = TRUE;
 
 	/* Initialize vault info */
 	if (init_v_info()) quit("Cannot initialize vaults");
@@ -5460,15 +5323,9 @@ void play_game(bool_ new_game)
 			}
 
 			/* Cheat death option */
-			else if ((wizard || cheat_live) && !get_check("Die? "))
+			else if ((wizard || options->cheat_live) && !get_check("Die? "))
 			{
 				cheat_death = TRUE;
-
-				/* Mark social class, reset age, if needed */
-				if (p_ptr->sc) p_ptr->sc = p_ptr->age = 0;
-
-				/* Increase age */
-				p_ptr->age++;
 
 				/* Mark savefile */
 				noscore |= 0x0001;
@@ -5497,14 +5354,14 @@ void play_game(bool_ new_game)
 				p_ptr->csp_frac = 0;
 
 				/* Hack -- Healing */
-				(void)set_blind(0);
-				(void)set_confused(0);
-				(void)set_poisoned(0);
-				(void)set_afraid(0);
-				(void)set_paralyzed(0);
-				(void)set_image(0);
-				(void)set_stun(0);
-				(void)set_cut(0);
+				set_blind(0);
+				set_confused(0);
+				set_poisoned(0);
+				set_afraid(0);
+				set_paralyzed(0);
+				set_image(0);
+				set_stun(0);
+				set_cut(0);
 
 				/* accounting for a new ailment. -LM- */
 				p_ptr->black_breath = FALSE;
@@ -5513,7 +5370,7 @@ void play_game(bool_ new_game)
 				p_ptr->necro_extra &= ~CLASS_UNDEAD;
 
 				/* Hack -- Prevent starvation */
-				(void)set_food(PY_FOOD_MAX - 1);
+				set_food(PY_FOOD_MAX - 1);
 
 				/* Hack -- cancel recall */
 				if (p_ptr->word_recall)
@@ -5526,8 +5383,8 @@ void play_game(bool_ new_game)
 					p_ptr->word_recall = 0;
 				}
 
-				/* Note cause of death XXX XXX XXX */
-				(void)strcpy(died_from, "Cheating death");
+				/* Note cause of death */
+				game->died_from = "Cheating death";
 
 				/* Do not die */
 				death = FALSE;
