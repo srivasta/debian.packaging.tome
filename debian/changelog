@@ -1,3 +1,12 @@
+tome (2.41-ah~0.git.20200131-1) unstable; urgency=medium
+
+  * New ipstream git snapshot (sync to head)
+  * Bug fix: "tome FTBFS on 32bit: invalid conversion from ‘uint32_t*’
+    {aka ‘unsigned int*’} to ‘u32b*’ {aka ‘long unsigned int*’}", thanks
+    to Adrian Bunk (Closes: #961367).
+
+ -- Manoj Srivastava <srivasta@debian.org>  Wed, 27 May 2020 16:50:33 -0700
+
 tome (2.4.0-ah-1) unstable; urgency=medium
 
   * New upstream version
