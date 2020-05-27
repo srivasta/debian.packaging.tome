@@ -1,12 +1,14 @@
 #pragma once
 
-#include "h-basic.h"
-#include "rule_type.hpp"
-#include "obj_theme.hpp"
 #include "dungeon_flag_set.hpp"
+#include "h-basic.hpp"
+#include "level_data.hpp"
+#include "obj_theme.hpp"
+#include "rule_type.hpp"
 
 #include <array>
 #include <string>
+#include <unordered_map>
 
 /**
  * Maximum number of towns per dungeon
@@ -41,7 +43,7 @@ struct dungeon_info_type
 	s16b mindepth = 0;                            /* Minimal depth */
 	s16b maxdepth = 0;                            /* Maximal depth */
 
-	bool_ principal = 0;                          /* If it's a part of the main dungeon */
+	bool principal = 0;                          /* If it's a part of the main dungeon */
 	byte min_plev = 0;                            /* Minimal plev needed to enter -- it's an anti-cheating mesure */
 
 	int min_m_alloc_level = 0;                    /* Minimal number of monsters per level */
@@ -70,6 +72,8 @@ struct dungeon_info_type
 	int d_side[4] = { 0 };                        /* Number of sides */
 	int d_frequency[4] = { 0 };                   /* Frequency of damage (1 is the minimum) */
 	int d_type[4] = { 0 };                        /* Type of damage */
+
+	std::unordered_map<int, level_data> level_data_by_depth { };
 
 	s16b t_idx[TOWN_DUNGEON] = { 0 };   /* The towns */
 	s16b t_level[TOWN_DUNGEON] = { 0 }; /* The towns levels */

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "angband.h"
 #include "activation.hpp"
 #include "between_exit.hpp"
 #include "body.hpp"
 #include "cli_comm_fwd.hpp"
+#include "defines.hpp"
 #include "flags_group.hpp"
 #include "gf_name_type.hpp"
 #include "inscription_info_type.hpp"
@@ -48,10 +48,10 @@ extern byte adj_con_mhp[];
 extern byte blows_table[12][12];
 extern byte extract_energy[300];
 extern s32b player_exp[PY_MAX_LEVEL];
-extern cptr color_names[16];
-extern cptr stat_names[6];
-extern cptr stat_names_reduced[6];
-extern cptr window_flag_desc[32];
+extern const char *color_names[16];
+extern const char *stat_names[6];
+extern const char *stat_names_reduced[6];
+extern const char *window_flag_desc[32];
 extern martial_arts bear_blows[MAX_BEAR];
 extern martial_arts ma_blows[MAX_MA];
 extern magic_power mindcraft_powers[MAX_MINDCRAFT_POWERS];
@@ -62,19 +62,18 @@ extern move_info_type move_info[9];
 extern tactic_info_type tactic_info[9];
 extern activation activation_info[MAX_T_ACT];
 extern inscription_info_type inscription_info[MAX_INSCRIPTIONS];
-extern cptr sense_desc[];
 std::vector<flags_group> const &flags_groups();
-extern power_type powers_type[POWER_MAX];
-extern cptr artifact_names_list;
+extern const char *artifact_names_list;
 extern monster_power monster_powers[MONSTER_POWERS_MAX];
 extern tval_desc tvals[];
 extern tval_desc tval_descs[];
 extern between_exit between_exits[MAX_BETWEEN_EXITS];
 extern int month_day[9];
-extern cptr month_name[9];
+extern const char *month_name[9];
 extern cli_comm *cli_info;
 extern int cli_total;
 extern quest_type quest[MAX_Q_IDX];
 extern int max_body_part[BODY_MAX];
 extern gf_name_type gf_names[];
 extern module_type modules[MAX_MODULES];
+extern char hexsym[16];

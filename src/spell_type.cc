@@ -19,22 +19,22 @@
  */
 struct spell_type
 {
-	cptr name;                      /* Name */
+	const char *name;                      /* Name */
 	byte skill_level;               /* Required level (to learn) */
 	std::vector<std::string> m_description;       /* List of strings */
 
 	casting_result (*effect_func)();  /* Spell effect function */
-	const char* (*info_func)();           /* Information function */
+	std::string (*info_func)();           /* Information function */
 	int (*lasting_func)();         /* Lasting effect function */
-	bool_ (*depend_func)();         /* Check dependencies */
+	bool (*depend_func)();         /* Check dependencies */
 
 	s16b minimum_pval;              /* Minimum required pval for item-based spells */
 
 	enum casting_type casting_type; /* Type of casting required */
 	s16b         casting_stat;      /* Stat used for casting */
 
-	bool_        castable_while_blind;
-	bool_        castable_while_confused;
+	bool        castable_while_blind;
+	bool        castable_while_confused;
 
 	dice_type          device_charges;      /* Number of charges for devices */
 	std::vector<device_allocation *> m_device_allocation;	/* Allocation table for devices */
@@ -53,7 +53,7 @@ struct spell_type
 
 public:
 
-	spell_type(cptr _name)
+	spell_type(const char *_name)
 		: name(_name)
 		, skill_level(0)
 		, m_description()
@@ -64,8 +64,8 @@ public:
 		, minimum_pval(0)
 		, casting_type(USE_SPELL_POINTS)
 		, casting_stat(0)
-		, castable_while_blind(FALSE)
-		, castable_while_confused(FALSE)
+		, castable_while_blind(false)
+		, castable_while_confused(false)
 		, device_charges({ 0, 0, 0 })
 		, m_device_allocation()
 		, random_type(-1)
@@ -98,7 +98,7 @@ void spell_type_set_inertia(spell_type *spell, s32b difficulty, s32b delay)
 
 void spell_type_init_music(spell_type *spell,
 			   s16b minimum_pval,
-			   const char* (*info_func)(),
+			   std::string (*info_func)(),
 			   casting_result (*effect_func)())
 {
 	assert(spell != NULL);
@@ -118,7 +118,7 @@ void spell_type_init_music(spell_type *spell,
 
 void spell_type_init_music_lasting(spell_type *spell,
 				   s16b minimum_pval,
-				   const char* (*info_func)(),
+				   std::string (*info_func)(),
 				   casting_result (*effect_func)(),
 				   int (*lasting_func)())
 {
@@ -134,7 +134,7 @@ void spell_type_init_music_lasting(spell_type *spell,
 void spell_type_init_mage(spell_type *spell,
 			  random_type random_type,
 			  s32b school_idx,
-			  const char* (*info_func)(),
+			  std::string (*info_func)(),
 			  casting_result (*effect_func)())
 {
 	assert(spell != NULL);
@@ -155,7 +155,7 @@ void spell_type_init_mage(spell_type *spell,
 		break;
 	default:
 		/* Cannot happen */
-		assert(FALSE);
+		assert(false);
 	}
 
 	/* Add first school */
@@ -164,7 +164,7 @@ void spell_type_init_mage(spell_type *spell,
 
 void spell_type_init_priest(spell_type *spell,
 			    s32b school_idx,
-			    const char* (*info_func)(),
+			    std::string (*info_func)(),
 			    casting_result (*effect_func)())
 {
 	assert(spell != NULL);
@@ -180,7 +180,7 @@ void spell_type_init_priest(spell_type *spell,
 }
 
 void spell_type_init_device(spell_type *spell,
-			    const char* (*info_func)(),
+			    std::string (*info_func)(),
 			    casting_result (*effect_func)())
 {
 	assert(spell != NULL);
@@ -193,7 +193,7 @@ void spell_type_init_device(spell_type *spell,
 }
 
 void spell_type_init_demonology(spell_type *spell,
-				const char* (*info_func)(),
+				std::string (*info_func)(),
 				casting_result (*effect_func)())
 {
 	spell_type_init_mage(spell,
@@ -204,9 +204,9 @@ void spell_type_init_demonology(spell_type *spell,
 }
 
 void spell_type_init_geomancy(spell_type *spell,
-			      const char* (*info_func)(),
+			      std::string (*info_func)(),
 			      casting_result (*effect_func)(),
-			      bool_ (*depend_func)())
+			      bool (*depend_func)())
 {
 	spell_type_init_mage(spell,
 			     NO_RANDOM,
@@ -232,21 +232,21 @@ void spell_type_set_mana(spell_type *spell, s32b min, s32b max)
 	range_init(&spell->mana_range, min, max);
 }
 
-void spell_type_set_castable_while_blind(spell_type *spell, bool_ value)
+void spell_type_set_castable_while_blind(spell_type *spell, bool value)
 {
 	assert(spell != NULL);
 
 	spell->castable_while_blind = value;
 }
 
-void spell_type_set_castable_while_confused(spell_type *spell, bool_ value)
+void spell_type_set_castable_while_confused(spell_type *spell, bool value)
 {
 	assert(spell != NULL);
 
 	spell->castable_while_confused = value;
 }
 
-void spell_type_describe(spell_type *spell, cptr line)
+void spell_type_describe(spell_type *spell, const char *line)
 {
 	assert(spell != NULL);
 
@@ -258,7 +258,7 @@ void spell_type_add_school(spell_type *spell, s32b school_idx)
 	school_idx_add_new(spell, school_idx);
 }
 
-void spell_type_set_device_charges(spell_type *spell, cptr charges_s)
+void spell_type_set_device_charges(spell_type *spell, const char *charges_s)
 {
 	assert(spell != NULL);
 
@@ -272,7 +272,7 @@ void spell_type_add_device_allocation(spell_type *spell, struct device_allocatio
 	spell->m_device_allocation.push_back(a);
 }
 
-spell_type *spell_type_new(cptr name)
+spell_type *spell_type_new(const char *name)
 {
 	spell_type *spell = new spell_type(name);
 	assert(spell != NULL);
@@ -291,7 +291,7 @@ casting_result spell_type_produce_effect(spell_type *spell)
 	return spell->effect_func();
 }
 
-cptr spell_type_name(spell_type *spell)
+const char *spell_type_name(spell_type *spell)
 {
 	assert(spell != NULL);
 
@@ -331,19 +331,19 @@ device_allocation *spell_type_device_allocation(spell_type *spell, byte tval)
 	return NULL;
 }
 
-bool_ spell_type_uses_piety_to_cast(spell_type *spell)
+bool spell_type_uses_piety_to_cast(spell_type *spell)
 {
 	assert(spell != NULL);
 	return spell->casting_type == USE_PIETY;
 }
 
-bool_ spell_type_castable_while_blind(spell_type *spell)
+bool spell_type_castable_while_blind(spell_type *spell)
 {
 	assert(spell != NULL);
 	return spell->castable_while_blind;
 }
 
-bool_ spell_type_castable_while_confused(spell_type *spell)
+bool spell_type_castable_while_confused(spell_type *spell)
 {
 	assert(spell != NULL);
 	return spell->castable_while_confused;
@@ -369,12 +369,12 @@ std::vector<s32b> const spell_type_get_schools(spell_type *spell)
 	return school_idxs;
 }
 
-bool_ spell_type_inertia(spell_type *spell, s32b *difficulty, s32b *delay)
+bool spell_type_inertia(spell_type *spell, s32b *difficulty, s32b *delay)
 {
 	if ((spell->inertia_difficulty < 0) ||
 	    (spell->inertia_delay < 0))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (difficulty != NULL)
@@ -387,13 +387,13 @@ bool_ spell_type_inertia(spell_type *spell, s32b *difficulty, s32b *delay)
 		*delay = spell->inertia_delay;
 	}
 
-	return TRUE;
+	return true;
 }
 
-cptr spell_type_info(spell_type *spell)
+std::string spell_type_info(spell_type *spell)
 {
 	assert(spell != NULL);
-	
+
 	return spell->info_func();
 }
 
@@ -421,13 +421,13 @@ void spell_type_mana_range(spell_type *spell, range_type *range)
 	}
 }
 
-bool_ spell_type_dependencies_satisfied(spell_type *spell)
+bool spell_type_dependencies_satisfied(spell_type *spell)
 {
 	assert(spell != NULL);
 
 	if (spell->depend_func != NULL) {
 		return spell->depend_func();
 	} else {
-		return TRUE;
+		return true;
 	}
 }

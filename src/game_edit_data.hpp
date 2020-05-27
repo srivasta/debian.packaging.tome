@@ -21,6 +21,8 @@
 #include "vault_type.hpp"
 #include "wilderness_type_info.hpp"
 
+#include <memory>
+#include <unordered_map>
 #include <vector>
 
 /**
@@ -66,9 +68,14 @@ struct GameEditData {
 	std::vector<set_type> set_info;
 
 	/**
-	 * Object kinds
+	 * Object kinds.
 	 */
-	std::vector<object_kind> k_info;
+	std::unordered_map<int, std::shared_ptr<object_kind>> k_info;
+
+	/**
+	 * Get a sorted vector of all the keys of k_info.
+	 */
+	std::vector<int> const k_info_keys() const;
 
 	/**
 	 * Building actions.

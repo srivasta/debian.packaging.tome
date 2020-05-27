@@ -1,10 +1,12 @@
 #pragma once
 
 #include "ego_flag_set.hpp"
-#include "h-basic.h"
+#include "h-basic.hpp"
 #include "object_flag_set.hpp"
 
 #include <array>
+#include <boost/optional.hpp>
+#include <string>
 
 /*
  * Size of flag rarity tables
@@ -16,9 +18,9 @@ constexpr int FLAG_RARITY_MAX = 6;
  */
 struct ego_item_type
 {
-	const char *name = nullptr;              /* Name */
+	std::string name;                        /* Name */
 
-	bool_ before = FALSE;                    /* Before or after the object name ? */
+	bool before = false;                    /* Before or after the object name ? */
 
 	byte tval[10] = { 0 };
 	byte min_sval[10] = { 0 };
@@ -50,7 +52,7 @@ struct ego_item_type
 	object_flag_set need_flags;
 	object_flag_set forbid_flags;
 
-	s16b power = -1;                        /* Power granted, if any */
+	boost::optional<int> power;                        /* Power granted, if any */
 
 public:
 	ego_item_type()

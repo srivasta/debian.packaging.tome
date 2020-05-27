@@ -4,18 +4,22 @@
 
 #include "alloc.hpp"
 #include "birther.hpp"
+#include "effect_type.hpp"
 #include "game_edit_data.hpp"
 #include "grid.hpp"
-#include "h-basic.h"
+#include "h-basic.hpp"
 #include "level_marker.hpp"
 #include "messages.hpp"
 #include "player_defs.hpp"
+#include "powers.hpp"
+#include "power_type.hpp"
 #include "random_artifact.hpp"
 #include "skill_type.hpp"
 #include "timer_type_fwd.hpp"
 #include "wilderness_map.hpp"
 
 #include <boost/multi_array.hpp>
+#include <unordered_map>
 
 /**
  * All structures for the game itself.
@@ -65,6 +69,14 @@ struct Game {
 	std::array<s16b, PY_MAX_LEVEL> player_hp { };
 
 	/**
+	 * Powers
+	 */
+	std::unordered_map<
+		int,
+		std::shared_ptr<power_type>>
+		powers;
+
+	/**
 	 * Message buffer.
 	 */
 	Messages messages { 2048 };
@@ -85,13 +97,33 @@ struct Game {
 	std::vector<timer_type *> timers;
 
 	/**
+	 * Level generators
+	 */
+	std::unordered_map<std::string, std::function<bool()>> level_generators;
+
+	/**
 	 * Level markers for 'special' levels.
 	 */
 	boost::multi_array<level_marker, 2> level_markers { };
 
 	/**
+	 * Dungeon flags.
+	 */
+	dungeon_flag_set dungeon_flags { };
+
+	/**
+	 * Lasting effects.
+	 */
+	std::vector<effect_type> lasting_effects { };
+
+	/**
 	 * Generate a special level feeling?
 	 */
 	bool generate_special_feeling = false;
+
+	/**
+	 * Construct a default instance.
+	 */
+	explicit Game();
 
 };

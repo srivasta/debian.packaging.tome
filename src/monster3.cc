@@ -24,17 +24,16 @@
 #include "skills.hpp"
 #include "tables.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "variable.h"
 #include "variable.hpp"
 #include "xtra2.hpp"
+#include "z-form.hpp"
 #include "z-rand.hpp"
 
 /*
  * Is the mon,ster in friendly state(pet, friend, ..)
  * -1 = enemy, 0 = neutral, 1 = friend
  */
-int is_friend(monster_type *m_ptr)
+int is_friend(monster_type const *m_ptr)
 {
 	switch (m_ptr->status)
 	{
@@ -59,27 +58,40 @@ int is_friend(monster_type *m_ptr)
 }
 
 /* Should they attack each others */
-bool_ is_enemy(monster_type *m_ptr, monster_type *t_ptr)
+bool is_enemy(monster_type *m_ptr, monster_type *t_ptr)
 {
 	auto const &r_info = game->edit_data.r_info;
 
 	auto r_ptr = &r_info[m_ptr->r_idx];
 	auto rt_ptr = &r_info[t_ptr->r_idx];
 
-	int s1 = is_friend(m_ptr), s2 = is_friend(t_ptr);
-
 	/* Monsters hates breeders */
-	if ((m_ptr->status != MSTATUS_NEUTRAL) && (rt_ptr->spells & SF_MULTIPLY) && (num_repro > MAX_REPRO * 2 / 3) && (r_ptr->d_char != rt_ptr->d_char)) return TRUE;
-	if ((t_ptr->status != MSTATUS_NEUTRAL) && (r_ptr->spells & SF_MULTIPLY) && (num_repro > MAX_REPRO * 2 / 3) && (r_ptr->d_char != rt_ptr->d_char)) return TRUE;
+	if ((m_ptr->status != MSTATUS_NEUTRAL) &&
+		(rt_ptr->spells & SF_MULTIPLY) &&
+		(num_repro > MAX_REPRO * 2 / 3) &&
+		(r_ptr->d_char != rt_ptr->d_char)) {
+		return true;
+	}
+	if ((t_ptr->status != MSTATUS_NEUTRAL) &&
+		(r_ptr->spells & SF_MULTIPLY) &&
+		(num_repro > MAX_REPRO * 2 / 3) &&
+		(r_ptr->d_char != rt_ptr->d_char)) {
+		return true;
+	}
 
-	/* No special conditions, lets test normal flags */
-	if (s1 && s2 && (s1 == -s2)) return TRUE;
+	/* No special conditions, test normal flags */
+	int const s1 = is_friend(m_ptr);
+	int const s2 = is_friend(t_ptr);
+	if (s1 && s2 && (s1 == -s2))
+	{
+		return true;
+	}
 
-	/* Not ennemy */
-	return (FALSE);
+	/* Not enemy */
+	return false;
 }
 
-bool_ change_side(monster_type *m_ptr)
+bool change_side(monster_type *m_ptr)
 {
 	auto const r_ptr = m_ptr->race();
 
@@ -103,19 +115,18 @@ bool_ change_side(monster_type *m_ptr)
 			inc_piety(GOD_YAVANNA, -m_ptr->level * 4);
 		break;
 	case MSTATUS_COMPANION:
-		return FALSE;
-		break;
+		return false;
 	}
 	/* changed */
-	return TRUE;
+	return true;
 }
 
 /* Multiply !! */
-bool_ ai_multiply(int m_idx)
+bool ai_multiply(int m_idx)
 {
 	monster_type *m_ptr = &m_list[m_idx];
 	int k, y, x, oy = m_ptr->fy, ox = m_ptr->fx;
-	bool_ is_frien = (is_friend(m_ptr) > 0);
+	bool is_frien = (is_friend(m_ptr) > 0);
 
 	/* Count the adjacent monsters */
 	for (k = 0, y = oy - 1; y <= oy + 1; y++)
@@ -128,28 +139,29 @@ bool_ ai_multiply(int m_idx)
 
 	if (is_friend(m_ptr) > 0)
 	{
-		is_frien = TRUE;
+		is_frien = true;
 	}
 	else
 	{
-		is_frien = FALSE;
+		is_frien = false;
 	}
 
 	/* Hack -- multiply slower in crowded areas */
 	if ((k < 4) && (!k || !rand_int(k * MON_MULT_ADJ)))
 	{
 		/* Try to multiply */
-		if (multiply_monster(m_idx, (is_frien), FALSE))
+		if (multiply_monster(m_idx, (is_frien), false))
 		{
 			/* Multiplying takes energy */
-			return TRUE;
+			return true;
 		}
 	}
-	return FALSE;
+
+	return false;
 }
 
 /* Possessor incarnates */
-bool_ ai_possessor(int m_idx, int o_idx)
+void ai_possessor(int m_idx, int o_idx)
 {
 	auto &r_info = game->edit_data.r_info;
 
@@ -163,7 +175,10 @@ bool_ ai_possessor(int m_idx, int o_idx)
 	monster_desc(m_name, m_ptr, 0x00);
 	monster_race_desc(m_name2, r2_idx, 0);
 
-	if (m_ptr->ml) msg_format("%^s incarnates into a %s!", m_name, m_name2);
+	if (m_ptr->ml)
+	{
+		msg_format("%^s incarnates into a %s!", m_name, m_name2);
+	}
 
 	/* Remove the old one */
 	delete_object_idx(o_idx);
@@ -217,7 +232,7 @@ bool_ ai_possessor(int m_idx, int o_idx)
 	if (r_ptr->spells & SF_MULTIPLY) num_repro++;
 
 	/* Hack -- Notice new multi-hued monsters */
-	if (r_ptr->flags & RF_ATTR_MULTI) shimmer_monsters = TRUE;
+	if (r_ptr->flags & RF_ATTR_MULTI) shimmer_monsters = true;
 
 	/* Hack -- Count the monsters on the level */
 	r_ptr->cur_num++;
@@ -226,9 +241,7 @@ bool_ ai_possessor(int m_idx, int o_idx)
 	m_ptr->possessor = r_idx;
 
 	/* Update the monster */
-	update_mon(m_idx, TRUE);
-
-	return TRUE;
+	update_mon(m_idx, true);
 }
 
 void ai_deincarnate(int m_idx)
@@ -294,7 +307,7 @@ void ai_deincarnate(int m_idx)
 	if (r_ptr->spells & SF_MULTIPLY) num_repro++;
 
 	/* Hack -- Notice new multi-hued monsters */
-	if (r_ptr->flags & RF_ATTR_MULTI) shimmer_monsters = TRUE;
+	if (r_ptr->flags & RF_ATTR_MULTI) shimmer_monsters = true;
 
 	/* Hack -- Count the monsters on the level */
 	r_ptr->cur_num++;
@@ -303,32 +316,37 @@ void ai_deincarnate(int m_idx)
 	m_ptr->possessor = 0;
 
 	/* Update the monster */
-	update_mon(m_idx, TRUE);
+	update_mon(m_idx, true);
 }
 
 /* Returns if a new companion is allowed */
-bool_ can_create_companion()
+bool can_create_companion()
 {
-	int i, mcnt = 0;
+	int mcnt = 0;
 
-	for (i = m_max - 1; i >= 1; i--)
+	for (int i = m_max - 1; i >= 1; i--)
 	{
 		/* Access the monster */
 		monster_type *m_ptr = &m_list[i];
 
 		/* Ignore "dead" monsters */
-		if (!m_ptr->r_idx) continue;
+		if (!m_ptr->r_idx)
+		{
+			continue;
+		}
 
-		if (m_ptr->status == MSTATUS_COMPANION) mcnt++;
+		if (m_ptr->status == MSTATUS_COMPANION)
+		{
+			mcnt++;
+		}
 	}
 
-	if (mcnt < (1 + get_skill_scale(SKILL_LORE, 6))) return (TRUE);
-	else return (FALSE);
+	return mcnt < (1 + get_skill_scale(SKILL_LORE, 6));
 }
 
 
 /* Player controlled monsters */
-bool_ do_control_walk()
+bool do_control_walk()
 {
 	/* Get a "repeated" direction */
 	if (p_ptr->control)
@@ -343,26 +361,37 @@ bool_ do_control_walk()
 			/* Actually move the monster */
 			p_ptr->control_dir = dir;
 		}
-		return TRUE;
+
+		return true;
 	}
 	else
-		return FALSE;
+	{
+		return false;
+	}
 }
 
-bool_ do_control_inven()
+bool do_control_inven()
 {
-	if (!p_ptr->control) return FALSE;
+	if (!p_ptr->control)
+	{
+		return false;
+	}
+
 	screen_save();
 	prt("Carried items", 0, 0);
 	show_monster_inven(p_ptr->control);
 	inkey();
 	screen_load();
-	return TRUE;
+
+	return true;
 }
 
-bool_ do_control_pickup()
+bool do_control_pickup()
 {
-	if (!p_ptr->control) return FALSE;
+	if (!p_ptr->control)
+	{
+		return false;
+	}
 
 	monster_type *m_ptr = &m_list[p_ptr->control];
 
@@ -387,7 +416,7 @@ bool_ do_control_pickup()
 		excise_object_idx(this_o_idx);
 
 		/* Forget mark */
-		o_ptr->marked = FALSE;
+		o_ptr->marked = false;
 
 		/* Forget location */
 		o_ptr->iy = o_ptr->ix = 0;
@@ -408,38 +437,41 @@ bool_ do_control_pickup()
 		msg_print("You pick up all objects on the floor.");
 	}
 
-	return TRUE;
+	return true;
 }
 
-bool_ do_control_drop()
+bool do_control_drop()
 {
 	monster_type *m_ptr = &m_list[p_ptr->control];
 
-	if (!p_ptr->control) return FALSE;
+	if (!p_ptr->control) return false;
 	monster_drop_carried_objects(m_ptr);
-	return TRUE;
+	return true;
 }
 
-bool_ do_control_magic()
+bool do_control_magic()
 {
 	auto const &r_info = game->edit_data.r_info;
 
 	int i;
-	bool_ flag, redraw;
+	bool flag, redraw;
 	int ask;
 	char choice;
 	char out_val[160];
 	auto r_ptr = &r_info[m_list[p_ptr->control].r_idx];
 	int label;
 
-	if (!p_ptr->control) return FALSE;
+	if (!p_ptr->control)
+	{
+		return false;
+	}
 
 	if (get_check("Do you want to abandon the creature?"))
 	{
 		if (get_check("Abandon it permanently?"))
 			delete_monster_idx(p_ptr->control);
 		p_ptr->control = 0;
-		return TRUE;
+		return true;
 	}
 
 	/* Extract available monster powers */
@@ -450,15 +482,15 @@ bool_ do_control_magic()
 	if (!num)
 	{
 		msg_print("You have no powers you can use.");
-		return (TRUE);
+		return true;
 	}
 
 	/* Nothing chosen yet */
-	flag = FALSE;
+	flag = false;
 	monster_power const *power = nullptr;
 
 	/* No redraw yet */
-	redraw = FALSE;
+	redraw = false;
 
 	/* Get the last label */
 	label = (num <= 26) ? I2A(num - 1) : I2D(num - 1 - 26);
@@ -484,11 +516,10 @@ bool_ do_control_magic()
 				strcpy(dummy, "");
 
 				/* Show list */
-				redraw = TRUE;
+				redraw = true;
 
 				/* Save the screen */
-				character_icky = TRUE;
-				Term_save();
+				screen_save_no_flush();
 
 				prt ("", y++, x);
 
@@ -527,11 +558,10 @@ bool_ do_control_magic()
 			else
 			{
 				/* Hide list */
-				redraw = FALSE;
+				redraw = false;
 
 				/* Restore the screen */
-				Term_load();
-				character_icky = FALSE;
+				screen_load_no_flush();
 			}
 
 			/* Redo asking */
@@ -557,7 +587,7 @@ bool_ do_control_magic()
 		else
 		{
 			/* Can't uppercase digits XXX XXX XXX */
-			ask = FALSE;
+			ask = false;
 
 			i = choice - '0' + 26;
 		}
@@ -585,14 +615,13 @@ bool_ do_control_magic()
 		}
 
 		/* Stop the loop */
-		flag = TRUE;
+		flag = true;
 	}
 
 	/* Restore the screen */
 	if (redraw)
 	{
-		Term_load();
-		character_icky = FALSE;
+		screen_load_no_flush();
 	}
 
 	/* Take a turn */
@@ -601,11 +630,12 @@ bool_ do_control_magic()
 		energy_use = 100;
 		monst_spell_monst_spell = power->monster_spell_index;
 	}
-	return TRUE;
+
+	return true;
 }
 
 /* Finds the controlled monster and "reconnect" to it */
-bool_ do_control_reconnect()
+bool do_control_reconnect()
 {
 	int i;
 
@@ -620,10 +650,10 @@ bool_ do_control_reconnect()
 		if (m_ptr->mflag & MFLAG_CONTROL)
 		{
 			p_ptr->control = i;
-			return TRUE;
+			return true;
 		}
 	}
-	return FALSE;
+	return false;
 }
 
 /*

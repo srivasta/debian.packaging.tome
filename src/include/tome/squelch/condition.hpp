@@ -20,27 +20,15 @@ namespace squelch {
  * Types of matches used for conditions.
  */
 enum class match_type {
-	AND      , OR      , NOT    , NAME     , CONTAIN   ,
-	INSCRIBED, DISCOUNT, SYMBOL , STATE    , STATUS    ,
-	TVAL     , SVAL    , RACE   , SUBRACE  , CLASS     ,
-	LEVEL    , SKILL   , ABILITY, INVENTORY, EQUIPMENT };
+	AND      , OR      , NOT      , NAME      , CONTAIN,
+	INSCRIBED, DISCOUNT, SYMBOL   , STATUS    , TVAL   ,
+	SVAL     , RACE    , SUBRACE  , CLASS     , LEVEL  ,
+	SKILL    , ABILITY , INVENTORY, EQUIPMENT };
 
 /**
  * Bidirectional map between enumeration values and strings.
  */
 EnumStringMap<match_type> &match_mapping();
-
-/**
- * Identification states an object can have: identified or not
- * identified.
- */
-enum class identification_state {
-	IDENTIFIED, NOT_IDENTIFIED };
-
-/**
- * Biredectional map between identification_state values and strings.
- */
-EnumStringMap<identification_state> &identification_state_mapping();
 
 /**
  * Condition represents a tree of checks which
@@ -133,7 +121,7 @@ private:
 class NameCondition : public Condition
 {
 public:
-	NameCondition(std::string name) :
+	NameCondition(std::string const &name) :
 		Condition(match_type::NAME),
 		m_name(name) {
 	}
@@ -157,7 +145,7 @@ private:
 class ContainCondition : public Condition
 {
 public:
-	ContainCondition(std::string contain) :
+	ContainCondition(std::string const &contain) :
 		Condition(match_type::CONTAIN),
 		m_contain(contain) {
 	}
@@ -302,7 +290,7 @@ private:
 class RaceCondition : public Condition
 {
 public:
-	RaceCondition(std::string race)
+	RaceCondition(std::string const &race)
 		: Condition(match_type::RACE)
 		, m_race(race) {
 	}
@@ -326,7 +314,7 @@ private:
 class SubraceCondition : public Condition
 {
 public:
-	SubraceCondition(std::string subrace)
+	SubraceCondition(std::string const &subrace)
 		: Condition(match_type::SUBRACE)
 		, m_subrace(subrace) {
 	}
@@ -350,7 +338,7 @@ private:
 class ClassCondition : public Condition
 {
 public:
-	ClassCondition(std::string klass)
+	ClassCondition(std::string const &klass)
 		: Condition(match_type::CLASS)
 		, m_class(klass) {
 	}
@@ -374,7 +362,7 @@ private:
 class InscriptionCondition : public Condition
 {
 public:
-	InscriptionCondition(std::string inscription)
+	InscriptionCondition(std::string const &inscription)
 		: Condition(match_type::INSCRIBED)
 		, m_inscription(inscription) {
 	}
@@ -470,30 +458,6 @@ private:
 	uint16_t m_skill_idx;
 	uint16_t m_min;
 	uint16_t m_max;
-};
-
-/**
- * Check identification state
- */
-class StateCondition : public Condition
-{
-public:
-	StateCondition(identification_state state)
-		: Condition(match_type::STATE)
-		, m_state(state) {
-	}
-
-	bool is_match(object_type *) const override;
-
-	static std::shared_ptr<Condition> from_json(jsoncons::json const &);
-
-protected:
-	void write_tree(TreePrinter *, Cursor *, uint8_t, uint8_t) const override;
-
-	void to_json(jsoncons::json &) const override;
-
-private:
-	identification_state m_state;
 };
 
 /**

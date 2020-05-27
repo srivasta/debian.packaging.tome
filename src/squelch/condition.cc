@@ -3,6 +3,7 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 
+#include "jsoncons_helpers.hpp"
 #include "tome/squelch/cursor.hpp"
 #include "tome/squelch/tree_printer.hpp"
 #include "../ability_type.hpp"
@@ -19,6 +20,9 @@
 #include "../skill_type.hpp"
 #include "../util.hpp"
 #include "../variable.hpp"
+#include "../z-term.hpp"
+
+#include <fmt/format.h>
 
 namespace squelch {
 
@@ -34,7 +38,6 @@ EnumStringMap<match_type> &match_mapping()
 		{ match_type::INSCRIBED, "inscribed" },
 		{ match_type::DISCOUNT, "discount" },
 		{ match_type::SYMBOL, "symbol" },
-		{ match_type::STATE, "state" },
 		{ match_type::STATUS, "status" },
 		{ match_type::TVAL, "tval" },
 		{ match_type::SVAL, "sval" },
@@ -48,15 +51,6 @@ EnumStringMap<match_type> &match_mapping()
 		{ match_type::EQUIPMENT, "equipment" } };
 	return *m;
 };
-
-EnumStringMap<identification_state> &identification_state_mapping()
-{
-	// TODO: This is quite ugly and leads to valgrind complaints
-	static auto m = new EnumStringMap<identification_state> {
-		{ identification_state::IDENTIFIED, "identified" },
-		{ identification_state::NOT_IDENTIFIED, "not identified" } };
-	return *m;
-}
 
 jsoncons::json Condition::to_json() const
 {
@@ -107,7 +101,6 @@ std::shared_ptr<Condition> Condition::parse_condition(jsoncons::json const &cond
 		{ match_type::TVAL, &TvalCondition::from_json },
 		{ match_type::SVAL, &SvalCondition::from_json },
 		{ match_type::STATUS, &StatusCondition::from_json },
-		{ match_type::STATE, &StateCondition::from_json },
 		{ match_type::RACE, &RaceCondition::from_json },
 		{ match_type::SUBRACE, &SubraceCondition::from_json },
 		{ match_type::CLASS, &ClassCondition::from_json },
@@ -120,17 +113,18 @@ std::shared_ptr<Condition> Condition::parse_condition(jsoncons::json const &cond
 		return nullptr;
 	}
 
-	cptr type_s = condition_json.get("type").as<cptr>();
-	if (!type_s)
+	auto maybe_type_s = get_optional<std::string>(condition_json, "type");
+	if (!maybe_type_s)
 	{
 		msg_print("Missing/invalid 'type' in condition");
 		return nullptr;
 	}
+	auto type_s = *maybe_type_s;
 
 	match_type match;
 	if (!match_mapping().parse(type_s, &match))
 	{
-		msg_format("Invalid 'type' in condition: %s", type_s);
+		msg_format("Invalid 'type' in condition: %s", type_s.c_str());
 		return nullptr;
 	}
 
@@ -149,7 +143,7 @@ jsoncons::json Condition::optional_to_json(std::shared_ptr<Condition> condition)
 {
 	return condition
 		? condition->to_json()
-		: jsoncons::json::null_type();
+		: jsoncons::null_type();
 }
 
 bool TvalCondition::is_match(object_type *o_ptr) const
@@ -159,16 +153,15 @@ bool TvalCondition::is_match(object_type *o_ptr) const
 
 std::shared_ptr<Condition> TvalCondition::from_json(jsoncons::json const &j)
 {
-	auto tval_j = j.get("tval");
-	if (!tval_j.is_uinteger())
+	if (auto maybe_tval = get_optional<uint8_t>(j, "tval"))
+	{
+		return std::make_shared<TvalCondition>(*maybe_tval);
+	}
+	else
 	{
 		msg_print("Missing/invalid 'tval' property");
 		return nullptr;
 	}
-
-	int tval = tval_j.as_uint();
-
-	return std::make_shared<TvalCondition>(tval);
 }
 
 void TvalCondition::to_json(jsoncons::json &j) const
@@ -182,7 +175,7 @@ void TvalCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t b
 	p->write(bcol, "tval");
 	p->write(ecol, " is ");
 	p->write(ecol, "\"");
-	p->write(TERM_WHITE, format("%d", (int) m_tval));
+	p->write(TERM_WHITE, fmt::format("{}", m_tval));
 	p->write(ecol, "\"");
 	p->write(TERM_WHITE, "\n");
 }
@@ -197,15 +190,15 @@ bool NameCondition::is_match(object_type *o_ptr) const
 
 std::shared_ptr<Condition> NameCondition::from_json(jsoncons::json const &j)
 {
-	cptr s = j.get("name").as<cptr>();
-
-	if (!s)
+	if (auto maybe_s = get_optional<std::string>(j, "name"))
+	{
+		return std::make_shared<NameCondition>(*maybe_s);
+	}
+	else
 	{
 		msg_print("Missing/invalid 'name' property");
 		return nullptr;
 	}
-
-	return std::make_shared<NameCondition>(s);
 }
 
 void NameCondition::write_tree(TreePrinter *p, Cursor *cursor, uint8_t ecol, uint8_t bcol) const
@@ -232,15 +225,15 @@ bool ContainCondition::is_match(object_type *o_ptr) const
 
 std::shared_ptr<Condition> ContainCondition::from_json(jsoncons::json const &j)
 {
-	cptr s = j.get("contain").as<cptr>();
-
-	if (!s)
+	if (auto maybe_s = get_optional<std::string>(j, "contain"))
+	{
+		return std::make_shared<ContainCondition>(*maybe_s);
+	}
+	else
 	{
 		msg_print("Missing/invalid 'contain' property");
 		return nullptr;
 	}
-
-	return std::make_shared<ContainCondition>(s);
 }
 
 void ContainCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t bcol) const
@@ -267,23 +260,21 @@ bool SvalCondition::is_match(object_type *o_ptr) const
 
 std::shared_ptr<Condition> SvalCondition::from_json(jsoncons::json const &j)
 {
-	auto min_j = j.get("min");
-	if (!min_j.is_uinteger())
+	auto min_j = get_optional<uint8_t>(j, "min");
+	if (!min_j)
 	{
 		msg_print("Missing/invalid 'min' property");
 		return nullptr;
 	}
 
-	auto max_j = j.get("max");
-	if (!max_j.is_uinteger())
+	auto max_j = get_optional<uint8_t>(j, "max");
+	if (!max_j)
 	{
 		msg_print("Missing/invalid 'max' property");
 		return nullptr;
 	}
 
-	return std::make_shared<SvalCondition>(
-		min_j.as_uint(),
-		max_j.as_uint());
+	return std::make_shared<SvalCondition>(*min_j, *max_j);
 }
 
 void SvalCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t bcol) const
@@ -291,9 +282,9 @@ void SvalCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t b
 	p->write(ecol, "Its ");
 	p->write(bcol, "sval");
 	p->write(ecol, " is from ");
-	p->write(TERM_WHITE, format("%d", m_min));
+	p->write(TERM_WHITE, fmt::format("{}", m_min));
 	p->write(ecol, " to ");
-	p->write(TERM_WHITE, format("%d", m_max));
+	p->write(TERM_WHITE, fmt::format("{}", m_max));
 	p->write(TERM_WHITE, "\n");
 }
 
@@ -384,7 +375,7 @@ std::shared_ptr<Condition> GroupingCondition::next_child(Condition *current)
 
 std::vector< std::shared_ptr<Condition> > GroupingCondition::parse_conditions(jsoncons::json const &j)
 {
-	auto conditions_j = j.get("conditions");
+	auto conditions_j = j.get_with_default<jsoncons::json>("conditions", jsoncons::null_type());
 
 	if (conditions_j.is_null())
 	{
@@ -500,22 +491,23 @@ bool StatusCondition::is_match(object_type *o_ptr) const
 
 std::shared_ptr<Condition> StatusCondition::from_json(jsoncons::json const &j)
 {
-	cptr s = j.get("status").as<cptr>();
+	if (auto maybe_s = get_optional<std::string>(j, "status"))
+	{
+		std::string s = *maybe_s;
+		status_type status;
+		if (!status_mapping().parse(s, &status))
+		{
+			msg_format("Invalid 'status' property: %s", s.c_str());
+			return nullptr;
+		}
 
-	if (!s)
+		return std::make_shared<StatusCondition>(status);
+	}
+	else
 	{
 		msg_print("Missing/invalid 'status' property");
 		return nullptr;
 	}
-
-	status_type status;
-	if (!status_mapping().parse(s, &status))
-	{
-		msg_format("Invalid 'status' property: %s", s);
-		return nullptr;
-	}
-
-	return std::make_shared<StatusCondition>(status);
 }
 
 void StatusCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t bcol) const
@@ -541,15 +533,15 @@ bool RaceCondition::is_match(object_type *o_ptr) const
 
 std::shared_ptr<Condition> RaceCondition::from_json(jsoncons::json const &j)
 {
-	cptr s = j.get("race").as<cptr>();
-
-	if (!s)
+	if (auto maybe_s = get_optional<std::string>(j, "race"))
+	{
+		return std::make_shared<RaceCondition>(*maybe_s);
+	}
+	else
 	{
 		msg_print("Missing/invalid 'race' property");
 		return nullptr;
 	}
-
-	return std::make_shared<RaceCondition>(s);
 }
 
 void RaceCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t bcol) const
@@ -575,15 +567,15 @@ bool SubraceCondition::is_match(object_type *o_ptr) const
 
 std::shared_ptr<Condition> SubraceCondition::from_json(jsoncons::json const &j)
 {
-	cptr s = j.get("subrace").as<cptr>();
-
-	if (!s)
+	if (auto maybe_s = get_optional<std::string>(j, "subrace"))
+	{
+		return std::make_shared<SubraceCondition>(*maybe_s);
+	}
+	else
 	{
 		msg_print("Missing/invalid 'subrace' property");
 		return nullptr;
 	}
-
-	return std::make_shared<SubraceCondition>(s);
 }
 
 void SubraceCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t bcol) const
@@ -609,15 +601,15 @@ bool ClassCondition::is_match(object_type *o_ptr) const
 
 std::shared_ptr<Condition> ClassCondition::from_json(jsoncons::json const &j)
 {
-	cptr s = j.get("class").as<cptr>();
-
-	if (!s)
+	if (auto maybe_s = get_optional<std::string>(j, "class"))
+	{
+		return std::make_shared<ClassCondition>(*maybe_s);
+	}
+	else
 	{
 		msg_print("Missing/invalid 'class' property");
 		return nullptr;
 	}
-
-	return std::make_shared<ClassCondition>(s);
 }
 
 void ClassCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t bcol) const
@@ -645,15 +637,15 @@ bool InscriptionCondition::is_match(object_type *o_ptr) const
 
 std::shared_ptr<Condition> InscriptionCondition::from_json(jsoncons::json const &j)
 {
-	cptr s = j.get("inscription").as<cptr>();
-
-	if (!s)
+	if (auto maybe_s = get_optional<std::string>(j, "inscription"))
+	{
+		return std::make_shared<InscriptionCondition>(*maybe_s);
+	}
+	else
 	{
 		msg_print("Missing/invalid 'inscription' property");
 		return nullptr;
 	}
-
-	return std::make_shared<InscriptionCondition>(s);
 }
 
 void InscriptionCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t bcol) const
@@ -681,21 +673,21 @@ bool DiscountCondition::is_match(object_type *o_ptr) const
 
 std::shared_ptr<Condition> DiscountCondition::from_json(jsoncons::json const &j)
 {
-	auto min_j = j.get("min");
-	if (!min_j.is_integer())
+	auto maybe_min = get_optional<int>(j, "min");
+	if (!maybe_min)
 	{
 		msg_print("Missing/invalid 'min' property");
 		return nullptr;
 	}
-	int min = min_j.as_int();
+	auto min = *maybe_min;
 
-	auto max_j = j.get("max");
-	if (!max_j.is_integer())
+	auto maybe_max = get_optional<int>(j, "max");
+	if (!maybe_max)
 	{
 		msg_print("Missing/invalid 'max' property");
 		return nullptr;
 	}
-	int max = max_j.as_int();
+	auto max = *maybe_max;
 
 	return std::make_shared<DiscountCondition>(min, max);
 }
@@ -705,9 +697,9 @@ void DiscountCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8
 	p->write(ecol, "Its ");
 	p->write(bcol, "discount");
 	p->write(ecol, " is from ");
-	p->write(TERM_WHITE, format("%d", m_min));
+	p->write(TERM_WHITE, fmt::format("{}", m_min));
 	p->write(ecol, " to ");
-	p->write(TERM_WHITE, format("%d", m_max));
+	p->write(TERM_WHITE, fmt::format("{}", m_max));
 	p->write(TERM_WHITE, "\n");
 }
 
@@ -725,21 +717,21 @@ bool LevelCondition::is_match(object_type *) const
 
 std::shared_ptr<Condition> LevelCondition::from_json(jsoncons::json const &j)
 {
-	auto min_j = j.get("min");
-	if (!min_j.is_integer())
+	auto maybe_min = get_optional<int>(j, "min");
+	if (!maybe_min)
 	{
 		msg_print("Missing/invalid 'min' property");
 		return nullptr;
 	}
-	int min = min_j.as_int();
+	auto min = *maybe_min;
 
-	auto max_j = j.get("max");
-	if (!max_j.is_integer())
+	auto maybe_max = get_optional<int>(j, "max");
+	if (!maybe_max)
 	{
 		msg_print("Missing/invalid 'max' property");
 		return nullptr;
 	}
-	int max = max_j.as_int();
+	int max = *maybe_max;
 
 	return std::make_shared<LevelCondition>(min, max);
 }
@@ -750,9 +742,9 @@ void LevelCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t 
 	p->write(bcol, "level");
 	p->write(ecol, " is from ");
 
-	p->write(TERM_WHITE, format("%d", m_min));
+	p->write(TERM_WHITE, fmt::format("{}", m_min));
 	p->write(ecol, " to ");
-	p->write(TERM_WHITE, format("%d", m_max));
+	p->write(TERM_WHITE, fmt::format("{}", m_max));
 	p->write(TERM_WHITE, "\n");
 }
 
@@ -771,33 +763,34 @@ bool SkillCondition::is_match(object_type *) const
 
 std::shared_ptr<Condition> SkillCondition::from_json(jsoncons::json const &j)
 {
-	auto min_j = j.get("min");
-	if (!min_j.is_integer())
+	auto maybe_min = get_optional<int>(j, "min");
+	if (!maybe_min)
 	{
 		msg_print("Missing/invalid 'min' property");
 		return nullptr;
 	}
-	int min = min_j.as_int();
+	auto min = *maybe_min;
 
-	auto max_j = j.get("max");
-	if (!max_j.is_integer())
+	auto maybe_max = get_optional<int>(j, "max");
+	if (!maybe_max)
 	{
 		msg_print("Missing/invalid 'max' property");
 		return nullptr;
 	}
-	int max = max_j.as_int();
+	auto max = *maybe_max;
 
-	auto s = j.get("name").as<cptr>();
-	if (!s)
+	auto maybe_s = get_optional<std::string>(j, "name");
+	if (!maybe_s)
 	{
 		msg_print("Missing/invalid 'name' property");
 		return nullptr;
 	}
+	auto s = *maybe_s;
 
 	auto si = find_skill_i(s);
 	if (si < 0)
 	{
-		msg_print("Invalid 'name' property");
+		msg_format("Invalid 'name' property: %s", s.c_str());
 		return nullptr;
 	}
 
@@ -811,9 +804,9 @@ void SkillCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t 
 	p->write(ecol, "Your skill in ");
 	p->write(bcol, s_descriptors[m_skill_idx].name);
 	p->write(ecol, " is from ");
-	p->write(TERM_WHITE, format("%d", (int) m_min));
+	p->write(TERM_WHITE, fmt::format("{}", m_min));
 	p->write(ecol, " to ");
-	p->write(TERM_WHITE, format("%d", (int) m_max));
+	p->write(TERM_WHITE, fmt::format("{}", m_max));
 	p->write(TERM_WHITE, "\n");
 }
 
@@ -826,66 +819,14 @@ void SkillCondition::to_json(jsoncons::json &j) const
 	j["max"] = m_max;
 }
 
-bool StateCondition::is_match(object_type *o_ptr) const
-{
-	switch (m_state)
-	{
-	case identification_state::IDENTIFIED:
-		return object_known_p(o_ptr);
-	case identification_state::NOT_IDENTIFIED:
-		return !object_known_p(o_ptr);
-	}
-
-	assert(false);
-	return false;
-}
-
-std::shared_ptr<Condition> StateCondition::from_json(jsoncons::json const &j)
-{
-	cptr s = j.get("state").as<cptr>();
-
-	if (!s)
-	{
-		msg_print("Missing/invalid 'state' property");
-		return nullptr;
-	}
-
-	identification_state state;
-	if (!identification_state_mapping().parse(s, &state))
-	{
-		msg_format("Invalid 'state' property: %s", s);
-		return nullptr;
-	}
-
-	return std::make_shared<StateCondition>(state);
-}
-
-void StateCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t bcol) const
-{
-	p->write(ecol, "Its ");
-	p->write(bcol, "state");
-	p->write(ecol, " is ");
-	p->write(ecol, "\"");
-	p->write(TERM_WHITE, identification_state_mapping().stringify(m_state));
-	p->write(ecol, "\"");
-	p->write(TERM_WHITE, "\n");
-}
-
-void StateCondition::to_json(jsoncons::json &j) const
-{
-	j["state"] = identification_state_mapping().stringify(m_state);
-}
-
 bool SymbolCondition::is_match(object_type *o_ptr) const
 {
-	auto const &k_info = game->edit_data.k_info;
-
-	return k_info[o_ptr->k_idx].d_char == m_symbol;
+	return o_ptr->k_ptr->d_char == m_symbol;
 }
 
 std::shared_ptr<Condition> SymbolCondition::from_json(jsoncons::json const &j)
 {
-	auto s = j.get("symbol").as<std::string>();
+	auto s = get_optional<std::string>(j, "symbol").value_or("");
 
 	if (s.empty())
 	{
@@ -908,14 +849,14 @@ void SymbolCondition::write_tree(TreePrinter *p, Cursor *, uint8_t ecol, uint8_t
 	p->write(bcol, "symbol");
 	p->write(ecol, " is ");
 	p->write(ecol, "\"");
-	p->write(TERM_WHITE, format("%c", m_symbol));
+	p->write(TERM_WHITE, fmt::format("{}", m_symbol));
 	p->write(ecol, "\"");
 	p->write(TERM_WHITE, "\n");
 }
 
 void SymbolCondition::to_json(jsoncons::json &j) const
 {
-	j["symbol"] = format("%c", m_symbol);
+	j["symbol"] = fmt::format("{}", m_symbol);
 }
 
 bool AbilityCondition::is_match(object_type *) const
@@ -925,18 +866,18 @@ bool AbilityCondition::is_match(object_type *) const
 
 std::shared_ptr<Condition> AbilityCondition::from_json(jsoncons::json const &j)
 {
-	cptr a = j.get("ability").as<cptr>();
-
-	if (!a)
+	auto maybe_a = get_optional<std::string>(j, "ability");
+	if (!maybe_a)
 	{
 		msg_print("Missing/invalid 'ability' property");
 		return nullptr;
 	}
+	auto a = *maybe_a;
 
 	auto ai = find_ability(a);
 	if (ai < 0)
 	{
-		msg_print("Invalid 'ability' property");
+		msg_format("Invalid 'ability' property: %s", a.c_str());
 		return nullptr;
 	}
 
@@ -989,7 +930,7 @@ void SingleSubconditionCondition::to_json(jsoncons::json &j) const
 
 std::shared_ptr<Condition> SingleSubconditionCondition::parse_single_subcondition(jsoncons::json const &in_json)
 {
-	auto condition_j = in_json.get("condition");
+	auto condition_j = in_json.get_with_default<jsoncons::json>("condition", jsoncons::null_type());
 
 	if (condition_j.is_null())
 	{

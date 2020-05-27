@@ -1,6 +1,6 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 #include "object_type_fwd.hpp"
 #include "school_book_fwd.hpp"
 
@@ -35,8 +35,8 @@ void init_school_books();
 school_book *school_books_at(int sval);
 void school_book_add_spell(school_book *school_book, s32b spell_idx);
 void random_book_setup(s16b sval, s32b spell_idx);
-int print_spell(cptr label, byte color, int y, s32b s);
+int print_spell(const char *label, byte color, int y, s32b s);
 int school_book_length(int sval);
 int spell_x(int sval, int spell_idx, int i);
-bool_ school_book_contains_spell(int sval, s32b spell_idx);
-void lua_cast_school_spell(s32b spell_idx, bool_ no_cost);
+bool school_book_contains_spell(int sval, s32b spell_idx);
+void lua_cast_school_spell(s32b spell_idx, bool no_cost);

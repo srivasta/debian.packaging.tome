@@ -2,6 +2,7 @@
 
 #include "cave.hpp"
 #include "cave_type.hpp"
+#include "game.hpp"
 #include "hook_chardump_in.hpp"
 #include "hook_move_in.hpp"
 #include "hook_stair_in.hpp"
@@ -11,14 +12,24 @@
 #include "object1.hpp"
 #include "object2.hpp"
 #include "object_flag.hpp"
+#include "object_kind.hpp"
 #include "object_type.hpp"
 #include "options.hpp"
 #include "player_type.hpp"
 #include "tables.hpp"
 #include "util.hpp"
 #include "variable.hpp"
+#include "z-term.hpp"
 
 #define cquest (quest[QUEST_ULTRA_GOOD])
+
+static std::shared_ptr<object_kind> get_flame_imperishable()
+{
+	static auto &k_info = game->edit_data.k_info;
+	static auto &k_flame_imperishable = k_info[test_item_name("& Flame~ Imperishable")];
+
+	return k_flame_imperishable;
+}
 
 static bool quest_ultra_good_move_hook(void *, void *in_, void *)
 {
@@ -41,7 +52,7 @@ static bool quest_ultra_good_move_hook(void *, void *in_, void *)
 		}
 
 		auto old_quick_messages = options->quick_messages;
-		options->quick_messages = FALSE;
+		options->quick_messages = false;
 
 		cmsg_print(TERM_L_BLUE, "You meet Galadriel.");
 		cmsg_print(TERM_YELLOW, "'I still cannot believe this is all over.'");
@@ -126,14 +137,14 @@ static bool quest_ultra_good_stair_hook(void *, void *in_, void *)
 	if ((dir == STAIRS_DOWN) && (dun_level == 149))
 	{
 		int i;
-		bool_ ultimate = FALSE;
+		bool ultimate = false;
 
 		/* Now look for an ULTIMATE artifact, that is, one imbued with the flame */
 		for (i = INVEN_WIELD; i < INVEN_TOTAL; i++)
 		{
-			object_type *o_ptr = get_object(i);
+			auto o_ptr = &p_ptr->inventory[i];
 
-			if (!o_ptr->k_idx)
+			if (!o_ptr->k_ptr)
 			{
 				continue;
 			}
@@ -142,7 +153,7 @@ static bool quest_ultra_good_stair_hook(void *, void *in_, void *)
 
 			if (flags & TR_ULTIMATE)
 			{
-				ultimate = TRUE;
+				ultimate = true;
 				break;
 			}
 		}
@@ -152,7 +163,7 @@ static bool quest_ultra_good_stair_hook(void *, void *in_, void *)
 			cmsg_print(TERM_YELLOW, "It seems the level is protected by an impassable barrier of pure magic.");
 			cmsg_print(TERM_YELLOW, "Only the most powerful magic could remove it. You will need to use");
 			cmsg_print(TERM_YELLOW, "the Flame Imperishable to pass. The source of Eru Iluvatar's own power.");
-			return TRUE;
+			return true;
 		}
 		else
 		{
@@ -208,7 +219,7 @@ static bool quest_ultra_good_death_hook(void *, void *in_, void *)
 
 		/* Remove now used hook */
 		del_hook_new(HOOK_MONSTER_DEATH, quest_ultra_good_death_hook);
-		process_hooks_restart = TRUE;
+		process_hooks_restart = true;
 
 		/* End plot */
 		*(quest[QUEST_ULTRA_GOOD].plot) = QUEST_NULL;
@@ -226,22 +237,19 @@ static bool quest_ultra_good_death_hook(void *, void *in_, void *)
 		object_prep(q_ptr, lookup_kind(TV_JUNK, 255));
 
 		/* Mega-Hack -- Actually create the Flame Imperishable */
-		k_allow_special[296] = TRUE;
-		apply_magic(q_ptr, -1, TRUE, TRUE, TRUE);
-		k_allow_special[296] = FALSE;
+		get_flame_imperishable()->allow_special = true;
+		apply_magic(q_ptr, -1, true, true, true);
+		get_flame_imperishable()->allow_special = false;
 
 		/* Identify it fully */
 		object_aware(q_ptr);
 		object_known(q_ptr);
 
-		/* Mark the item as fully known */
-		q_ptr->ident |= (IDENT_MENTAL);
-
 		/* Find a space */
 		for (i = 0; i < INVEN_PACK; i++)
 		{
 			/* Skip non-objects */
-			if (!p_ptr->inventory[i].k_idx)
+			if (!p_ptr->inventory[i].k_ptr)
 			{
 				break;
 			}
@@ -251,17 +259,17 @@ static bool quest_ultra_good_death_hook(void *, void *in_, void *)
 		{
 			char o_name[200];
 
-			object_desc(o_name, &p_ptr->inventory[INVEN_PACK - 1], FALSE, 0);
+			object_desc(o_name, &p_ptr->inventory[INVEN_PACK - 1], false, 0);
 
 			/* Drop the item */
-			inven_drop(INVEN_PACK - 1, 99, p_ptr->py, p_ptr->px, FALSE);
+			inven_drop(INVEN_PACK - 1, 99, p_ptr->py, p_ptr->px, false);
 
 			cmsg_format(TERM_VIOLET, "You feel the urge to drop your %s to make room in your inventory.", o_name);
 		}
 
 		/* Carry it */
 		cmsg_format(TERM_VIOLET, "You feel the urge to pick up the Flame Imperishable.");
-		inven_carry(q_ptr, FALSE);
+		inven_carry(q_ptr, false);
 	}
 
 	return false;

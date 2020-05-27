@@ -22,35 +22,31 @@
 /*
  * Generate a game of life level :) and make it evolve
  */
-void evolve_level(bool_ noise)
+void evolve_level(bool noise)
 {
 	auto const &f_info = game->edit_data.f_info;
-
-	int i, j;
-
-	int cw = 0, cf = 0;
-
 
 	/* Add a bit of noise */
 	if (noise)
 	{
-		for (i = 1; i < cur_wid - 1; i++)
+		int cw = 0;
+		int cf = 0;
+
+		for (int i = 1; i < cur_wid - 1; i++)
 		{
-			for (j = 1; j < cur_hgt - 1; j++)
+			for (int j = 1; j < cur_hgt - 1; j++)
 			{
 				if (f_info[cave[j][i].feat].flags & FF_WALL) cw++;
 				if (f_info[cave[j][i].feat].flags & FF_FLOOR) cf++;
 			}
 		}
 
-		for (i = 1; i < cur_wid - 1; i++)
+		for (int i = 1; i < cur_wid - 1; i++)
 		{
-			for (j = 1; j < cur_hgt - 1; j++)
+			for (int j = 1; j < cur_hgt - 1; j++)
 			{
-				cave_type *c_ptr;
-
 				/* Access the grid */
-				c_ptr = &cave[j][i];
+				auto c_ptr = &cave[j][i];
 
 				/* Permanent features should stay */
 				if (f_info[c_ptr->feat].flags & FF_PERMANENT) continue;
@@ -76,9 +72,9 @@ void evolve_level(bool_ noise)
 		}
 	}
 
-	for (i = 1; i < cur_wid - 1; i++)
+	for (int i = 1; i < cur_wid - 1; i++)
 	{
-		for (j = 1; j < cur_hgt - 1; j++)
+		for (int j = 1; j < cur_hgt - 1; j++)
 		{
 			int x, y, c;
 			cave_type *c_ptr;
@@ -138,7 +134,7 @@ void evolve_level(bool_ noise)
 }
 
 
-bool_ level_generate_life()
+bool level_generate_life()
 {
 	int i, j;
 
@@ -152,13 +148,15 @@ bool_ level_generate_life()
 		}
 	}
 
-	evolve_level(FALSE);
-	evolve_level(FALSE);
-	evolve_level(FALSE);
+	evolve_level(false);
+	evolve_level(false);
+	evolve_level(false);
 
 	/* Determine the character location */
 	if (!new_player_spot(get_branch()))
-		return FALSE;
+	{
+		return false;
+	}
 
-	return TRUE;
+	return true;
 }

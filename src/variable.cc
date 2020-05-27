@@ -7,7 +7,6 @@
  */
 
 #include "variable.hpp"
-#include "variable.h"
 
 #include "cli_comm_fwd.hpp"
 #include "player_type.hpp"
@@ -23,22 +22,15 @@ char *macro_trigger_name[MAX_MACRO_TRIG];
 char *macro_trigger_keycode[2][MAX_MACRO_TRIG];
 
 /*
- * Run-time aruments
- */
-bool_ arg_wizard; 			/* Command arg -- Request wizard mode */
-bool_ arg_force_original; 	/* Command arg -- Request original keyset */
-bool_ arg_force_roguelike; 	/* Command arg -- Request roguelike keyset */
-
-/*
  * Various things
  */
 
-bool_ character_generated; 	/* The character exists */
-bool_ character_dungeon; 		/* The character has a dungeon */
-bool_ character_loaded; 		/* The character was loaded from a savefile */
+bool character_generated; 	/* The character exists */
+bool character_dungeon; 		/* The character has a dungeon */
+bool character_loaded; 		/* The character was loaded from a savefile */
 
-bool_ character_icky; 		/* The game is in an icky full screen mode */
-bool_ character_xtra; 		/* The game is in an icky startup mode */
+bool character_icky = false;	/* The game is in an icky full screen mode */
+bool character_xtra; 		/* The game is in an icky startup mode */
 
 seed_t &seed_flavor()
 {
@@ -58,17 +50,17 @@ s16b command_new; 		/* Command chaining from inven/equip view */
 
 s32b energy_use;                 /* Energy use this turn */
 
-bool_ create_up_stair; 	/* Auto-create "up stairs" */
-bool_ create_down_stair; 	/* Auto-create "down stairs" */
+bool create_up_stair; 	/* Auto-create "up stairs" */
+bool create_down_stair; 	/* Auto-create "down stairs" */
 
-bool_ create_up_shaft;  /* Auto-create "up shaft" */
-bool_ create_down_shaft;        /* Auto-create "down shaft" */
+bool create_up_shaft;  /* Auto-create "up shaft" */
+bool create_down_shaft;        /* Auto-create "down shaft" */
 
-bool_ msg_flag; 			/* Used in msg_print() for "buffering" */
+bool msg_flag; 			/* Used in msg_print() for "buffering" */
 
-bool_ alive; 				/* True if game is running */
+bool alive; 				/* True if game is running */
 
-bool_ death; 				/* True if player has died */
+bool death; 				/* True if player has died */
 
 s16b running; 			/* Current counter for running, if any */
 s16b resting; 			/* Current counter for resting, if any */
@@ -84,27 +76,25 @@ s16b monster_level; 		/* Current monster creation level */
 s32b turn; 				/* Current game turn */
 s32b old_turn; 			/* Turn when level began (feelings) */
 
-bool_ wizard; 			/* Is the player currently in Wizard mode? */
+bool wizard; 			/* Is the player currently in Wizard mode? */
 
 u16b total_winner; 		/* Semi-Hack -- Game has been won */
 u16b has_won;               /* Semi-Hack -- Game has been won */
 
 u16b noscore; 			/* Track various "cheating" conditions */
 
-bool_ inkey_base; 		/* See the "inkey()" function */
+bool inkey_base; 		/* See the "inkey()" function */
 
 s16b coin_type; 			/* Hack -- force coin type */
 
-bool_ opening_chest; 		/* Hack -- prevent chest generation */
+bool shimmer_monsters;           /* Hack -- optimize multi-hued monsters */
+bool shimmer_objects;            /* Hack -- optimize multi-hued objects */
 
-bool_ shimmer_monsters;           /* Hack -- optimize multi-hued monsters */
-bool_ shimmer_objects;            /* Hack -- optimize multi-hued objects */
+bool repair_monsters; 	/* Hack -- optimize detect monsters */
 
-bool_ repair_monsters; 	/* Hack -- optimize detect monsters */
-
-bool_ hack_mind;
+bool hack_mind;
 int artifact_bias;
-bool_ is_autosave = FALSE;
+bool is_autosave = false;
 
 s16b inven_cnt; 			/* Number of items in inventory */
 s16b equip_cnt; 			/* Number of items in equipment */
@@ -135,7 +125,7 @@ FILE *text_out_file = NULL;
  * Hack -- function hook to output (colored) text to the
  * screen or to a file.
  */
-void (*text_out_hook)(byte a, cptr str) = text_out_to_screen;
+void (*text_out_hook)(byte a, const char *str) = text_out_to_screen;
 
 
 /*
@@ -156,7 +146,7 @@ struct options *options = nullptr;
 s16b feeling; 			/* Most recent feeling */
 s16b rating; 			/* Level's current rating */
 
-bool_ good_item_flag; 		/* True if "Artifact" on this level */
+bool good_item_flag; 		/* True if "Artifact" on this level */
 
 /*
  * Dungeon size info
@@ -202,12 +192,6 @@ object_type *tracked_object;
 
 
 /*
- * Buffer to hold the current savefile name
- */
-char savefile[1024];
-
-
-/*
  * Array of grids lit by player lite (see "cave.c")
  */
 s16b lite_n;
@@ -247,7 +231,7 @@ char **macro__act;
 /*
  * Array of macro types [MACRO_MAX]
  */
-bool_ *macro__cmd;
+bool *macro__cmd;
 
 /*
  * Current macro action [1024]
@@ -387,33 +371,21 @@ int wildc2i[256];
 /*
  * Default texts for feature information.
  */
-cptr DEFAULT_FEAT_TEXT = "a wall blocking your way";
-cptr DEFAULT_FEAT_TUNNEL = "You cannot tunnel through that.";
-cptr DEFAULT_FEAT_BLOCK = DEFAULT_FEAT_TEXT;
+const char *DEFAULT_FEAT_TEXT = "a wall blocking your way";
+const char *DEFAULT_FEAT_TUNNEL = "You cannot tunnel through that.";
+const char *DEFAULT_FEAT_BLOCK = DEFAULT_FEAT_TEXT;
 
 /*
  * Hack -- The special Angband "System Suffix"
  * This variable is used to choose an appropriate "pref-xxx" file
  */
-cptr ANGBAND_SYS = "xxx";
+const char *ANGBAND_SYS = "xxx";
 
 /*
  * Path name: The main "lib" directory
  * This variable is not actually used anywhere in the code
  */
 char *ANGBAND_DIR;
-
-/*
- * Core lua system
- * These files are portable between platforms
- */
-char *ANGBAND_DIR_CORE;
-
-/*
- * Textual dungeon level definition files
- * These files are portable between platforms
- */
-char *ANGBAND_DIR_DNGN;
 
 /*
  * Binary image files for the "*_info" arrays (binary)
@@ -485,14 +457,14 @@ char *ANGBAND_DIR_XTRA;
 /*
  * Hack -- function hooks to restrict "get_mon_num_prep()" function
  */
-bool_ (*get_mon_num_hook)(int r_idx);
-bool_ (*get_mon_num2_hook)(int r_idx);
+bool (*get_monster_hook)(monster_race const *);
+bool (*get_monster_aux_hook)(monster_race const *);
 
 
 /*
  * Hack -- function hook to restrict "get_obj_num_prep()" function
  */
-bool_ (*get_obj_num_hook)(int k_idx);
+bool (*get_object_hook)(object_kind const *k_ptr) = nullptr;
 
 /*
  * Devices
@@ -516,16 +488,16 @@ u16b max_m_idx;
 int init_flags;
 
 /* True if on an ambush */
-bool_ ambush_flag;
+bool ambush_flag;
 
 /* True if on fated level */
-bool_ fate_flag;
+bool fate_flag;
 
 /* No breeders */
 s16b no_breeds;
 
 /* Carried monsters can't take the damage if this is them which attack the player */
-bool_ carried_monster_hit = FALSE;
+bool carried_monster_hit = false;
 
 /*
  * Random artifacts.
@@ -557,14 +529,13 @@ s16b *max_dlv;
 s16b doppleganger;
 
 /* To allow wilderness encounters */
-bool_ generate_encounter = FALSE;
+bool generate_encounter = false;
 
 /*
  * Such an ugly hack ...
  */
-bool_ *m_allow_special;
-bool_ *k_allow_special;
-bool_ *a_allow_special;
+bool *m_allow_special;
+bool *a_allow_special;
 
 /*
  * Plots
@@ -577,11 +548,6 @@ s16b plots[MAX_PLOTS];
 random_quest random_quests[MAX_RANDOM_QUEST];
 
 /*
- * Dungeon flags
- */
-DECLARE_FLAG_ZERO_IMPL(dungeon_flag_set, dungeon_flags);
-
-/*
  * The spell list of schools
  */
 s16b schools_count = 0;
@@ -592,7 +558,6 @@ school_type schools[SCHOOLS_MAX];
  */
 int project_time = 0;
 s32b project_time_effect = 0;
-effect_type effects[MAX_EFFECTS];
 
 /*
  * Table of "cli" macros.
@@ -603,8 +568,7 @@ int cli_total = 0;
 /*
  * Automatizer enabled status
  */
-bool_ automatizer_enabled = FALSE;
-bool_ automatizer_create = FALSE;
+bool automatizer_enabled = false;
 
 /*
  * Location of the last teleportation thath affected the level
@@ -615,7 +579,7 @@ s16b last_teleportation_x = -1;
 /*
  * The current game module
  */
-cptr game_module;
+const char *game_module;
 s32b game_module_idx;
 s32b VERSION_MAJOR;
 s32b VERSION_MINOR;
@@ -636,14 +600,14 @@ s32b DUNGEON_ASTRAL_WILD_Y = 19;
 const char *get_version_string()
 {
 	static char version_str[80];
-	static bool_ initialized = 0;
+	static bool initialized = false;
 	if (!initialized) {
 		sprintf(version_str, "%s %ld.%ld.%ld%s",
 		        game_module,
 			(long int) VERSION_MAJOR,
 			(long int) VERSION_MINOR,
 			(long int) VERSION_PATCH, IS_CVS);
-		initialized = TRUE;
+		initialized = true;
 	}
 	return version_str;
 }

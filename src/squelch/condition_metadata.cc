@@ -7,8 +7,7 @@
 #include "lua_bind.hpp"
 #include "skills.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "z-term.h"
+#include "z-term.hpp"
 
 namespace squelch {
 
@@ -99,21 +98,6 @@ static std::shared_ptr<Condition> create_condition_status()
 	}
 
 	return std::make_shared<StatusCondition>(status);
-}
-
-static std::shared_ptr<Condition> create_condition_state()
-{
-	char c = msg_box_auto("[i]dentified, [n]on identified?");
-
-	identification_state s;
-	switch (c)
-	{
-	case 'i': s = identification_state::IDENTIFIED; break;
-	case 'n': s = identification_state::NOT_IDENTIFIED; break;
-	default: return nullptr;
-	}
-
-	return std::make_shared<StateCondition>(s);
 }
 
 static bool in_byte_range(int x)
@@ -316,16 +300,13 @@ static void display_desc(match_type match_type_)
 		line("Check is true if object symbol is ok");
 		break;
 
-	case match_type::STATE:
-		line("Check is true if object is identified/unidentified");
-		break;
-
 	case match_type::STATUS:
 		line("Check is true if object status is ok");
 		break;
 
 	case match_type::TVAL:
 		line("Check is true if object tval(from k_info.txt) is ok");
+		break;
 
 	case match_type::SVAL:
 		line("Check is true if object sval(from k_info.txt) is between");
@@ -379,7 +360,6 @@ std::shared_ptr<Condition> new_condition_interactive()
 		match_type::INSCRIBED,
 		match_type::DISCOUNT,
 		match_type::SYMBOL,
-		match_type::STATE,
 		match_type::STATUS,
 		match_type::TVAL,
 		match_type::SVAL,
@@ -406,7 +386,7 @@ std::shared_ptr<Condition> new_condition_interactive()
 
 	// Choose
 	int begin = 0, sel = 0;
-	while (1)
+	while (true)
 	{
 		int wid, hgt;
 		Term_clear();
@@ -460,8 +440,6 @@ std::shared_ptr<Condition> new_condition_interactive()
 				return create_condition_discount();
 			case match_type::SYMBOL:
 				return create_condition_symbol();
-			case match_type::STATE:
-				return create_condition_state();
 			case match_type::STATUS:
 				return create_condition_status();
 			case match_type::TVAL:

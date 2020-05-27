@@ -101,10 +101,8 @@ G:3:w
 W:24
 
 N:3:Temple
-I:100:& Nunchaku~
 I:100:& Quarterstaff~
 I:100:& Mace~
-I:100:& Bo Staff~
 I:100:& War Hammer~
 I:100:& Lucerne Hammer~
 I:100:& Morning Star~
@@ -153,10 +151,6 @@ N:4:Alchemy shop
 I:100:Enchant Weapon To-Hit
 I:100:Enchant Weapon To-Dam
 I:100:Enchant Armour
-I:100:Identify
-I:100:Identify
-I:100:Identify
-I:100:Identify
 I:100:Light
 I:100:Phase Door
 I:100:Phase Door
@@ -182,13 +176,6 @@ I:100:Restore Dexterity
 #I:100:Restore Constitution
 T:100:71:46
 I:100:Restore Charisma
-I:100:Identify
-I:100:*Identify*
-I:100:*Identify*
-I:100:*Identify*
-I:100:*Identify*
-I:100:*Identify*
-I:100:*Identify*
 I:100:Light
 #I:100:Restore Strength
 T:100:71:42
@@ -220,7 +207,6 @@ I:100:Slow Digestion
 T:100:40:3
 I:100:Acid Resistance
 I:100:Lightning Resistance
-I:100:Searching
 I:100:Cure Light Wounds
 # Rods
 I:25:& Wooden Rod~ of#
@@ -316,8 +302,7 @@ F:RANDOM
 W:2
 
 N:13:Library
-I:100:Identify
-A:0:0:14:15:16:2
+A:0:0:0:15:16:2
 O:4:4:4:4
 G:+:U
 W:2
@@ -347,7 +332,7 @@ G:+:s
 W:0
 
 N:18:Tower of Magery
-A:0:0:26:27:0:0
+A:0:0:26:0:0:0
 O:21:21:21:21
 G:+:b
 W:0
@@ -389,7 +374,7 @@ G:+:U
 W:0
 
 N:25:Wizards Spire
-A:60:0:26:27:0:0
+A:60:0:26:0:0:0
 O:54:54:54:54
 G:+:U
 W:0
@@ -407,8 +392,7 @@ G:+:U
 W:0
 
 N:28:Library
-I:100:Identify
-A:0:0:14:15:16:2
+A:0:0:0:15:16:2
 O:58:58:58:58
 G:+:U
 W:2
@@ -443,7 +427,7 @@ G:+:U
 W:0
 
 N:33:Star-Dome
-A:0:0:46:47:0:0
+A:0:0:0:47:0:0
 O:63:63:63:63
 G:+:U
 W:0
@@ -573,7 +557,7 @@ T:100:122:256
 T:100:123:256
 T:100:124:256
 T:100:125:256
-A:27:0:1:2:3:4
+A:0:0:1:2:3:4
 O:8:9:10:11
 G:9:y
 F:DEPEND_LEVEL
@@ -598,7 +582,7 @@ T:100:122:256
 T:100:123:256
 T:100:124:256
 T:100:125:256
-A:27:0:1:2:3:4
+A:0:0:1:2:3:4
 O:8:9:10:11
 G:9:v
 F:DEEP_LEVEL
@@ -746,8 +730,7 @@ W:24
 ## Library quest in Minas Anor
 
 N:60:Library
-I:100:Identify
-A:61:0:14:15:16:2
+A:61:0:0:15:16:2
 O:4:4:4:4
 G:+:U
 W:2

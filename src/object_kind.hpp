@@ -1,7 +1,10 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 #include "object_flag_set.hpp"
+
+#include <boost/optional.hpp>
+#include <string>
 
 /**
  * Size of allocation table for objects
@@ -15,8 +18,10 @@ constexpr int ALLOCATION_MAX = 8;
  */
 struct object_kind
 {
-	const char *name = nullptr;              /* Name */
-	char *text = nullptr;                    /* Text */
+	s16b idx;                                /* Index */
+
+	std::string name;                        /* Name */
+	std::string text;                        /* Text */
 
 	byte tval = 0;                           /* Object type */
 	byte sval = 0;                           /* Object sub type */
@@ -59,15 +64,22 @@ struct object_kind
 
 	byte flavor = 0;                         /* Special object flavor (or zero) */
 
-	bool_ easy_know = 0;                     /* This object is always known (if aware) */
+	bool easy_know = 0;                     /* This object is always known (if aware) */
 
-	bool_ aware = 0;                         /* The player is "aware" of the item's effects */
+	bool aware = 0;                         /* The player is "aware" of the item's effects */
 
-	bool_ tried = 0;                         /* The player has "tried" one of the items */
+	bool allow_special = 0;
 
 	byte btval = 0;                          /* Become Object type */
 	byte bsval = 0;                          /* Become Object sub type */
-	bool_ artifact = 0;                      /* Is it a normal artifact(already generated) */
+	bool artifact = 0;                      /* Is it a normal artifact(already generated) */
 
-	s16b power = 0;                          /* Power granted(if any) */
+	boost::optional<int> power;              /* Power granted */
+
+public:
+	explicit object_kind(s16b idx_)
+		: idx(idx_)
+	{
+	}
+
 };

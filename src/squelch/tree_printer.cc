@@ -1,7 +1,7 @@
 #include "tome/squelch/tree_printer_fwd.hpp"
 #include "tome/squelch/tree_printer.hpp"
 
-#include "../z-term.h"
+#include "../z-term.hpp"
 
 namespace squelch {
 
@@ -53,9 +53,9 @@ void TreePrinter::scroll_right() {
 	m_write_off_x--;
 }
 
-void TreePrinter::write(uint8_t color, cptr line)
+void TreePrinter::write(uint8_t color, const char *line)
 {
-	cptr p = line;
+	const char *p = line;
 
 	for (p = line; *p != '\0'; p++)
 	{

@@ -1,7 +1,9 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 #include "object_flag_set.hpp"
+
+#include <boost/optional.hpp>
 
 /**
  * Artifact descriptor.
@@ -43,7 +45,7 @@ struct artifact_type
 
 	byte cur_num = 0;                        /* Number created (0 or 1) */
 
-	s16b power = 0;                          /* Power granted, if any */
+	boost::optional<int> power;              /* Power granted, if any */
 
 	s16b set = 0;                            /* Which set does it belong it, if any? */
 

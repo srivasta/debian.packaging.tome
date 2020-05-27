@@ -1,5 +1,5 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 
-bool_ level_generate_maze();
+bool level_generate_maze();

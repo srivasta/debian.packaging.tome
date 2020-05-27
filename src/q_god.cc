@@ -22,8 +22,9 @@
 #include "wilderness_map.hpp"
 #include "wilderness_type_info.hpp"
 #include "z-rand.hpp"
+#include "z-term.hpp"
 
-#include <assert.h>
+#include <cassert>
 #include <fmt/format.h>
 
 #define cquest (quest[QUEST_GOD])
@@ -139,7 +140,7 @@ static int MAX_NUM_GOD_QUESTS()
 		return 7;
 	}
 	/* Uh, oh. */
-	assert(FALSE);
+	assert(false);
 	return 0;
 }
 
@@ -169,7 +170,7 @@ static byte get_relic_num()
 	}
 
 	/* Uh, oh. */
-	assert(FALSE);
+	assert(false);
 }
 
 static void get_home_coordinates(int *home1_y, int *home1_x, const char **home1,
@@ -224,7 +225,7 @@ static void get_home_coordinates(int *home1_y, int *home1_x, const char **home1,
 	}
 	else
 	{
-		assert(FALSE); /* Uh, oh */
+		assert(false); /* Uh, oh */
 	}
 }
 
@@ -234,7 +235,8 @@ static std::string make_directions(bool feel_it)
 	int home2_y, home2_x;
 	const char *home1 = NULL;
 	const char *home2 = NULL;
-	cptr feel_it_str = feel_it ? ", I can feel it.'" : ".";
+	const char *feel_it_str = feel_it ? ", I can feel it.'" : ".";
+	std::string dir_string;
 
 	get_home_coordinates(
 		&home1_y, &home1_x, &home1,
@@ -246,33 +248,36 @@ static std::string make_directions(bool feel_it)
 	/* Build the message */
 	if (home1_axis.empty())
 	{
-		return fmt::format("The temple lies very close to {}, ",
+		dir_string = fmt::format("The temple lies very close to {},",
 			home1);
 	}
 	else
 	{
 		auto home1_distance = approximate_distance(home1_y, home1_x, cquest_dung_y, cquest_dung_x);
-		return fmt::format("The temple lies {} to the {} of {}, ",
+		dir_string = fmt::format("The temple lies {} to the {} of {},",
 			home1_distance,
 			home1_axis,
 			home1);
 	}
 
+	dir_string += feel_it ? " " : "\n";
+
 	if (home2_axis.empty())
 	{
-		return fmt::format("and very close to {}{}",
+		dir_string += fmt::format("and very close to {}{}",
 			home2,
 			feel_it_str);
 	}
 	else
 	{
 		auto home2_distance = approximate_distance(home2_y, home2_x, cquest_dung_y, cquest_dung_x);
-		return fmt::format("and {} to the {} of {}{}",
+		dir_string += fmt::format("and {} to the {} of {}{}",
 			home2_distance,
 			home2_axis,
 			home2,
 			feel_it_str);
 	}
+	return dir_string;
 }
 
 std::string quest_god_describe()
@@ -401,7 +406,7 @@ static void quest_god_generate_relic()
 
 		if (inven_carry_okay(&relic))
 		{
-			inven_carry(&relic, FALSE);
+			inven_carry(&relic, false);
 		}
 		else
 		{
@@ -416,7 +421,7 @@ static void quest_god_generate_relic()
 	}
 
 	/* Only generate once! */
-	cquest_relic_generated = TRUE;
+	cquest_relic_generated = true;
 
 	/* Reset some variables */
 	cquest_relic_gen_tries = 0;
@@ -915,7 +920,7 @@ static bool quest_god_level_end_gen_hook(void *, void *, void *)
 	   therefore the player has caused another level generation in
 	   the temple and hence failed the quest.*/
 
-	else if ((cquest_relic_generated == TRUE) &&
+	else if ((cquest_relic_generated == true) &&
 		 (cquest.status != QUEST_STATUS_FAILED))
 	{
 		/* fail the quest, don't give another one, don't give
@@ -937,7 +942,7 @@ static bool quest_god_level_end_gen_hook(void *, void *, void *)
 	 * unsuccessful. */
 
 	else if ((cquest_relic_gen_tries == 4) &&
-		 (cquest_relic_generated == FALSE))
+		 (cquest_relic_generated == false))
 	{
 		quest_god_generate_relic();
 	}
@@ -974,7 +979,7 @@ static bool quest_god_player_level_hook(void *, void *in_, void *)
 	    (cquest.status == QUEST_STATUS_TAKEN) ||
 	    (cquest.status == QUEST_STATUS_FAILED) ||
 	    (cquest_quests_given >= MAX_NUM_GOD_QUESTS()) ||
-	    (magik(CHANCE_OF_GOD_QUEST) == FALSE) ||
+	    (magik(CHANCE_OF_GOD_QUEST) == false) ||
 	    ((dungeon_type == DUNGEON_GOD) &&
 	     (dun_level > 0)) ||
 	    (p_ptr->lev <= cquest_dun_minplev))
@@ -990,7 +995,7 @@ static bool quest_god_player_level_hook(void *, void *in_, void *)
 	{
 		/* This var will need resetting */
 		cquest.status = QUEST_STATUS_TAKEN;
-		cquest_relic_generated = FALSE;
+		cquest_relic_generated = false;
 		cquest_quests_given = cquest_quests_given + 1;
 		
 		/* actually place the dungeon in a random place */
@@ -1034,7 +1039,7 @@ static bool quest_god_get_hook(void *, void *in_, void *)
 	if ((cquest.status == QUEST_STATUS_TAKEN) &&
 	    (o_ptr->tval == TV_JUNK) &&
 	    (o_ptr->sval == get_relic_num()) &&
-	    (o_ptr->pval != TRUE) &&
+	    (o_ptr->pval != true) &&
 	    (cquest_relics_found < cquest_quests_given))
 	{
 		cmsg_format(TERM_L_BLUE, "%s speaks to you:", deity_info[p_ptr->pgod].name);
@@ -1063,7 +1068,7 @@ static bool quest_god_get_hook(void *, void *in_, void *)
 		inc_stack_size_ex(item, -1, OPTIMIZE, NO_DESCRIBE);
 
 		/* relic piece has been identified */
-		o_ptr->pval = TRUE;
+		o_ptr->pval = true;
 		cquest_relics_found = cquest_relics_found + 1;
 
 		/* Make sure quests can be given again if neccesary */
@@ -1086,7 +1091,7 @@ static bool quest_god_char_dump_hook(void *, void *in_, void *)
 	{
 		int relics = cquest_relics_found;
 		char relics_text[128];
-		cptr append_text = "";
+		const char *append_text = "";
 
 		snprintf(relics_text, sizeof(relics_text), "%d", relics);
 
@@ -1156,7 +1161,7 @@ static void set_god_dungeon_attributes()
 	}
 	else
 	{
-		assert(FALSE);		/* Uh, oh! */
+		assert(false);		/* Uh, oh! */
 	}
 
 	/* W: All dungeons are 5 levels deep, and created at 2/3 of
@@ -1208,7 +1213,7 @@ static bool quest_god_birth_objects_hook(void *, void *, void *)
 	cquest_dun_maxdepth = 4;
 	cquest_dun_minplev = 0;
 	cquest_relic_gen_tries = 0;
-	cquest_relic_generated = FALSE;
+	cquest_relic_generated = false;
 
 	return false;
 }

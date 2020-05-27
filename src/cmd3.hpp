@@ -1,9 +1,9 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 
 void do_cmd_html_dump();
-void cli_add(cptr active, cptr trigger, cptr descr);
+void cli_add(const char *active, const char *trigger, const char *descr);
 void do_cmd_cli();
 void do_cmd_cli_help();
 void do_cmd_inven();
@@ -20,4 +20,4 @@ void do_cmd_target();
 void do_cmd_look();
 void do_cmd_locate();
 void do_cmd_query_symbol();
-bool_ do_cmd_sense_grid_mana();
+void do_cmd_sense_grid_mana();

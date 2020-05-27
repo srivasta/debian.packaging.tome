@@ -20,39 +20,35 @@
 
 #define bounty_quest_monster (cquest.data[0])
 
-static bool_ lua_mon_hook_bounty(int r_idx)
+static bool lua_mon_hook_bounty(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
 	/* Reject uniques */
-	if (r_ptr->flags & RF_UNIQUE) return (FALSE);
+	if (r_ptr->flags & RF_UNIQUE) return false;
 
 	/* Reject those who cannot leave anything */
-	if (!(r_ptr->flags & RF_DROP_CORPSE)) return (FALSE);
+	if (!(r_ptr->flags & RF_DROP_CORPSE)) return false;
 
 	/* Accept only monsters that can be generated */
-	if (r_ptr->flags & RF_SPECIAL_GENE) return (FALSE);
-	if (r_ptr->flags & RF_NEVER_GENE) return (FALSE);
+	if (r_ptr->flags & RF_SPECIAL_GENE) return false;
+	if (r_ptr->flags & RF_NEVER_GENE) return false;
 
 	/* Reject pets */
-	if (r_ptr->flags & RF_PET) return (FALSE);
+	if (r_ptr->flags & RF_PET) return false;
 
 	/* Reject friendly creatures */
-	if (r_ptr->flags & RF_FRIENDLY) return (FALSE);
+	if (r_ptr->flags & RF_FRIENDLY) return false;
 
 	/* Accept only monsters that are not breeders */
-	if (r_ptr->spells & SF_MULTIPLY) return (FALSE);
+	if (r_ptr->spells & SF_MULTIPLY) return false;
 
 	/* Forbid joke monsters */
-	if (r_ptr->flags & RF_JOKEANGBAND) return (FALSE);
+	if (r_ptr->flags & RF_JOKEANGBAND) return false;
 
 	/* Accept only monsters that are not good */
-	if (r_ptr->flags & RF_GOOD) return (FALSE);
+	if (r_ptr->flags & RF_GOOD) return false;
 
 	/* The rest are acceptable */
-	return (TRUE);
+	return true;
 }
 
 static int get_new_bounty_monster(int lev)
@@ -63,14 +59,14 @@ static int get_new_bounty_monster(int lev)
 	 * Set up the hooks -- no bounties on uniques or monsters
 	 * with no corpses
 	 */
-	get_mon_num_hook = lua_mon_hook_bounty;
+	get_monster_hook = lua_mon_hook_bounty;
 	get_mon_num_prep();
 
 	/* Set up the quest monster. */
 	r_idx = get_mon_num(lev);
 
 	/* Undo the filters */
-	get_mon_num_hook = NULL;
+	get_monster_hook = NULL;
 	get_mon_num_prep();
 
 	return r_idx;
@@ -86,7 +82,7 @@ void quest_bounty_init_hook()
 	// Initialized by building action
 }
 
-bool_ quest_bounty_drop_item()
+void quest_bounty_drop_item()
 {
 	char mdesc[512];
 	char msg[512];
@@ -106,29 +102,27 @@ bool_ quest_bounty_drop_item()
 		snprintf(msg, sizeof(msg), "You still must bring me back %s corpse.", mdesc);
 		msg_print(msg);
 	}
-	return FALSE;
 }
 
-bool_ quest_bounty_get_item()
+void quest_bounty_get_item()
 {
 	auto &s_info = game->s_info;
 
 	if (cquest.status != QUEST_STATUS_TAKEN)
 	{
 		msg_print("You do not have any bounty quest yet.");
-		return FALSE;
+		return;
 	}
 
 	// Get the corpse.
 	int item = -1;
-	bool_ ret =
-		get_item(&item,
-			 "What corpse to return?",
-			 "You have no corpse to return.",
-			 USE_INVEN,
-			 bounty_item_tester_hook);
-	if (!ret) {
-		return FALSE;
+	if (!get_item(&item,
+		"What corpse to return?",
+		"You have no corpse to return.",
+		 USE_INVEN,
+		bounty_item_tester_hook))
+	{
+		return;
 	}
 
 	// Take the corpse from the inventory
@@ -160,7 +154,6 @@ bool_ quest_bounty_get_item()
 	// Need to ask for new quest.
 	cquest.status = QUEST_STATUS_UNTAKEN;
 	bounty_quest_monster = 0;
-	return FALSE;
 }
 
 std::string quest_bounty_describe()

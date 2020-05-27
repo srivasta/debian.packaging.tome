@@ -12,6 +12,7 @@
 #include "cave_type.hpp"
 #include "cmd1.hpp"
 #include "cmd2.hpp"
+#include "cmd5.hpp"
 #include "cmd7.hpp"
 #include "dungeon_flag.hpp"
 #include "feature_flag.hpp"
@@ -35,32 +36,36 @@
 #include "stats.hpp"
 #include "tables.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "variable.h"
 #include "variable.hpp"
 #include "xtra2.hpp"
 #include "z-rand.hpp"
 
-/*
- * Note: return value indicates the amount of mana to use
- */
-static bool_ power_chance(power_type *x_ptr)
+#include <fmt/format.h>
+
+static bool power_chance(power_activation const &x_ref)
 {
-	bool_ use_hp = FALSE;
+	auto x_ptr = &x_ref;
+	bool use_hp = false;
 	int diff = x_ptr->diff;
 
 	/* Always true ? */
-	if (!x_ptr->cost) return TRUE;
+	if (!x_ptr->cost)
+	{
+		return true;
+	}
 
 	/* Not enough mana - use hp */
-	if (p_ptr->csp < x_ptr->cost) use_hp = TRUE;
+	if (p_ptr->csp < x_ptr->cost)
+	{
+		use_hp = true;
+	}
 
 	/* Power is not available yet */
 	if (p_ptr->lev < x_ptr->level)
 	{
 		msg_format("You need to attain level %d to use this power.", x_ptr->level);
 		energy_use = 0;
-		return (FALSE);
+		return false;
 	}
 
 	/* Too confused */
@@ -68,7 +73,7 @@ static bool_ power_chance(power_type *x_ptr)
 	{
 		msg_print("You are too confused to use this power.");
 		energy_use = 0;
-		return (FALSE);
+		return false;
 	}
 
 	/* Risk death? */
@@ -77,7 +82,7 @@ static bool_ power_chance(power_type *x_ptr)
 		if (!(get_check("Really use the power in your weakened state? ")))
 		{
 			energy_use = 0;
-			return (FALSE);
+			return false;
 		}
 	}
 
@@ -89,12 +94,13 @@ static bool_ power_chance(power_type *x_ptr)
 	}
 	else if (p_ptr->lev > x_ptr->level)
 	{
-		int lev_adj = ((p_ptr->lev - x_ptr->level) / 3);
-		if (lev_adj > 10) lev_adj = 10;
+		int const lev_adj =
+			std::min((p_ptr->lev - x_ptr->level) / 3, 10);
+
 		diff -= lev_adj;
 	}
 
-	if (diff < 5) diff = 5;
+	diff = std::max(diff, 5);
 
 	/* take time and pay the price */
 	if (use_hp)
@@ -118,19 +124,19 @@ static bool_ power_chance(power_type *x_ptr)
 	if (randint(p_ptr->stat_cur[x_ptr->stat]) >=
 	                ((diff / 2) + randint(diff / 2)))
 	{
-		return (TRUE);
+		return true;
 	}
 
 	flush_on_failure();
 	msg_print("You've failed to concentrate hard enough.");
 
-	return (FALSE);
+	return false;
 }
 
 static void power_activate(int power)
 {
 	auto const &f_info = game->edit_data.f_info;
-	auto const &k_info = game->edit_data.k_info;
+	auto const &dungeon_flags = game->dungeon_flags;
 
 	s16b plev = p_ptr->lev;
 	char ch = 0;
@@ -139,10 +145,8 @@ static void power_activate(int power)
 	object_type *q_ptr;
 	object_type forge;
 	int ii = 0, ij = 0;
-	/* char out_val[80]; */
-	/* cptr p = "Power of the flame: "; */
-	cptr q, s;
-	power_type *x_ptr = &powers_type[power], x_ptr_foo;
+	const char *q;
+	const char *s;
 	int x, y;
 	cave_type *c_ptr;
 
@@ -156,8 +160,11 @@ static void power_activate(int power)
 		set_disrupt_shield(0);
 	}
 
-
-	if (!power_chance(x_ptr)) return;
+	/* Check that we activate successfully */
+	if (!power_chance(game->powers.at(power)->activation))
+	{
+		return;
+	}
 
 	switch (power)
 	{
@@ -211,7 +218,7 @@ static void power_activate(int power)
 		{
 			if (!get_aim_dir(&dir))
 				break;
-			if (passwall(dir, TRUE))
+			if (passwall(dir, true))
 				msg_print("A passage opens, and you step through.");
 			else
 				msg_print("There is no wall there!");
@@ -266,7 +273,7 @@ static void power_activate(int power)
 
 	case PWR_ROHAN:
 		/* Select power to use */
-		while (TRUE)
+		while (true)
 		{
 			if (!get_com("Use [F]lash aura or [L]ight speed jump? ", &ch))
 			{
@@ -289,11 +296,12 @@ static void power_activate(int power)
 
 		if (amber_power == 1)
 		{
+			power_activation x_ptr_foo;
 			x_ptr_foo.level = 1;
 			x_ptr_foo.cost = 9;
 			x_ptr_foo.stat = A_CHR;
 			x_ptr_foo.diff = 7;
-			if (power_chance(&x_ptr_foo))
+			if (power_chance(x_ptr_foo))
 			{
 				if (!(get_aim_dir(&dir))) break;
 				msg_print("You flash a bright aura.");
@@ -305,11 +313,12 @@ static void power_activate(int power)
 		}
 		if (amber_power == 2)
 		{
+			power_activation x_ptr_foo;
 			x_ptr_foo.level = 30;
 			x_ptr_foo.cost = 30;
 			x_ptr_foo.stat = A_WIS;
 			x_ptr_foo.diff = 7;
-			if (power_chance(&x_ptr_foo))
+			if (power_chance(x_ptr_foo))
 			{
 				set_light_speed(p_ptr->lightspeed + 3);
 			}
@@ -344,7 +353,7 @@ static void power_activate(int power)
 
 	case PWR_THUNDER:
 		/* Select power to use */
-		while (TRUE)
+		while (true)
 		{
 			if (!get_com("Use [T]hunder strike, [R]ide the straight road, go [B]ack in town? ", &ch))
 			{
@@ -374,11 +383,12 @@ static void power_activate(int power)
 
 		if (amber_power == 1)
 		{
+			power_activation x_ptr_foo;
 			x_ptr_foo.level = 1;
 			x_ptr_foo.cost = p_ptr->lev;
 			x_ptr_foo.stat = A_CON;
 			x_ptr_foo.diff = 6;
-			if (power_chance(&x_ptr_foo))
+			if (power_chance(x_ptr_foo))
 			{
 				if (!get_aim_dir(&dir)) break;
 				msg_format("You conjure up thunder!");
@@ -394,11 +404,13 @@ static void power_activate(int power)
 				msg_print("No teleport on special levels ...");
 				break;
 			}
+
+			power_activation x_ptr_foo;
 			x_ptr_foo.level = 3;
 			x_ptr_foo.cost = 15;
 			x_ptr_foo.stat = A_CON;
 			x_ptr_foo.diff = 6;
-			if (power_chance(&x_ptr_foo))
+			if (power_chance(x_ptr_foo))
 			{
 				msg_print("You enter the straight road and fly beside the world. Where to exit?");
 				if (!tgt_pt(&ii, &ij)) return;
@@ -421,11 +433,13 @@ static void power_activate(int power)
 				msg_print("No recall on special levels..");
 				break;
 			}
+
+			power_activation x_ptr_foo;
 			x_ptr_foo.level = 7;
 			x_ptr_foo.cost = 30;
 			x_ptr_foo.stat = A_CON;
 			x_ptr_foo.diff = 6;
-			if (power_chance(&x_ptr_foo))
+			if (power_chance(x_ptr_foo))
 			{
 				if (dun_level == 0)
 					msg_print("You are already in town!");
@@ -487,7 +501,7 @@ static void power_activate(int power)
 
 		autosave_checkpoint();
 		/* Leaving */
-		p_ptr->leaving = TRUE;
+		p_ptr->leaving = true;
 		break;
 
 	case PWR_VAMPIRISM:
@@ -505,7 +519,7 @@ static void power_activate(int power)
 			}
 
 			msg_print("You grin and bare your fangs...");
-			dummy = plev + randint(plev) * MAX(1, plev / 10);    /* Dmg */
+			dummy = plev + randint(plev) * std::max(1, plev / 10);    /* Dmg */
 			if (drain_life(dir, dummy))
 			{
 				if (p_ptr->food < PY_FOOD_FULL)
@@ -517,7 +531,7 @@ static void power_activate(int power)
 				/* A Food ration gives 5000 food points (by contrast) */
 				/* Don't ever get more than "Full" this way */
 				/* But if we ARE Gorged,  it won't cure us */
-				dummy = p_ptr->food + MIN(5000, 100 * dummy);
+				dummy = p_ptr->food + std::min(5000, 100 * dummy);
 				if (p_ptr->food < PY_FOOD_MAX)   /* Not gorged already */
 					set_food(dummy >= PY_FOOD_MAX ? PY_FOOD_MAX - 1 : dummy);
 			}
@@ -569,8 +583,6 @@ static void power_activate(int power)
 					object_aware(q_ptr);
 					object_known(q_ptr);
 
-					q_ptr->ident |= IDENT_STOREB;
-
 					drop_near(q_ptr, 0, y, x);
 
 					delete_monster(y, x);
@@ -590,7 +602,8 @@ static void power_activate(int power)
 			int item, x, y, d;
 			object_type *o_ptr;
 
-			cptr q, s;
+			const char *q;
+			const char *s;
 
 			/* Get an item */
 			q = "Awaken which monster? ";
@@ -611,7 +624,7 @@ static void power_activate(int power)
 
 			if (d >= 100) return;
 
-			if ((m_idx = place_monster_one(y, x, o_ptr->pval, 0, FALSE, MSTATUS_PET)) == 0) return;
+			if ((m_idx = place_monster_one(y, x, o_ptr->pval, 0, false, MSTATUS_PET)) == 0) return;
 
 			m_ptr = &m_list[m_idx];
 			m_ptr->hp = o_ptr->pval2;
@@ -661,7 +674,7 @@ static void power_activate(int power)
 		{
 			msg_print("You concentrate...");
 			if (get_aim_dir(&dir))
-				fetch(dir, p_ptr->lev * 10, TRUE);
+				fetch(dir, p_ptr->lev * 10, true);
 		}
 		break;
 
@@ -796,22 +809,6 @@ static void power_activate(int power)
 		}
 		break;
 
-	case PWR_DET_CURSE:
-		{
-			int i;
-
-			for (i = 0; i < INVEN_TOTAL; i++)
-			{
-				object_type *o_ptr = &p_ptr->inventory[i];
-
-				if (!o_ptr->k_idx) continue;
-				if (!cursed_p(o_ptr)) continue;
-
-				if (!o_ptr->sense) o_ptr->sense = SENSE_CURSED;
-			}
-		}
-		break;
-
 	case PWR_POLYMORPH:
 		{
 			do_poly_self();
@@ -829,7 +826,7 @@ static void power_activate(int power)
 			int i;
 			for (i = 0; i < 8; i++)
 			{
-				summon_specific_friendly(p_ptr->py, p_ptr->px, p_ptr->lev, SUMMON_BIZARRE1, FALSE);
+				summon_specific_friendly(p_ptr->py, p_ptr->px, p_ptr->lev, SUMMON_BIZARRE1, false);
 			}
 		}
 		break;
@@ -887,7 +884,7 @@ static void power_activate(int power)
 
 			o_ptr = get_object(item);
 
-			lev = k_info[o_ptr->k_idx].level;
+			lev = o_ptr->k_ptr->level;
 
 			if (o_ptr->tval == TV_ROD_MAIN)
 			{
@@ -912,7 +909,6 @@ static void power_activate(int power)
 				{
 					msg_print("There's no energy there to absorb!");
 				}
-				o_ptr->ident |= IDENT_EMPTY;
 			}
 
 			if (p_ptr->csp > p_ptr->msp)
@@ -1055,13 +1051,13 @@ static void power_activate(int power)
 	case POWER_COR_SPACE_TIME:
 		if (p_ptr->corrupt_anti_teleport_stopped)
 		{
-			p_ptr->corrupt_anti_teleport_stopped = FALSE;
+			p_ptr->corrupt_anti_teleport_stopped = false;
 			msg_print("You stop controlling your corruption.");
 			p_ptr->update |= PU_BONUS;
 		}
 		else
 		{
-			p_ptr->corrupt_anti_teleport_stopped = TRUE;
+			p_ptr->corrupt_anti_teleport_stopped = true;
 			msg_print("You start controlling your corruption, teleportation works once more.");
 			p_ptr->update |= PU_BONUS;
 		}
@@ -1079,28 +1075,38 @@ static void power_activate(int power)
 /*
  * Print a batch of power.
  */
-static void print_power_batch(int *p, int start, int max)
+static void print_power_batch(std::vector<int> const &power_idxs, int start, int max)
 {
-	char buff[80];
-	power_type* spell;
-	int i = start, j = 0;
+	int j = 0;
 
-	prt(format("         %-31s Level Mana Fail", "Name"), 1, 20);
+	prt(fmt::format("{:<10}{:<31} Level Mana Fail", "", "Name"), 1, 19);
 
-	for (i = start; i < (start + 20); i++)
+	for (int i = start; i < (start + 20); i++)
 	{
-		if (i >= max) break;
+		if (i >= max)
+		{
+			break;
+		}
 
-		spell = &powers_type[p[i]];
+		auto spell = game->powers.at(power_idxs.at(i));
 
-		sprintf(buff, "  %c-%3d) %-30s  %5d %4d %s@%d", I2A(j), p[i] + 1, spell->name,
-		        spell->level, spell->cost, stat_names[spell->stat], spell->diff);
+		auto buff = fmt::format(
+			"  {} -{:>3}) {:<30}  {:>5} {:>4} {}@{}",
+			I2C(j),
+			power_idxs.at(i) + 1,
+			spell->name,
+			spell->activation.level,
+			spell->activation.cost,
+			stat_names[spell->activation.stat],
+			spell->activation.diff
+		);
 
-		prt(buff, 2 + j, 20);
+		prt(buff, 2 + j, 19);
 		j++;
 	}
-	prt("", 2 + j, 20);
-	prt(format("Select a power (a-%c), +/- to scroll:", I2A(j - 1)), 0, 0);
+
+	prt("", 2 + j, 19);
+	prt(fmt::format("Select a power (a-{}), +/- to scroll:", I2C(j - 1)), 0, 0);
 }
 
 
@@ -1108,58 +1114,52 @@ static void print_power_batch(int *p, int start, int max)
  * List powers and ask to pick one. 
  */
 
-static power_type* select_power(int *x_idx)
+static boost::optional<int> select_power()
 {
-	char which;
-	int max = 0, i, start = 0;
-	power_type* ret;
-	int p[POWER_MAX];
-
-	/* Count the max */
-	for (i = 0; i < POWER_MAX; i++)
-	{
-		if (p_ptr->powers[i])
-		{
-			p[max++] = i;
-		}
-	}
+	// Find selectable power indexes
+	std::vector<int> power_idxs;
+	std::copy(
+		std::begin(p_ptr->powers),
+		std::end(p_ptr->powers),
+		std::back_inserter(power_idxs));
+	std::sort(
+		std::begin(power_idxs),
+		std::end(power_idxs));
 
 	/* Exit if there aren't powers */
-	if (max == 0)
+	if (power_idxs.empty())
 	{
-		*x_idx = -1;
-		ret = NULL;
 		msg_print("You don't have any special powers.");
+		return boost::none;
 	}
 	else
 	{
-		character_icky = TRUE;
-		Term_save();
-
-		while (1)
+		int start = 0;
+		int const max = power_idxs.size();
+		// Save
+		screen_save_no_flush();
+		// Loop until we get a result.
+		boost::optional<int> result;
+		while (true)
 		{
-			print_power_batch(p, start, max);
-			which = inkey();
+			print_power_batch(power_idxs, start, max);
+			char which = inkey();
 
 			if (which == ESCAPE)
 			{
-				*x_idx = -1;
-				ret = NULL;
 				break;
 			}
 			else if (which == '+')
 			{
 				start += 20;
 				if (start >= max) start -= 20;
-				Term_load();
-				character_icky = FALSE;
+				screen_load_no_flush();
 			}
 			else if (which == '-')
 			{
 				start -= 20;
 				if (start < 0) start += 20;
-				Term_load();
-				character_icky = FALSE;
+				screen_load_no_flush();
 			}
 			else
 			{
@@ -1175,46 +1175,65 @@ static power_type* select_power(int *x_idx)
 					continue;
 				}
 
-				*x_idx = p[start + A2I(which)];
-				ret = &powers_type[p[start + A2I(which)]];
+				result = power_idxs[start + A2I(which)];
 				break;
 			}
 		}
-		Term_load();
-		character_icky = FALSE;
-	}
 
-	return ret;
+		screen_load_no_flush();
+
+		return result;
+	}
 }
 
 /* Ask & execute a power */
 void do_cmd_power()
 {
 	int x_idx;
-	power_type *x_ptr;
-	bool_ push = TRUE;
+	bool push = true;
 
 	/* Get the skill, if available */
 	if (repeat_pull(&x_idx))
 	{
-		if ((x_idx < 0) || (x_idx >= POWER_MAX)) return;
-		x_ptr = &powers_type[x_idx];
-		push = FALSE;
+		if (!game->powers.count(x_idx))
+		{
+			return;
+		}
+
+		push = false;
 	}
-	else if (!command_arg) x_ptr = select_power(&x_idx);
+	else if (!command_arg)
+	{
+		if (auto i = select_power())
+		{
+			x_idx = *i;
+		}
+		else
+		{
+			return;
+		}
+	}
 	else
 	{
 		x_idx = command_arg - 1;
-		if ((x_idx < 0) || (x_idx >= POWER_MAX)) return;
-		x_ptr = &powers_type[x_idx];
+
+		if (!game->powers.count(x_idx))
+		{
+			return;
+		}
 	}
 
-	if (x_ptr == NULL) return;
+	if (push)
+	{
+		repeat_push(x_idx);
+	}
 
-	if (push) repeat_push(x_idx);
-
-	if (p_ptr->powers[x_idx])
+	if (p_ptr->powers.count(x_idx))
+	{
 		power_activate(x_idx);
+	}
 	else
+	{
 		msg_print("You do not have access to this power.");
+	}
 }

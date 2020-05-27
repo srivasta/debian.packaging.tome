@@ -7,7 +7,6 @@
  */
 
 #include "files.hpp"
-#include "files.h"
 
 #include "cave.hpp"
 #include "cave_type.hpp"
@@ -21,7 +20,6 @@
 #include "hooks.hpp"
 #include "init1.hpp"
 #include "levels.hpp"
-#include "loadsave.h"
 #include "loadsave.hpp"
 #include "mimic.hpp"
 #include "monoid.hpp"
@@ -51,22 +49,66 @@
 #include "tables.hpp"
 #include "town_type.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "variable.h"
 #include "variable.hpp"
 #include "wilderness_map.hpp"
 #include "wilderness_type_info.hpp"
 #include "xtra1.hpp"
+#include "z-form.hpp"
 #include "z-rand.hpp"
+#include "z-util.hpp"
 
 #include <boost/algorithm/string.hpp>
-#include <boost/filesystem.hpp>
 #include <iostream>
+#include <fcntl.h>
 #include <fmt/format.h>
 #include <fstream>
 #include <limits>
 #include <memory>
 #include <unordered_set>
+
+using boost::algorithm::equals;
+using boost::algorithm::trim_right;
+using boost::algorithm::starts_with;
+
+namespace fs = boost::filesystem;
+
+std::string name_file_note(std::string_view sv)
+{
+	std::string buf;
+	buf.reserve(sv.size() + 4);
+	buf += sv;
+	buf += ".nte";
+	return buf;
+}
+
+std::string name_file_pref(std::string_view sv)
+{
+	std::string buf;
+	buf.reserve(sv.size() + 4);
+	buf += sv;
+	buf += ".prf";
+	return buf;
+}
+
+std::string name_file_save()
+{
+	return name_file_save(game->player_base);
+}
+
+std::string name_file_save(std::string_view sv)
+{
+	char buf[1024];
+	std::string s(sv);
+	path_build(buf, sizeof(buf), ANGBAND_DIR_SAVE, s.c_str());
+
+	return buf;
+}
+
+boost::filesystem::path name_file_dungeon_save(std::string const &ext)
+{
+	fs::path p(name_file_save());
+	return p.replace_extension(ext);
+}
 
 /*
  * Extract the first few "tokens" from a buffer
@@ -244,7 +286,7 @@ errr process_pref_file_aux(char *buf)
 	if (buf[0] == '%')
 	{
 		/* Attempt to Process the given file */
-		return (process_pref_file(buf + 2));
+		return process_pref_file(buf + 2);
 	}
 
 
@@ -316,7 +358,7 @@ errr process_pref_file_aux(char *buf)
 			if (tokenize(buf + 4, 3, zz, ':', '/') == 3)
 			{
 				player_race_mod *rmp_ptr;
-				i = (huge)strtol(zz[0], NULL, 0);
+				i = strtol(zz[0], NULL, 0);
 				n1 = strtol(zz[1], NULL, 0);
 				n2 = strtol(zz[2], NULL, 0);
 				if (i >= static_cast<int>(race_mod_info.size())) return (1);
@@ -341,12 +383,12 @@ errr process_pref_file_aux(char *buf)
 			n1 = strtol(zz[1], NULL, 0);
 			n2 = strtol(zz[2], NULL, 0);
 
-			if (i >= k_info.size())
+			if (!k_info.count(i))
 			{
 				return (1);
 			}
 
-			auto k_ptr = &k_info[i];
+			auto k_ptr = k_info.at(i);
 
 			if (n1)
 			{
@@ -427,18 +469,18 @@ errr process_pref_file_aux(char *buf)
 			n1 = strtol(zz[1], NULL, 0);
 			n2 = strtol(zz[2], NULL, 0);
 
-			for (auto &k_ref: k_info)
+			for (auto &k_entry: k_info)
 			{
-				auto k_ptr = &k_ref;
+				auto k_ptr = k_entry.second;
 				if (k_ptr->tval == j)
 				{
 					if (n1)
 					{
-						k_ref.d_attr = n1;
+						k_ptr->d_attr = n1;
 					}
 					if (n2)
 					{
-						k_ref.d_char = n2;
+						k_ptr->d_char = n2;
 					}
 				}
 			}
@@ -624,9 +666,9 @@ errr process_pref_file_aux(char *buf)
 	{
 		for (auto const &option: options->standard_options)
 		{
-			if (option.o_var && streq(option.o_text, buf + 2))
+			if (option.o_var && equals(option.o_text, buf + 2))
 			{
-				*option.o_var = FALSE;
+				*option.o_var = false;
 				return 0;
 			}
 		}
@@ -637,9 +679,9 @@ errr process_pref_file_aux(char *buf)
 	{
 		for (auto const &option: options->standard_options)
 		{
-			if (option.o_var && streq(option.o_text, buf + 2))
+			if (option.o_var && equals(option.o_text, buf + 2))
 			{
-				*option.o_var = TRUE;
+				*option.o_var = true;
 				return 0;
 			}
 		}
@@ -704,9 +746,9 @@ errr process_pref_file_aux(char *buf)
  * Output:
  *   result
  */
-static cptr process_pref_file_expr(char **sp, char *fp)
+static const char *process_pref_file_expr(char **sp, char *fp)
 {
-	cptr v;
+	const char *v;
 
 	char *b;
 	char *s;
@@ -747,40 +789,40 @@ static cptr process_pref_file_expr(char **sp, char *fp)
 		}
 
 		/* Function: IOR */
-		else if (streq(t, "IOR"))
+		else if (equals(t, "IOR"))
 		{
 			v = "0";
 			while (*s && (f != b2))
 			{
 				t = process_pref_file_expr(&s, &f);
-				if (*t && !streq(t, "0")) v = "1";
+				if (*t && !equals(t, "0")) v = "1";
 			}
 		}
 
 		/* Function: AND */
-		else if (streq(t, "AND"))
+		else if (equals(t, "AND"))
 		{
 			v = "1";
 			while (*s && (f != b2))
 			{
 				t = process_pref_file_expr(&s, &f);
-				if (*t && streq(t, "0")) v = "0";
+				if (*t && equals(t, "0")) v = "0";
 			}
 		}
 
 		/* Function: NOT */
-		else if (streq(t, "NOT"))
+		else if (equals(t, "NOT"))
 		{
 			v = "1";
 			while (*s && (f != b2))
 			{
 				t = process_pref_file_expr(&s, &f);
-				if (*t && !streq(t, "0")) v = "0";
+				if (*t && !equals(t, "0")) v = "0";
 			}
 		}
 
 		/* Function: EQU */
-		else if (streq(t, "EQU"))
+		else if (equals(t, "EQU"))
 		{
 			v = "1";
 			if (*s && (f != b2))
@@ -791,80 +833,12 @@ static cptr process_pref_file_expr(char **sp, char *fp)
 			{
 				p = t;
 				t = process_pref_file_expr(&s, &f);
-				if (*t && !streq(p, t)) v = "0";
-			}
-		}
-
-		/* Function: LEQ */
-		else if (streq(t, "LEQ"))
-		{
-			v = "1";
-			if (*s && (f != b2))
-			{
-				t = process_pref_file_expr(&s, &f);
-			}
-			while (*s && (f != b2))
-			{
-				p = t;
-				t = process_pref_file_expr(&s, &f);
-				if (*t && (strcmp(p, t) > 0)) v = "0";
-			}
-		}
-
-		/* Function: GEQ */
-		else if (streq(t, "GEQ"))
-		{
-			v = "1";
-			if (*s && (f != b2))
-			{
-				t = process_pref_file_expr(&s, &f);
-			}
-			while (*s && (f != b2))
-			{
-				p = t;
-				t = process_pref_file_expr(&s, &f);
-				if (*t && (strcmp(p, t) < 0)) v = "0";
-			}
-		}
-
-		/* Function: LEQN */
-		else if (streq(t, "LEQN"))
-		{
-			int n = 0;
-			v = "1";
-			if (*s && (f != b2))
-			{
-				t = process_pref_file_expr(&s, &f);
-				n = atoi(t);
-			}
-			while (*s && (f != b2))
-			{
-				p = t;
-				t = process_pref_file_expr(&s, &f);
-				if (*t && (atoi(t) < n)) v = "0";
-			}
-		}
-
-		/* Function: GEQN */
-		else if (streq(t, "GEQN"))
-		{
-			int n = 0;
-			v = "1";
-			if (*s && (f != b2))
-			{
-				t = process_pref_file_expr(&s, &f);
-				n = atoi(t);
-			}
-			while (*s && (f != b2))
-			{
-				p = t;
-				t = process_pref_file_expr(&s, &f);
-				if (*t && (atoi(t) > n)) v = "0";
+				if (*t && !equals(p, t)) v = "0";
 			}
 		}
 
 		/* Function SKILL */
-		else if (streq(t, "SKILL"))
+		else if (equals(t, "SKILL"))
 		{
 			static char skill_val[4*sizeof(int) + 1];
 			s16b skill = -1;
@@ -910,33 +884,9 @@ static cptr process_pref_file_expr(char **sp, char *fp)
 		if (*b == '$')
 		{
 			/* System */
-			if (streq(b + 1, "SYS"))
+			if (equals(b + 1, "SYS"))
 			{
 				v = ANGBAND_SYS;
-			}
-
-			/* Race */
-			else if (streq(b + 1, "RACE"))
-			{
-				v = rp_ptr->title.c_str(); // The string SHOULD be stable enough for this
-			}
-
-			/* Race */
-			else if (streq(b + 1, "RACEMOD"))
-			{
-				v = rmp_ptr->title.c_str(); // The string SHOULD be stable enough for this
-			}
-
-			/* Class */
-			else if (streq(b + 1, "CLASS"))
-			{
-				v = spp_ptr->title;
-			}
-
-			/* Player */
-			else if (streq(b + 1, "PLAYER"))
-			{
-				v = game->player_base.c_str(); // The string SHOULD be stable enough for this
 			}
 		}
 
@@ -960,6 +910,7 @@ static cptr process_pref_file_expr(char **sp, char *fp)
 
 
 
+
 /*
  * Process the "user pref file" with the given name
  *
@@ -968,7 +919,7 @@ static cptr process_pref_file_expr(char **sp, char *fp)
  * We also accept the special "?" and "%" directives, which
  * allow conditional evaluation and filename inclusion.
  */
-errr process_pref_file(cptr name)
+errr process_pref_file(std::string const &name)
 {
 	FILE *fp;
 
@@ -978,10 +929,10 @@ errr process_pref_file(cptr name)
 
 	errr err = 0;
 
-	bool_ bypass = FALSE;
+	bool bypass = false;
 
 	/* Build the filename -- Allow users to override system pref files */
-	path_build(buf, 1024, ANGBAND_DIR_USER, name);
+	path_build(buf, 1024, ANGBAND_DIR_USER, name.c_str());
 
 	/* Open the file */
 	fp = my_fopen(buf, "r");
@@ -990,7 +941,7 @@ errr process_pref_file(cptr name)
 	if (!fp)
 	{
 		/* Build the pathname, this time using the system pref directory */
-		path_build(buf, 1024, ANGBAND_DIR_PREF, name);
+		path_build(buf, 1024, ANGBAND_DIR_PREF, name.c_str());
 
 		/* Open the file */
 		fp = my_fopen(buf, "r");
@@ -1021,7 +972,7 @@ errr process_pref_file(cptr name)
 		if ((buf[0] == '?') && (buf[1] == ':'))
 		{
 			char f;
-			cptr v;
+			const char *v;
 			char *s;
 
 			/* Start */
@@ -1031,7 +982,7 @@ errr process_pref_file(cptr name)
 			v = process_pref_file_expr(&s, &f);
 
 			/* Set flag */
-			bypass = (streq(v, "0") ? TRUE : FALSE);
+			bypass = (equals(v, "0") ? true : false);
 
 			/* Continue */
 			continue;
@@ -1064,7 +1015,7 @@ errr process_pref_file(cptr name)
 	if (err)
 	{
 		/* Useful error message */
-		msg_format("Error %d in line %d of file '%s'.", err, num, name);
+		msg_format("Error %d in line %d of file '%s'.", err, num, name.c_str());
 		msg_format("Parsing '%s'", buf);
 	}
 
@@ -1082,7 +1033,7 @@ errr process_pref_file(cptr name)
  * Print long number with header at given row, column
  * Use the color for the number, not the header
  */
-static void prt_lnum(cptr header, s32b num, int row, int col, byte color)
+static void prt_lnum(const char *header, s32b num, int row, int col, byte color)
 {
 	int len = strlen(header);
 	char out_val[32];
@@ -1096,8 +1047,8 @@ static void prt_lnum(cptr header, s32b num, int row, int col, byte color)
 /*
  * Print number with header at given row, column
  */
-static void prt_num(cptr header, int num, int row, int col, byte color,
-                    cptr space)
+static void prt_num(const char *header, int num, int row, int col, byte color,
+                    const char *space)
 {
 	int len = strlen(header);
 	char out_val[32];
@@ -1112,7 +1063,7 @@ static void prt_num(cptr header, int num, int row, int col, byte color,
 /*
  * Print str with header at given row, column
  */
-static void prt_str(cptr header, cptr str, int row, int col, byte color)
+static void prt_str(const char *header, const char *str, int row, int col, byte color)
 {
 	int len = strlen(header);
 	char out_val[32];
@@ -1132,35 +1083,30 @@ static void prt_str(cptr header, cptr str, int row, int col, byte color)
  */
 static void display_player_middle()
 {
-	int show_tohit = p_ptr->dis_to_h;
-	int show_todam = p_ptr->dis_to_d;
-
-	object_type *o_ptr = &p_ptr->inventory[INVEN_WIELD];
 	char num[7];
 	byte color;
 	int speed;
 
 
-	/* Hack -- add in weapon info if known */
-	if (object_known_p(o_ptr)) show_tohit = p_ptr->dis_to_h + p_ptr->to_h_melee + o_ptr->to_h;
-	else show_tohit = p_ptr->dis_to_h + p_ptr->to_h_melee;
-	if (object_known_p(o_ptr)) show_todam = p_ptr->dis_to_d + p_ptr->to_d_melee + o_ptr->to_d;
-	else show_todam = p_ptr->dis_to_d + p_ptr->to_d_melee;
+	/* Dump the melee bonuses to hit/dam */
+	{
+		auto const o_ptr = &p_ptr->inventory[INVEN_WIELD];
+		int show_tohit = p_ptr->dis_to_h + p_ptr->to_h_melee + o_ptr->to_h;
+		int show_todam = p_ptr->dis_to_d + p_ptr->to_d_melee + o_ptr->to_d;
 
-	/* Dump the bonuses to hit/dam */
-	prt_num("+ To Melee Hit   ", show_tohit, 9, 1, TERM_L_BLUE, "   ");
-	prt_num("+ To Melee Damage", show_todam, 10, 1, TERM_L_BLUE, "   ");
+		prt_num("+ To Melee Hit   ", show_tohit, 9, 1, TERM_L_BLUE, "   ");
+		prt_num("+ To Melee Damage", show_todam, 10, 1, TERM_L_BLUE, "   ");
+	}
 
-	o_ptr = &p_ptr->inventory[INVEN_BOW];
+	/* Dump the ranged bonuses to hit/dam */
+	{
+		auto const o_ptr = &p_ptr->inventory[INVEN_BOW];
+		int show_tohit = p_ptr->dis_to_h + p_ptr->to_h_ranged + o_ptr->to_h;
+		int show_todam = p_ptr->to_d_ranged + o_ptr->to_d;
 
-	/* Hack -- add in weapon info if known */
-	if (object_known_p(o_ptr)) show_tohit = p_ptr->dis_to_h + p_ptr->to_h_ranged + o_ptr->to_h;
-	else show_tohit = p_ptr->dis_to_h + p_ptr->to_h_ranged;
-	if (object_known_p(o_ptr)) show_todam = p_ptr->to_d_ranged + o_ptr->to_d;
-	else show_todam = p_ptr->to_d_ranged;
-
-	prt_num("+ To Ranged Hit   ", show_tohit, 11, 1, TERM_L_BLUE, "  ");
-	prt_num("+ To Ranged Damage", show_todam, 12, 1, TERM_L_BLUE, "  ");
+		prt_num("+ To Ranged Hit   ", show_tohit, 11, 1, TERM_L_BLUE, "  ");
+		prt_num("+ To Ranged Damage", show_todam, 12, 1, TERM_L_BLUE, "  ");
+	}
 
 	/* Dump the total armor class */
 	prt_str("  AC             ", format("%d+%d", p_ptr->ac, p_ptr->dis_to_a), 13, 1, TERM_L_BLUE);
@@ -1310,7 +1256,7 @@ static byte likert_color = TERM_WHITE;
 /*
  * Returns a "rating" of x depending on y
  */
-static cptr likert(int x, int y)
+static const char *likert(int x, int y)
 {
 	static char dummy[20] = "";
 
@@ -1399,7 +1345,7 @@ static void display_player_various()
 	int tmp, tmp2, damdice, damsides, dambonus, blows;
 	int xthn, xthb;
 	int xdev, xsav, xstl;
-	cptr desc;
+	const char *desc;
 	int i;
 
 	object_type *o_ptr;
@@ -1518,7 +1464,7 @@ static void display_player_various()
 		/* Access the first weapon */
 		o_ptr = &p_ptr->inventory[INVEN_WIELD];
 
-		if (object_known_p(o_ptr)) dambonus += o_ptr->to_d;
+		dambonus += o_ptr->to_d;
 
 		damdice = o_ptr->dd;
 		damsides = o_ptr->ds;
@@ -1568,18 +1514,29 @@ static object_flag_set wield_monster_flags()
 
 	/* Get the carried monster */
 	auto o_ptr = &p_ptr->inventory[INVEN_CARRY];
-	if (o_ptr->k_idx)
+	if (o_ptr->k_ptr)
 	{
 		auto r_ptr = &r_info[o_ptr->pval];
 
 		if (r_ptr->flags & RF_INVISIBLE)
+		{
 			flags |= TR_INVIS;
+		}
+
 		if (r_ptr->flags & RF_REFLECTING)
+		{
 			flags |= TR_REFLECT;
+		}
+
 		if (r_ptr->flags & RF_CAN_FLY)
+		{
 			flags |= TR_FEATHER;
+		}
+
 		if (r_ptr->flags & RF_AQUATIC)
+		{
 			flags |= TR_WATER_BREATH;
+		}
 	}
 
 	return flags;
@@ -1672,14 +1629,12 @@ object_flag_set player_flags()
 	{
 		f |= TR_RES_NETHER;
 
-		if ((p_ptr->grace > 10000) &&
-		    (p_ptr->praying == TRUE))
+		if (p_ptr->praying && (p_ptr->grace > 10000))
 		{
 			f |= TR_NO_TELE;
 		}
 
-		if ((p_ptr->grace > 20000) &&
-		    (p_ptr->praying == TRUE))
+		if (p_ptr->praying && (p_ptr->grace > 20000))
 		{
 			f |= TR_IM_NETHER;
 		}
@@ -1689,14 +1644,12 @@ object_flag_set player_flags()
 	{
 		f |= TR_WATER_BREATH;
 
-		if ((p_ptr->grace > 1000) &&
-		    (p_ptr->praying == TRUE))
+		if (p_ptr->praying && (p_ptr->grace > 1000))
 		{
 			f |= TR_RES_POIS;
 		}
 
-		if ((p_ptr->grace > 15000) &&
-		    (p_ptr->praying == TRUE))
+		if (p_ptr->praying && (p_ptr->grace > 15000))
 		{
 			f |= TR_MAGIC_BREATH;
 		}
@@ -2392,8 +2345,8 @@ std::string describe_player_location()
 			 */
 			int dx = pwx - lwx;
 			int dy = pwy - lwy;
-			cptr ns = (dy > 0 ? "south" : "north");
-			cptr ew = (dx > 0 ? "east" : "west");
+			const char *ns = (dy > 0 ? "south" : "north");
+			const char *ew = (dx > 0 ? "east" : "west");
 
 			dx = (dx < 0 ? -dx : dx);
 			dy = (dy < 0 ? -dy : dy);
@@ -2410,7 +2363,7 @@ std::string describe_player_location()
 	}
 
 	/* Strip trailing whitespace */
-	boost::trim_right(desc);
+	trim_right(desc);
 
 	return desc;
 }
@@ -2420,20 +2373,20 @@ std::string describe_player_location()
  *
  * Figure out if a row on the grid is empty
  */
-static bool_ file_character_print_grid_check_row(const char *buf)
+static bool file_character_print_grid_check_row(const char *buf)
 {
-	if (strstr(buf + 12, "+")) return TRUE;
-	if (strstr(buf + 12, "*")) return TRUE;
-	if (strstr(buf + 12, "1")) return TRUE;
-	if (strstr(buf + 12, "2")) return TRUE;
-	if (strstr(buf + 12, "3")) return TRUE;
-	if (strstr(buf + 12, "4")) return TRUE;
-	if (strstr(buf + 12, "5")) return TRUE;
-	if (strstr(buf + 12, "6")) return TRUE;
-	if (strstr(buf + 12, "7")) return TRUE;
-	if (strstr(buf + 12, "8")) return TRUE;
-	if (strstr(buf + 12, "9")) return TRUE;
-	return FALSE;
+	if (strstr(buf + 12, "+")) return true;
+	if (strstr(buf + 12, "*")) return true;
+	if (strstr(buf + 12, "1")) return true;
+	if (strstr(buf + 12, "2")) return true;
+	if (strstr(buf + 12, "3")) return true;
+	if (strstr(buf + 12, "4")) return true;
+	if (strstr(buf + 12, "5")) return true;
+	if (strstr(buf + 12, "6")) return true;
+	if (strstr(buf + 12, "7")) return true;
+	if (strstr(buf + 12, "8")) return true;
+	if (strstr(buf + 12, "9")) return true;
+	return false;
 }
 
 /*
@@ -2441,9 +2394,9 @@ static bool_ file_character_print_grid_check_row(const char *buf)
  *
  * Prints the big ugly grid
  */
-static void file_character_print_grid(FILE *fff, bool_ show_gaps, bool_ show_legend)
+static void file_character_print_grid(FILE *fff, bool show_gaps, bool show_legend)
 {
-	static cptr blank_line = "                                        ";
+	static const char *blank_line = "                                        ";
 	static char buf[1024];
 	byte a;
 	char c;
@@ -2454,12 +2407,12 @@ static void file_character_print_grid(FILE *fff, bool_ show_gaps, bool_ show_leg
 	{
 		for (x = 0; x < 40; x++)
 		{
-			(Term_what(x, y, &a, &c));
+			Term_what(x, y, &a, &c);
 			buf[x] = c;
 		}
 
 		buf[x] = '\0';
-		if (strcmp(buf, blank_line) &&
+		if (!equals(buf, blank_line) &&
 		                (y == 3 || show_gaps || file_character_print_grid_check_row(buf)))
 			fprintf (fff, "        %s\n", buf);
 	}
@@ -2467,12 +2420,12 @@ static void file_character_print_grid(FILE *fff, bool_ show_gaps, bool_ show_leg
 	{
 		for (x = 40; x < 80; x++)
 		{
-			(Term_what(x, y, &a, &c));
+			Term_what(x, y, &a, &c);
 			buf[x - 40] = c;
 		}
 
 		buf[x] = '\0';
-		if (strcmp(buf, blank_line) &&
+		if (!equals(buf, blank_line) &&
 		                (show_gaps || file_character_print_grid_check_row(buf)))
 			fprintf (fff, "        %s\n", buf);
 	}
@@ -2483,18 +2436,14 @@ static void file_character_print_grid(FILE *fff, bool_ show_gaps, bool_ show_leg
  *
  * Outputs one item (for Inventory, Equipment, Home, and Mathom-house)
  */
-void file_character_print_item(FILE *fff, char label, object_type *obj, bool_ full)
+static void file_character_print_item(FILE *fff, char label, object_type *obj)
 {
 	static char o_name[80];
-	static cptr paren = ")";
-	object_desc(o_name, obj, TRUE, 3);
-	fprintf(fff, "%c%s %s\n", label, paren, o_name);
+	static const char *paren = ")";
 
-	if ((artifact_p(obj) || ego_item_p(obj) || obj->tval == TV_RING || obj->tval == TV_AMULET || full) &&
-	                (obj->ident & IDENT_MENTAL))
-	{
-		object_out_desc(obj, fff, TRUE, TRUE);
-	}
+	object_desc(o_name, obj, true, 3);
+	fprintf(fff, "%c%s %s\n", label, paren, o_name);
+	object_out_desc(obj, fff, true, true);
 }
 
 /*
@@ -2502,7 +2451,7 @@ void file_character_print_item(FILE *fff, char label, object_type *obj, bool_ fu
  *
  * Prints out one "store" (for Home and Mathom-house)
  */
-static void file_character_print_store(FILE *fff, wilderness_type_info const *place, std::size_t store, bool_ full)
+static void file_character_print_store(FILE *fff, wilderness_type_info const *place, std::size_t store)
 {
 	auto const &st_info = game->edit_data.st_info;
 
@@ -2517,7 +2466,7 @@ static void file_character_print_store(FILE *fff, wilderness_type_info const *pl
 		/* Dump all available items */
 		for (std::size_t i = 0; i < st_ptr->stock.size(); i++)
 		{
-			file_character_print_item(fff, I2A(i%24), &st_ptr->stock[i], full);
+			file_character_print_item(fff, I2A(i%24), &st_ptr->stock[i]);
 		}
 
 		/* Add an empty line */
@@ -2532,7 +2481,7 @@ static void file_character_print_store(FILE *fff, wilderness_type_info const *pl
  * was not already there.  XXX This is an ugly workaround for the double Gondolin
  * problem.
  */
-static bool_ file_character_check_stores(std::unordered_set<store_type *> *seen_stores, wilderness_type_info const *place, int store)
+static bool file_character_check_stores(std::unordered_set<store_type *> *seen_stores, wilderness_type_info const *place, int store)
 {
 	town_type *town = &town_info[place->entrance];
 	store_type *st_ptr = &town->store[store];
@@ -2540,12 +2489,12 @@ static bool_ file_character_check_stores(std::unordered_set<store_type *> *seen_
 	// Already seen store?
 	if (seen_stores->find(st_ptr) != seen_stores->end())
 	{
-		return FALSE;
+		return false;
 	}
 
 	// Add
 	seen_stores->insert(st_ptr);
-	return TRUE;
+	return true;
 }
 
 /*
@@ -2554,7 +2503,7 @@ static bool_ file_character_check_stores(std::unordered_set<store_type *> *seen_
  * XXX XXX XXX Allow the "full" flag to dump additional info,
  * and trigger its usage from various places in the code.
  */
-errr file_character(cptr name, bool_ full)
+errr file_character(const char *name)
 {
 	auto const &d_info = game->edit_data.d_info;
 	auto const &wf_info = game->edit_data.wf_info;
@@ -2617,7 +2566,7 @@ errr file_character(cptr name, bool_ full)
 		for (x = 0; x < 79; x++)
 		{
 			/* Get the attr/char */
-			(Term_what(x, y, &a, &c));
+			Term_what(x, y, &a, &c);
 
 			/* Dump it */
 			buf[x] = c;
@@ -2640,7 +2589,7 @@ errr file_character(cptr name, bool_ full)
 		for (x = 0; x < 79; x++)
 		{
 			/* Get the attr/char */
-			(Term_what(x, y, &a, &c));
+			Term_what(x, y, &a, &c);
 
 			/* Dump it */
 			buf[x] = c;
@@ -2705,7 +2654,7 @@ errr file_character(cptr name, bool_ full)
 
 	{
 		char desc[80];
-		cptr mimic;
+		const char *mimic;
 
 		monster_race_desc(desc, p_ptr->body_monster, 0);
 		fprintf(fff, "\n Your body %s %s.", (death ? "was" : "is"), desc);
@@ -2733,7 +2682,7 @@ errr file_character(cptr name, bool_ full)
 
 			if (r_ptr->flags & RF_UNIQUE)
 			{
-				bool_ dead = (r_ptr->max_num == 0);
+				bool dead = (r_ptr->max_num == 0);
 				if (dead)
 				{
 					Total++;
@@ -2772,19 +2721,19 @@ errr file_character(cptr name, bool_ full)
 
 	/* adds and slays */
 	display_player(1);
-	file_character_print_grid(fff, FALSE, TRUE);
+	file_character_print_grid(fff, false, true);
 
 	/* sustains and resistances */
 	display_player(2);
-	file_character_print_grid(fff, TRUE, FALSE);
+	file_character_print_grid(fff, true, false);
 
 	/* stuff */
 	display_player(3);
-	file_character_print_grid(fff, FALSE, FALSE);
+	file_character_print_grid(fff, false, false);
 
 	/* a little bit of stuff */
 	display_player(4);
-	file_character_print_grid(fff, FALSE, FALSE);
+	file_character_print_grid(fff, false, false);
 
 	/* Dump corruptions */
 	fprintf(fff, "\n%s\n", dump_corruptions(false, true).c_str());
@@ -2827,7 +2776,7 @@ errr file_character(cptr name, bool_ full)
 		{
 			if (!p_ptr->body_parts[i - INVEN_WIELD]) continue;
 
-			file_character_print_item(fff, index_to_label(i), &p_ptr->inventory[i], full);
+			file_character_print_item(fff, index_to_label(i), &p_ptr->inventory[i]);
 		}
 		fprintf(fff, "\n\n");
 	}
@@ -2836,7 +2785,7 @@ errr file_character(cptr name, bool_ full)
 	fprintf(fff, "  [Character Inventory]\n\n");
 	for (i = 0; i < INVEN_PACK; i++)
 	{
-		file_character_print_item(fff, index_to_label(i), &p_ptr->inventory[i], full);
+		file_character_print_item(fff, index_to_label(i), &p_ptr->inventory[i]);
 	}
 	fprintf(fff, "\n\n");
 
@@ -2848,7 +2797,7 @@ errr file_character(cptr name, bool_ full)
 			if (wf_ref.feat == FEAT_TOWN &&
 			    file_character_check_stores(&seen_stores, &wf_ref, 7))
 			{
-				file_character_print_store(fff, &wf_ref, 7, full);
+				file_character_print_store(fff, &wf_ref, 7);
 			}
 		}
 	}
@@ -2861,7 +2810,7 @@ errr file_character(cptr name, bool_ full)
 			if (wf_ref.feat == FEAT_TOWN &&
 			    file_character_check_stores(&seen_stores, &wf_ref, 57))
 			{
-				file_character_print_store(fff, &wf_ref, 57, full);
+				file_character_print_store(fff, &wf_ref, 57);
 			}
 		}
 	}
@@ -2884,7 +2833,7 @@ errr file_character(cptr name, bool_ full)
 /*
  * Recursive file perusal.
  *
- * Return FALSE on "ESCAPE", otherwise TRUE.
+ * Return false on "ESCAPE", otherwise true.
  *
  * Process various special text in the input file, including
  * the "menu" structures used by the "help file" system.
@@ -2923,7 +2872,7 @@ struct hyperlink
 
 typedef struct hyperlink hyperlink_type;
 
-static bool_ show_file_aux(cptr name, cptr what, int line)
+static bool show_file_aux(const char *name, const char *what, int line)
 {
 	int i, k, x;
 
@@ -2942,13 +2891,13 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 	byte color = TERM_WHITE;
 
 	/* This screen has sub-screens */
-	bool_ menu = FALSE;
+	bool menu = false;
 
 	/* Current help file */
 	FILE *fff = NULL;
 
 	/* Find this string (if any) */
-	cptr find = NULL;
+	const char *find = NULL;
 
 	/* Pointer to general buffer in the above */
 	char *buf;
@@ -3031,32 +2980,32 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 		msg_print(NULL);
 
 		/* Oops */
-		return (TRUE);
+		return true;
 	}
 
 
 	/* Pre-Parse the file */
-	while (TRUE)
+	while (true)
 	{
 		/* Read a line or stop */
 		if (my_fgets(fff, h_ptr->rbuf, 1024)) break;
 
 		/* Get a color */
-		if (prefix(h_ptr->rbuf, "#####"))
+		if (starts_with(h_ptr->rbuf, "#####"))
 		{
 			buf = &h_ptr->rbuf[6];
 		}
 		else buf = h_ptr->rbuf;
 
 		/* Get the link colors */
-		if (prefix(buf, "|||||"))
+		if (starts_with(buf, "|||||"))
 		{
 			link_color = color_char_to_attr(buf[5]);
 			link_color_sel = color_char_to_attr(buf[6]);
 		}
 
 		/* Tag ? */
-		if (prefix(buf, "~~~~~"))
+		if (starts_with(buf, "~~~~~"))
 		{
 			if (line < 0)
 			{
@@ -3080,7 +3029,7 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 		while (buf[x])
 		{
 			/* Hyperlink ? */
-			if (prefix(buf + x, "*****"))
+			if (starts_with(buf + x, "*****"))
 			{
 				int xx = x + 5, stmp, xdeb = x + 5, z;
 				char tmp[20];
@@ -3134,7 +3083,7 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 
 
 	/* Display the file */
-	while (TRUE)
+	while (true)
 	{
 		/* Clear screen */
 		Term_clear();
@@ -3157,7 +3106,7 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 			/* Oops */
 			if (!fff)
 			{
-				return (FALSE);
+				return false;
 			}
 
 			/* File has been restarted */
@@ -3184,7 +3133,7 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 			if (my_fgets(fff, h_ptr->rbuf, 1024)) break;
 
 			/* Get a color */
-			if (prefix(h_ptr->rbuf, "#####"))
+			if (starts_with(h_ptr->rbuf, "#####"))
 			{
 				color = color_char_to_attr(h_ptr->rbuf[5]);
 				buf = &h_ptr->rbuf[6];
@@ -3195,10 +3144,10 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 			next++;
 
 			/* Skip link colors */
-			if (prefix(buf, "|||||")) continue;
+			if (starts_with(buf, "|||||")) continue;
 
 			/* Skip tags */
-			if (prefix(buf, "~~~~~"))
+			if (starts_with(buf, "~~~~~"))
 			{
 				i++;
 				continue;
@@ -3228,13 +3177,13 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 
 			/* Dump the line */
 			print_x = 0;
-			if (!prefix(buf, "&&&&&"))
+			if (!starts_with(buf, "&&&&&"))
 			{
 				x = 0;
 				while (buf[x])
 				{
 					/* Hyperlink ? */
-					if (prefix(buf + x, "*****"))
+					if (starts_with(buf + x, "*****"))
 					{
 						int xx = x + 5;
 
@@ -3263,7 +3212,7 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 						x = xx;
 					}
 					/* Color ? */
-					else if (prefix(buf + x, "[[[[["))
+					else if (starts_with(buf + x, "[[[[["))
 					{
 						int xx = x + 6;
 
@@ -3280,7 +3229,7 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 						x = xx;
 					}
 					/* Remove HTML ? */
-					else if (prefix(buf + x, "{{{{{"))
+					else if (starts_with(buf + x, "{{{{{"))
 					{
 						int xx = x + 6;
 
@@ -3316,7 +3265,7 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 			/* Hilite "h_ptr->shower" */
 			if (h_ptr->shower[0])
 			{
-				cptr str = buf;
+				const char *str = buf;
 
 				/* Display matches */
 				while ((str = strstr(str, h_ptr->shower)) != NULL)
@@ -3498,16 +3447,16 @@ static bool_ show_file_aux(cptr name, cptr what, int line)
 	my_fclose(fff);
 
 	/* Escape */
-	if (k == ESCAPE) return (FALSE);
+	if (k == ESCAPE) return false;
 
 	/* Normal return */
-	return (TRUE);
+	return true;
 }
 
 void show_string(const char *lines, const char *title, int line)
 {
 	// Temporary file
-	auto const file_name = boost::filesystem::unique_path().string();
+	auto const file_name = fs::unique_path().string();
 
 	// Open a new file
 	std::ofstream ofs(file_name);
@@ -3522,19 +3471,13 @@ void show_string(const char *lines, const char *title, int line)
 	fd_kill(file_name.c_str());
 }
 
-void show_file(cptr name, cptr what, int line)
+void show_file(const char *name, const char *what, int line)
 {
 	show_file_aux(name, what, line);
 }
 
 static void cmovie_clean_line(int y, char *abuf, char *cbuf)
 {
-	const byte *ap = Term->scr->a[y];
-	const char *cp = Term->scr->c[y];
-
-	byte a;
-	char c;
-
 	int x;
 	int wid, hgt;
 	int screen_wid, screen_hgt;
@@ -3558,18 +3501,30 @@ static void cmovie_clean_line(int y, char *abuf, char *cbuf)
 				((y - ROW_MAP) < screen_hgt))
 		{
 			/* Retrieve default attr/char */
+			byte a;
+			char c;
 			map_info_default(y + panel_row_prt, x + panel_col_prt, &a, &c);
 
 			abuf[x] = conv_color[a & 0xf];
 
-			if (c == '\0') cbuf[x] = ' ';
-			else cbuf[x] = c;
+			if (c == '\0')
+			{
+				cbuf[x] = ' ';
+			}
+			else
+			{
+				cbuf[x] = c;
+			}
 		}
 
 		else
 		{
-			abuf[x] = conv_color[ap[x] & 0xf];
-			cbuf[x] = cp[x];
+			byte a;
+			char c;
+			Term_what(x, y, &a, &c);
+
+			abuf[x] = conv_color[a & 0xf];
+			cbuf[x] = c;
 		}
 	}
 
@@ -3579,7 +3534,7 @@ static void cmovie_clean_line(int y, char *abuf, char *cbuf)
 }
 
 /* Take an help file screenshot(yes yes I know..) */
-void help_file_screenshot(cptr name)
+void help_file_screenshot(const char *name)
 {
 	int y, x;
 	int wid, hgt;
@@ -3632,7 +3587,7 @@ void help_file_screenshot(cptr name)
 }
 
 /* Take an html screenshot */
-void html_screenshot(cptr name)
+void html_screenshot(const char *name)
 {
 	int y, x;
 	int wid, hgt;
@@ -3733,31 +3688,26 @@ void do_cmd_help()
 
 
 
-void process_player_base()
-{
-	path_build(savefile, 1024, ANGBAND_DIR_SAVE, game->player_base.c_str());
-}
-
-void process_player_name(bool_ sf)
+std::string process_player_name(std::string const &name)
 {
 	/* Cannot be too long */
-	if (game->player_base.size() > 15)
+	if (name.size() > 15)
 	{
-		quit_fmt("The name '%s' is too long!", game->player_base.c_str());
+		quit_fmt("The name '%s' is too long!", name.c_str());
 	}
 
 	/* Cannot contain control characters */
-	for (auto c : game->player_base)
+	for (auto c : name)
 	{
 		if (iscntrl(c))
 		{
-			quit_fmt("The name '%s' contains control chars!", game->player_base.c_str());
+			quit_fmt("The name '%s' contains control chars!", name.c_str());
 		}
 	}
 
 	/* Extract "useful" letters */
 	std::string buf;
-	for (auto c : game->player_base)
+	for (auto c : name)
 	{
 		/* Accept some letters */
 		if (isalpha(c) || isdigit(c))
@@ -3772,20 +3722,22 @@ void process_player_name(bool_ sf)
 		}
 	}
 
-	/* Terminate */
-	game->player_base = buf;
-
 	/* Require a "base" name */
-	if (game->player_base.empty())
+	if (buf.empty())
 	{
-		game->player_base = "PLAYER";
+		buf = "PLAYER";
 	}
 
-	/* Change the savefile name */
-	if (sf)
-	{
-		process_player_base();
-	}
+	/* Terminate */
+	return buf;
+}
+
+
+
+
+void set_player_base(std::string const &name)
+{
+	game->player_base = process_player_name(name);
 }
 
 
@@ -3801,8 +3753,6 @@ void process_player_name(bool_ sf)
  */
 void get_name()
 {
-	char tmp[32];
-
 	/* Clear last line */
 	clear_from(22);
 
@@ -3810,28 +3760,27 @@ void get_name()
 	prt("[Enter your player's name above, or hit ESCAPE]", 23, 2);
 
 	/* Ask until happy */
-	while (1)
+	while (true)
 	{
 		/* Go to the "name" field */
-		move_cursor(2, 9);
+		Term_gotoxy(9, 2);
 
 		/* Save the player name */
-		strcpy(tmp, game->player_name.c_str());
+		auto tmp = game->player_name;
 
 		/* Get an input, ignore "Escape" */
-		if (askfor_aux(tmp, 31))
+		if (askfor_aux(&tmp, 31))
 		{
 			game->player_name = tmp;
+			set_player_base(tmp);
 		}
-
-		/* Process the player name */
-		process_player_name(FALSE);
 
 		/* All done */
 		break;
 	}
 
 	/* Pad the name (to clear junk) */
+	char tmp[32];
 	sprintf(tmp, "%-31.31s", game->player_name.c_str());
 
 	/* Re-Draw the name (in light blue) */
@@ -3878,13 +3827,13 @@ void do_cmd_suicide()
 	}
 
 	/* Stop playing */
-	alive = FALSE;
+	alive = false;
 
 	/* Kill the player */
-	death = TRUE;
+	death = true;
 
 	/* Leaving */
-	p_ptr->leaving = TRUE;
+	p_ptr->leaving = true;
 
 	/* Cause of death */
 	game->died_from = "Quitting";
@@ -3896,7 +3845,7 @@ void do_cmd_suicide()
 	 * when the game is loaded again
 	 * Alternatively forget_view() and update_view() can be used
 	 */
-void remove_cave_view(bool_ remove)
+void remove_cave_view(bool remove)
 {
 	int i;
 	cave_type *c_ptr;
@@ -3925,7 +3874,7 @@ void remove_cave_view(bool_ remove)
  */
 void do_cmd_save_game()
 {
-	remove_cave_view(TRUE);
+	remove_cave_view(true);
 
 	/* Save the current level if in a persistent level */
 	save_dungeon();
@@ -3964,7 +3913,7 @@ void do_cmd_save_game()
 		prt("Saving game... failed!", 0, 0);
 	}
 
-	remove_cave_view(FALSE);
+	remove_cave_view(false);
 
 	/* Refresh */
 	Term_fresh();
@@ -3980,10 +3929,10 @@ void autosave_checkpoint()
 {
 	if (options->autosave_l)
 	{
-		is_autosave = TRUE;
+		is_autosave = true;
 		msg_print("Autosaving the game...");
 		do_cmd_save_game();
-		is_autosave = FALSE;
+		is_autosave = false;
 	}
 }
 
@@ -3994,7 +3943,6 @@ static long total_points()
 {
 	auto const &d_info = game->edit_data.d_info;
 	auto const &r_info = game->edit_data.r_info;
-	auto const &k_info = game->edit_data.k_info;
 
 	s16b max_dl = 0;
 	long temp, Total = 0;
@@ -4043,37 +3991,13 @@ static long total_points()
 	/* Death of a companion is BAD */
 	temp /= comp_death;
 
-	/* The known objects increase the score */
-	for (std::size_t k = 1; k < k_info.size(); k++)
-	{
-		auto k_ptr = &k_info[k];
-
-		/* Hack -- skip artifacts */
-		if (k_ptr->flags & TR_INSTA_ART) continue;
-
-		/* List known flavored objects */
-		if (k_ptr->flavor && k_ptr->aware)
-		{
-			object_type *i_ptr;
-			object_type object_type_body;
-
-			/* Get local object */
-			i_ptr = &object_type_body;
-
-			/* Create fake object */
-			object_prep(i_ptr, k);
-
-			temp += object_value_real(i_ptr);
-		}
-	}
-
 	for (auto const &r_ref: r_info)
 	{
 		auto r_ptr = &r_ref;
 
 		if (r_ptr->flags & RF_UNIQUE)
 		{
-			bool_ dead = (r_ptr->max_num == 0);
+			bool dead = (r_ptr->max_num == 0);
 
 			if (dead)
 			{
@@ -4166,36 +4090,6 @@ static void print_tomb()
  */
 static void show_info()
 {
-	/* Hack -- Know everything in the inven/equip */
-	for (auto &o_ref: p_ptr->inventory)
-	{
-		auto o_ptr = &o_ref;
-
-		/* Skip non-objects */
-		if (!o_ptr->k_idx) continue;
-
-		/* Aware and Known */
-		object_aware(o_ptr);
-		object_known(o_ptr);
-	}
-
-	/* Hack -- Know everything in the home */
-	for (int i = 1; i < max_towns; i++)
-	{
-		auto st_ptr = &town_info[i].store[7];
-		for (auto &o_ref: st_ptr->stock)
-		{
-			auto o_ptr = &o_ref;
-
-			/* Skip non-objects */
-			if (!o_ptr->k_idx) continue;
-
-			/* Aware and Known */
-			object_aware(o_ptr);
-			object_known(o_ptr);
-		}
-	}
-
 	/* Hack -- Recalculate bonuses */
 	p_ptr->update |= (PU_BONUS);
 
@@ -4214,7 +4108,7 @@ static void show_info()
 	prt("Then, hit RETURN to see the character, or ESC to abort.", 22, 0);
 
 	/* Dump character records as requested */
-	while (TRUE)
+	while (true)
 	{
 		char out_val[160];
 
@@ -4231,15 +4125,13 @@ static void show_info()
 		if (!out_val[0]) break;
 
 		/* Save screen */
-		character_icky = TRUE;
-		Term_save();
+		screen_save_no_flush();
 
 		/* Dump a character file */
-		file_character(out_val, TRUE);
+		file_character(out_val);
 
 		/* Load screen */
-		Term_load();
-		character_icky = FALSE;
+		screen_load_no_flush();
 	}
 
 
@@ -4302,7 +4194,7 @@ static void show_info()
 					prt(tmp_val, j + 2, 4);
 
 					/* Display object description */
-					object_desc(o_name, o_ptr, TRUE, 3);
+					object_desc(o_name, o_ptr, true, 3);
 					c_put_str(tval_to_attr[o_ptr->tval], o_name, j + 2, 7);
 				}
 
@@ -4385,7 +4277,9 @@ static void display_scores_aux(int highscore_fd, int from, int to, int note, hig
 		{
 			int pcs, pr, ps, pc, clev, mlev, cdun, mdun;
 
-			cptr gold, when, aged;
+			const char *gold;
+			const char *when;
+			const char *aged;
 
 			int in_quest;
 
@@ -4946,7 +4840,7 @@ out:
 }
 
 
-void predict_score_gui(bool_ *initialized_p, bool_ *game_in_progress_p)
+void predict_score_gui(bool *initialized_p, bool *game_in_progress_p)
 {
 	char buf[1024];
 	int highscore_fd;
@@ -4974,7 +4868,7 @@ void predict_score_gui(bool_ *initialized_p, bool_ *game_in_progress_p)
 	}
 
 	/* Mega-Hack - prevent various functions XXX XXX XXX */
-	*initialized_p = FALSE;
+	*initialized_p = false;
 
 	/* Save screen */
 	screen_save();
@@ -5001,7 +4895,7 @@ void predict_score_gui(bool_ *initialized_p, bool_ *game_in_progress_p)
 	Term_fresh();
 
 	/* Mega-Hack - We are ready again */
-	*initialized_p = TRUE;
+	*initialized_p = true;
 }
 
 
@@ -5073,19 +4967,12 @@ void wipe_saved()
 
 		for (auto l = d_ptr->mindepth; l <= d_ptr->maxdepth; l++)
 		{
-			char buf[10];
-
 			dun_level = l;
 			dungeon_type = d;
-			if (get_dungeon_save(buf))
+			if (auto ext = get_dungeon_save_extension())
 			{
-				auto tmp = fmt::format("{}.{}", game->player_base, buf);
-
-				char name[1024];
-				path_build(name, 1024, ANGBAND_DIR_SAVE, tmp.c_str());
-
 				/* Remove the dungeon save file */
-				fd_kill(name);
+				fd_kill(name_file_dungeon_save(*ext).c_str());
 			}
 		}
 	}
@@ -5113,7 +5000,7 @@ void close_game()
 
 
 	/* Hack -- Character is now "icky" */
-	character_icky = TRUE;
+	character_icky = true;
 
 
 	/* Handle death */
@@ -5166,7 +5053,7 @@ void close_game()
 	/* Still alive */
 	else
 	{
-		is_autosave = FALSE;
+		is_autosave = false;
 
 		/* Save the game */
 		do_cmd_save_game();
@@ -5263,7 +5150,7 @@ errr get_rnd_line(const char *file_name, char *output)
  *
  * Caution: 'linbuf' should be at least 80 byte long.
  */
-char *get_line(const char* fname, cptr fdir, char *linbuf, int line)
+char *get_line(const char* fname, const char *fdir, char *linbuf, int line)
 {
 	FILE* fp;
 	int i;
@@ -5343,7 +5230,7 @@ errr get_xtra_line(const char *file_name, monster_type *m_ptr, char *output)
 	mnum = m_ptr->r_idx;
 
 	/* Find matching N: line */
-	while (1)
+	while (true)
 	{
 		int n;
 
@@ -5365,7 +5252,7 @@ errr get_xtra_line(const char *file_name, monster_type *m_ptr, char *output)
 	}
 
 	/* Retrieve number of normal messages */
-	while (1)
+	while (true)
 	{
 		/* Read next line */
 		if (my_fgets(fp, buf, 90) != 0)

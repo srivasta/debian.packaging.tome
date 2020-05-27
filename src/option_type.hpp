@@ -1,6 +1,6 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 
 /**
  * Option descriptor.
@@ -10,7 +10,7 @@ struct option_type
 	/**
 	 * Address of actual option variable.
 	 */
-	bool_ *o_var;
+	bool *o_var;
 
 	/**
 	 * Option page number.
@@ -25,10 +25,10 @@ struct option_type
 	/**
 	 * Textual name.
 	 */
-	cptr o_text;
+	const char *o_text;
 
 	/**
 	 * Textual description
 	 */
-	cptr o_desc;
+	const char *o_desc;
 };

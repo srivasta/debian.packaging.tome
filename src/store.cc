@@ -36,10 +36,9 @@
 #include "tables.hpp"
 #include "town_type.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "variable.h"
 #include "variable.hpp"
 #include "xtra1.hpp"
+#include "z-form.hpp"
 #include "z-rand.hpp"
 
 #include <cassert>
@@ -62,7 +61,7 @@
 
 #define MAX_COMMENT_1	6
 
-static cptr comment_1[MAX_COMMENT_1] =
+static const char *comment_1[MAX_COMMENT_1] =
 {
 	"Okay.",
 	"Fine.",
@@ -74,7 +73,7 @@ static cptr comment_1[MAX_COMMENT_1] =
 
 #define MAX_COMMENT_4A	4
 
-static cptr comment_4a[MAX_COMMENT_4A] =
+static const char *comment_4a[MAX_COMMENT_4A] =
 {
 	"Enough!  You have abused me once too often!",
 	"Arghhh!  I have had enough abuse for one day!",
@@ -84,7 +83,7 @@ static cptr comment_4a[MAX_COMMENT_4A] =
 
 #define MAX_COMMENT_4B	4
 
-static cptr comment_4b[MAX_COMMENT_4B] =
+static const char *comment_4b[MAX_COMMENT_4B] =
 {
 	"Leave my store!",
 	"Get out of my sight!",
@@ -128,7 +127,7 @@ static void say_comment_4()
 
 #define MAX_COMMENT_7A	4
 
-static cptr comment_7a[MAX_COMMENT_7A] =
+static const char *comment_7a[MAX_COMMENT_7A] =
 {
 	"Arrgghh!",
 	"You moron!",
@@ -138,7 +137,7 @@ static cptr comment_7a[MAX_COMMENT_7A] =
 
 #define MAX_COMMENT_7B	4
 
-static cptr comment_7b[MAX_COMMENT_7B] =
+static const char *comment_7b[MAX_COMMENT_7B] =
 {
 	"Darn!",
 	"You fiend!",
@@ -148,7 +147,7 @@ static cptr comment_7b[MAX_COMMENT_7B] =
 
 #define MAX_COMMENT_7C	4
 
-static cptr comment_7c[MAX_COMMENT_7C] =
+static const char *comment_7c[MAX_COMMENT_7C] =
 {
 	"Cool!",
 	"You've made my day!",
@@ -158,7 +157,7 @@ static cptr comment_7c[MAX_COMMENT_7C] =
 
 #define MAX_COMMENT_7D	4
 
-static cptr comment_7d[MAX_COMMENT_7D] =
+static const char *comment_7d[MAX_COMMENT_7D] =
 {
 	"Yippee!",
 	"I think I'll retire!",
@@ -247,7 +246,7 @@ static owner_type const *ot_ptr = NULL;
  * to adjust (by 200) to extract a usable multiplier.  Note that the
  * "greed" value is always something (?).
  */
-static s32b price_item(object_type *o_ptr, int greed, bool_ flip)
+static s32b price_item(object_type *o_ptr, int greed, bool flip)
 {
 	auto const &st_info = game->edit_data.st_info;
 
@@ -482,70 +481,67 @@ static void mass_produce(object_type *o_ptr)
  *
  * See "object_similar()" for the same function for the "player"
  */
-static bool_ store_object_similar(object_type const *o_ptr, object_type *j_ptr)
+static bool store_object_similar(object_type const *o_ptr, object_type *j_ptr)
 {
 	/* Hack -- Identical items cannot be stacked */
-	if (o_ptr == j_ptr) return (0);
+	if (o_ptr == j_ptr) return (false);
 
 	/* Different objects cannot be stacked */
-	if (o_ptr->k_idx != j_ptr->k_idx) return (0);
+	if (o_ptr->k_ptr != j_ptr->k_ptr) return (false);
 
 	/* Different charges (etc) cannot be stacked, unless wands or rods. */
-	if ((o_ptr->pval != j_ptr->pval) && (o_ptr->tval != TV_WAND)) return (0);
+	if ((o_ptr->pval != j_ptr->pval) && (o_ptr->tval != TV_WAND)) return (false);
 
 	/* Require many identical values */
-	if (o_ptr->pval2 != j_ptr->pval2) return (0);
-	if (o_ptr->pval3 != j_ptr->pval3) return (0);
+	if (o_ptr->pval2 != j_ptr->pval2) return (false);
+	if (o_ptr->pval3 != j_ptr->pval3) return (false);
 
 	/* Require many identical values */
-	if (o_ptr->to_h != j_ptr->to_h) return (0);
-	if (o_ptr->to_d != j_ptr->to_d) return (0);
-	if (o_ptr->to_a != j_ptr->to_a) return (0);
+	if (o_ptr->to_h != j_ptr->to_h) return (false);
+	if (o_ptr->to_d != j_ptr->to_d) return (false);
+	if (o_ptr->to_a != j_ptr->to_a) return (false);
 
 	/* Require identical "artifact" names */
-	if (o_ptr->name1 != j_ptr->name1) return (0);
+	if (o_ptr->name1 != j_ptr->name1) return (false);
 
 	/* Require identical "ego-item" names */
-	if (o_ptr->name2 != j_ptr->name2) return (0);
+	if (o_ptr->name2 != j_ptr->name2) return (false);
 
 	/* Require identical "ego-item" names */
-	if (o_ptr->name2b != j_ptr->name2b) return (0);
+	if (o_ptr->name2b != j_ptr->name2b) return (false);
 
 	/* Random artifacts don't stack !*/
-	if (!o_ptr->artifact_name.empty()) return 0;
-	if (!j_ptr->artifact_name.empty()) return 0;
+	if (!o_ptr->artifact_name.empty()) return false;
+	if (!j_ptr->artifact_name.empty()) return false;
 
 	/* Hack -- Identical art_flags! */
 	if (o_ptr->art_flags != j_ptr->art_flags)
-		return (0);
+		return (false);
 
 	/* Hack -- Never stack "powerful" items */
-	if (o_ptr->xtra1 || j_ptr->xtra1) return (0);
+	if (o_ptr->xtra1 || j_ptr->xtra1) return (false);
 
 	if (o_ptr->tval == TV_LITE)
 	{
 		/* Require identical "turns of light" */
-		if (o_ptr->timeout != j_ptr->timeout) return (0);
+		if (o_ptr->timeout != j_ptr->timeout) return (false);
 	}
 	else
 	{
 		/* Hack -- Never stack recharging items */
-		if (o_ptr->timeout || j_ptr->timeout) return (0);
+		if (o_ptr->timeout || j_ptr->timeout) return (false);
 	}
 
 	/* Require many identical values */
-	if (o_ptr->ac	!= j_ptr->ac) return (0);
-	if (o_ptr->dd	!= j_ptr->dd) return (0);
-	if (o_ptr->ds	!= j_ptr->ds) return (0);
-
-	/* Hack -- Never stack chests */
-	if (o_ptr->tval == TV_CHEST) return (0);
+	if (o_ptr->ac	!= j_ptr->ac) return (false);
+	if (o_ptr->dd	!= j_ptr->dd) return (false);
+	if (o_ptr->ds	!= j_ptr->ds) return (false);
 
 	/* Require matching discounts */
-	if (o_ptr->discount != j_ptr->discount) return (0);
+	if (o_ptr->discount != j_ptr->discount) return (false);
 
 	/* They match, so they must be similar */
-	return (TRUE);
+	return true;
 }
 
 
@@ -572,14 +568,14 @@ static void store_object_absorb(object_type *o_ptr, object_type *j_ptr)
  * Note that the shop, just like a player, will not accept things
  * it cannot hold.	Before, one could "nuke" potions this way.
  */
-static bool_ store_check_num(object_type *o_ptr)
+static bool store_check_num(object_type *o_ptr)
 {
 	auto const &st_info = game->edit_data.st_info;
 
 	/* Free space is always usable */
 	if (st_ptr->stock.size() < st_ptr->stock_size)
 	{
-		return TRUE;
+		return true;
 	}
 
 	/* The "home" acts like the player */
@@ -591,7 +587,7 @@ static bool_ store_check_num(object_type *o_ptr)
 			/* Can the new object be combined with the old one? */
 			if (object_similar(&o_ref, o_ptr))
 			{
-				return TRUE;
+				return true;
 			}
 		}
 	}
@@ -605,13 +601,13 @@ static bool_ store_check_num(object_type *o_ptr)
 			/* Can the new object be combined with the old one? */
 			if (store_object_similar(&o_ref, o_ptr))
 			{
-				return TRUE;
+				return true;
 			}
 		}
 	}
 
 	/* But there was no room at the inn... */
-	return FALSE;
+	return false;
 }
 
 
@@ -950,9 +946,6 @@ static int store_carry(object_type *o_ptr)
 		return -1;
 	}
 
-	/* All store items are fully *identified* */
-	o_ptr->ident |= IDENT_MENTAL;
-
 	/* Erase the inscription */
 	o_ptr->inscription.clear();
 
@@ -1050,7 +1043,7 @@ static void store_item_optimize(int item)
 	auto const o_ptr = &st_ptr->stock[item];
 
 	/* Must exist */
-	if (!o_ptr->k_idx) return;
+	if (!o_ptr->k_ptr) return;
 
 	/* Must have no items */
 	if (o_ptr->number) return;
@@ -1068,17 +1061,17 @@ static void store_item_optimize(int item)
  * Crap is defined as any item that is "available" elsewhere
  * Based on a suggestion by "Lee Vogt" <lvogt@cig.mcel.mot.com>
  */
-static bool_ black_market_crap(object_type *o_ptr)
+static bool black_market_crap(object_type *o_ptr)
 {
 	auto const &st_info = game->edit_data.st_info;
 
 	/* Ego items are never crap */
-	if (o_ptr->name2) return (FALSE);
+	if (o_ptr->name2) return false;
 
 	/* Good items are never crap */
-	if (o_ptr->to_a > 0) return (FALSE);
-	if (o_ptr->to_h > 0) return (FALSE);
-	if (o_ptr->to_d > 0) return (FALSE);
+	if (o_ptr->to_a > 0) return false;
+	if (o_ptr->to_h > 0) return false;
+	if (o_ptr->to_d > 0) return false;
 
 	/* Check all stores */
 	for (std::size_t i = 0; i < st_info.size(); i++)
@@ -1090,12 +1083,15 @@ static bool_ black_market_crap(object_type *o_ptr)
 		for (auto const &stock_obj: town_info[p_ptr->town_num].store[i].stock)
 		{
 			/* Duplicate item "type", assume crappy */
-			if (o_ptr->k_idx == stock_obj.k_idx) return (TRUE);
+			if (o_ptr->k_ptr == stock_obj.k_ptr)
+			{
+				return true;
+			}
 		}
 	}
 
 	/* Assume okay */
-	return (FALSE);
+	return false;
 }
 
 
@@ -1157,25 +1153,104 @@ static int store_tval = 0, store_level = 0;
 /*
  * Hack -- determine if a template is "good"
  */
-static bool_ kind_is_storeok(int k_idx)
+static bool kind_is_storeok(object_kind const *k_ptr)
 {
-	auto const &k_info = game->edit_data.k_info;
+	if (k_ptr->flags & TR_NORM_ART)
+	{
+		return false;
+	}
 
-	auto k_ptr = &k_info[k_idx];
+	if (k_ptr->flags & TR_INSTA_ART)
+	{
+		return false;
+	}
 
-	if (k_info[k_idx].flags & TR_NORM_ART)
-		return ( FALSE );
+	if (!kind_is_legal(k_ptr))
+	{
+		return false;
+	}
 
-	if (k_info[k_idx].flags & TR_INSTA_ART)
-		return ( FALSE );
+	if (k_ptr->tval != store_tval)
+	{
+		return false;
+	}
 
-	if (!kind_is_legal(k_idx)) return FALSE;
+	if (k_ptr->level < (store_level / 2))
+	{
+		return false;
+	}
 
-	if (k_ptr->tval != store_tval) return (FALSE);
-	if (k_ptr->level < (store_level / 2)) return (FALSE);
-
-	return (TRUE);
+	return true;
 }
+
+namespace { // anonymous
+
+struct is_artifact_p : public boost::static_visitor<bool> {
+
+	bool operator ()(store_item_filter_by_k_idx f) const
+	{
+		auto const &k_info = game->edit_data.k_info;
+		return bool(k_info.at(f.k_idx)->flags & TR_NORM_ART);
+	}
+
+	bool operator ()(store_item_filter_by_tval) const
+	{
+		return false;
+	}
+};
+
+class choose_k_idx : public boost::static_visitor<int> {
+
+	int m_level;
+
+public:
+
+	explicit choose_k_idx(int level)
+		: m_level(level)
+	{
+	}
+
+	int operator ()(store_item_filter_by_k_idx f) const
+	{
+		return f.k_idx;
+	}
+
+	int operator ()(store_item_filter_by_tval f) const
+	{
+		auto const &st_info = game->edit_data.st_info;
+		auto &alloc = game->alloc;
+
+		/* No themes */
+		init_match_theme(obj_theme::no_theme());
+
+		/* Activate restriction */
+		get_object_hook = kind_is_storeok;
+		store_tval = f.tval;
+
+		/* Do we forbid too shallow items ? */
+		if (st_info[st_ptr->st_idx].flags & STF_FORCE_LEVEL)
+		{
+			store_level = m_level;
+		}
+		else
+		{
+			store_level = 0;
+		}
+
+		/* Prepare allocation table */
+		get_obj_num_prep();
+
+		/* Get it! */
+		auto k_idx = get_obj_num(m_level);
+
+		/* Invalidate the cached allocation table */
+		alloc.kind_table_valid = false;
+
+		return k_idx;
+	}
+};
+
+} // namespace (anonymous)
 
 /*
  * Creates a random item and gives it to a store
@@ -1193,12 +1268,12 @@ static void store_create()
 	auto const &k_info = game->edit_data.k_info;
 	auto &alloc = game->alloc;
 
-	int i = 0, tries, level = 0;
+	int k_idx = -1;
+	int level = 0;
 
 	object_type forge;
 	object_type *q_ptr = NULL;
-	bool_ obj_all_done = FALSE;
-
+	bool obj_all_done = false;
 
 	/* Paranoia -- no room left */
 	if (st_ptr->stock.size() >= st_ptr->stock_size)
@@ -1206,11 +1281,10 @@ static void store_create()
 		return;
 	}
 
-
 	/* Hack -- consider up to four items */
-	for (tries = 0; tries < 4; tries++)
+	for (int tries = 0; tries < 4; tries++)
 	{
-		obj_all_done = FALSE;
+		obj_all_done = false;
 
 		/* Magic Shop */
 		if ((st_info[st_ptr->st_idx].name == STORE_MAGIC) &&
@@ -1225,7 +1299,7 @@ static void store_create()
 
 			/* Use the forged object */
 			q_ptr = &forge;
-			obj_all_done = TRUE;
+			obj_all_done = true;
 		}
 
 		/* Temple */
@@ -1241,7 +1315,7 @@ static void store_create()
 
 			/* Use the forged object */
 			q_ptr = &forge;
-			obj_all_done = TRUE;
+			obj_all_done = true;
 		}
 
 		/* Black Market */
@@ -1254,7 +1328,7 @@ static void store_create()
 			 * Even in Black Markets, illegal objects can be
 			 * problematic -- Oxymoron?
 			 */
-			get_obj_num_hook = kind_is_legal;
+			get_object_hook = kind_is_legal;
 
 			/* Rebuild the allocation table */
 			get_obj_num_prep();
@@ -1262,14 +1336,15 @@ static void store_create()
 			/* Pick a level for object/magic */
 			level = return_level();
 
-			/* Random item (usually of given level) */
-			i = get_obj_num(level);
+			/* Choose a k_info index */
+			k_idx = get_obj_num(level);
+			if (k_idx <= 0)
+			{
+				continue;
+			}
 
 			/* Invalidate the cached allocation table */
 			alloc.kind_table_valid = false;
-
-			/* Handle failure */
-			if (!i) continue;
 
 		}
 
@@ -1277,13 +1352,15 @@ static void store_create()
 		else
 		{
 			/* Hack -- Pick an item to sell */
-			auto const &item = st_info[st_ptr->st_idx].items[rand_int(st_info[st_ptr->st_idx].items.size())];
-			i = item.kind;
+			auto const &item = *uniform_element(st_info[st_ptr->st_idx].items);
+			auto filter = item.filter;
 			auto chance = item.chance;
 
 			/* Don't allow k_info artifacts */
-			if ((i <= 10000) && (k_info[i].flags & TR_NORM_ART))
+			if (boost::apply_visitor(is_artifact_p(), filter))
+			{
 				continue;
+			}
 
 			/* Does it passes the rarity check ? */
 			if (!magik(chance)) continue;
@@ -1291,58 +1368,38 @@ static void store_create()
 			/* Hack -- fake level for apply_magic() */
 			level = return_level();
 
-			/* Hack -- i > 10000 means it's a tval and all svals are allowed */
-			if (i > 10000)
+			/* Choose the k_info index */
+			k_idx = boost::apply_visitor(choose_k_idx(level), filter);
+			if (k_idx <= 0)
 			{
-				/* No themes */
-				init_match_theme(obj_theme::no_theme());
-
-				/* Activate restriction */
-				get_obj_num_hook = kind_is_storeok;
-				store_tval = i - 10000;
-
-				/* Do we forbid too shallow items ? */
-				if (st_info[st_ptr->st_idx].flags & STF_FORCE_LEVEL)
-				{
-					store_level = level;
-				}
-				else
-				{
-					store_level = 0;
-				}
-
-				/* Prepare allocation table */
-				get_obj_num_prep();
-
-				/* Get it ! */
-				i = get_obj_num(level);
-
-				/* Invalidate the cached allocation table */
-				alloc.kind_table_valid = false;
+				continue;
 			}
-
-			if (!i) continue;
 		}
 
 		/* Only if not already done */
 		if (!obj_all_done)
 		{
+			auto k_ptr = k_info.at(k_idx);
 			/* Don't allow k_info artifacts */
-			if (k_info[i].flags & TR_NORM_ART)
+			if (k_ptr->flags & TR_NORM_ART)
+			{
 				continue;
+			}
 
 			/* Don't allow artifacts */
-			if (k_info[i].flags & TR_INSTA_ART)
+			if (k_ptr->flags & TR_INSTA_ART)
+			{
 				continue;
+			}
 
 			/* Get local object */
 			q_ptr = &forge;
 
 			/* Create a new object of the chosen kind */
-			object_prep(q_ptr, i);
+			object_prep(q_ptr, k_idx);
 
 			/* Apply some "low-level" magic (no artifacts) */
-			apply_magic(q_ptr, level, FALSE, FALSE, FALSE);
+			apply_magic(q_ptr, level, false, false, false);
 
 			/* Hack -- Charge lite's */
 			if (q_ptr->tval == TV_LITE)
@@ -1350,7 +1407,7 @@ static void store_create()
 				auto const flags = object_flags(q_ptr);
 				if (flags & TR_FUEL_LITE)
 				{
-					q_ptr->timeout = k_info[q_ptr->k_idx].pval2;
+					q_ptr->timeout = q_ptr->k_ptr->pval2;
 				}
 			}
 
@@ -1358,12 +1415,6 @@ static void store_create()
 
 		/* The item is "known" */
 		object_known(q_ptr);
-
-		/* Mark it storebought */
-		q_ptr->ident |= IDENT_STOREB;
-
-		/* Mega-Hack -- no chests in stores */
-		if (q_ptr->tval == TV_CHEST) continue;
 
 		/* Prune the black market */
 		if (st_info[st_ptr->st_idx].flags & STF_ALL_ITEM)
@@ -1426,7 +1477,10 @@ static void display_entry(int pos)
 		byte a = object_attr(o_ptr);
 		char c = object_char(o_ptr);
 
-		if (!o_ptr->k_idx) c = ' ';
+		if (!o_ptr->k_ptr)
+		{
+			c = ' ';
+		}
 
 		Term_draw(cur_col, i + 6, a, c);
 		cur_col += 2;
@@ -1443,7 +1497,7 @@ static void display_entry(int pos)
 
 		/* Describe the object */
 		char o_name[80];
-		object_desc(o_name, o_ptr, TRUE, 3);
+		object_desc(o_name, o_ptr, true, 3);
 		o_name[maxwid] = '\0';
 		c_put_str(tval_to_attr[o_ptr->tval], o_name, i + 6, cur_col);
 
@@ -1469,7 +1523,7 @@ static void display_entry(int pos)
 
 		/* Describe the object (fully) */
 		char o_name[80];
-		object_desc_store(o_name, o_ptr, TRUE, 3);
+		object_desc_store(o_name, o_ptr, true, 3);
 		o_name[maxwid] = '\0';
 		c_put_str(tval_to_attr[o_ptr->tval], o_name, i + 6, cur_col);
 
@@ -1482,7 +1536,7 @@ static void display_entry(int pos)
 		}
 
 		/* Extract the "minimum" price */
-		auto const x = price_item(o_ptr, ot_ptr->inflation, FALSE);
+		auto const x = price_item(o_ptr, ot_ptr->inflation, false);
 
 		/* Can we buy one ? */
 		if (x > p_ptr->au) color = TERM_L_DARK;
@@ -1616,7 +1670,7 @@ void display_store()
 /*
  * Get the ID of a store item and return its value	-RAK-
  */
-static int get_stock(int *com_val, cptr pmt, int i, int j)
+static int get_stock(int *com_val, const char *pmt, int i, int j)
 {
 	char	command;
 
@@ -1630,7 +1684,7 @@ static int get_stock(int *com_val, cptr pmt, int i, int j)
 		if ((*com_val >= i) && (*com_val <= j))
 		{
 			/* Success */
-			return (TRUE);
+			return true;
 		}
 	}
 
@@ -1646,7 +1700,7 @@ static int get_stock(int *com_val, cptr pmt, int i, int j)
 	        I2A(i), I2A(j), pmt);
 
 	/* Ask until done */
-	while (TRUE)
+	while (true)
 	{
 		int k;
 
@@ -1671,12 +1725,12 @@ static int get_stock(int *com_val, cptr pmt, int i, int j)
 	prt("", 0, 0);
 
 	/* Cancel */
-	if (command == ESCAPE) return (FALSE);
+	if (command == ESCAPE) return false;
 
 	repeat_push(*com_val);
 
 	/* Success */
-	return (TRUE);
+	return true;
 }
 
 
@@ -1684,14 +1738,14 @@ static int get_stock(int *com_val, cptr pmt, int i, int j)
 /**
  * Prompt for a yes/no during selling/buying
  *
- * @return TRUE if 'yes' was selected, otherwise returns FALSE.
+ * @return true if 'yes' was selected, otherwise returns false.
  */
-static bool_ prompt_yesno(cptr prompt)
+static bool prompt_yesno(const char *prompt)
 {
-	cptr allowed = "yn\r\n";
-	cptr yes = "y\r\n";
+	const char *allowed = "yn\r\n";
+	const char *yes = "y\r\n";
 	char buf[128];
-	bool_ ret;
+	bool ret;
 
 	/* Build prompt */
 	snprintf(buf, sizeof(buf), "%s [y/n/RET/ESC] ", prompt);
@@ -1701,13 +1755,13 @@ static bool_ prompt_yesno(cptr prompt)
 	prt(buf, 0, 0);
 
 	/* Get answer */
-	while (TRUE)
+	while (true)
 	{
 		int key = inkey();
 
 		/* ESC means no. */
 		if (key == ESCAPE) {
-			ret = FALSE;
+			ret = false;
 			break;
 		}
 
@@ -1734,13 +1788,12 @@ static bool_ prompt_yesno(cptr prompt)
 /*
  * Haggling routine 				-RAK-
  *
- * Return TRUE if purchase is NOT successful
+ * Return true if purchase is NOT successful
  */
-static bool_ purchase_haggle(object_type *o_ptr, s32b *price)
+static bool purchase_haggle(object_type *o_ptr, s32b *price)
 {
 	s32b	cur_ask;
-	bool_	cancel = FALSE;
-	char	out_val[160];
+	bool	cancel = false;
 	char    prompt[128];
 	char    o_name[80];
 
@@ -1748,17 +1801,16 @@ static bool_ purchase_haggle(object_type *o_ptr, s32b *price)
 	*price = 0;
 
 	/* Extract the price */
-	cur_ask = price_item(o_ptr, ot_ptr->inflation, FALSE);
+	cur_ask = price_item(o_ptr, ot_ptr->inflation, false);
 
 	/* Buy for the whole pile */
 	cur_ask *= o_ptr->number;
 
 	/* Describe the object (fully) */
-	object_desc_store(o_name, o_ptr, TRUE, 3);
+	object_desc_store(o_name, o_ptr, true, 3);
 
 	/* Prompt */
-	strnfmt(out_val, sizeof(out_val), "%s: " FMTs32b, "Price", cur_ask);
-	put_str(out_val, 1, 0);
+	put_str(fmt::format("Price: {}", cur_ask), 1, 0);
 	strnfmt(prompt, sizeof(prompt), "Buy %s?", o_name);
 	cancel = !prompt_yesno(prompt);
 
@@ -1766,13 +1818,13 @@ static bool_ purchase_haggle(object_type *o_ptr, s32b *price)
 	if (cancel)
 	{
 		/* Cancel */
-		return (TRUE);
+		return true;
 	}
 	else
 	{
 		*price = cur_ask;
 		/* Do not cancel */
-		return (FALSE);
+		return false;
 	}
 }
 
@@ -1780,13 +1832,12 @@ static bool_ purchase_haggle(object_type *o_ptr, s32b *price)
 /*
  * Haggling routine 				-RAK-
  *
- * Return TRUE if purchase is NOT successful
+ * Return true if purchase is NOT successful
  */
-static bool_ sell_haggle(object_type *o_ptr, s32b *price)
+static bool sell_haggle(object_type *o_ptr, s32b *price)
 {
 	s32b	cur_ask;
-	bool_	cancel = FALSE;
-	char	out_val[160];
+	bool	cancel = false;
 	char    prompt[128];
 	char    o_name[80];
 
@@ -1794,7 +1845,7 @@ static bool_ sell_haggle(object_type *o_ptr, s32b *price)
 	*price = 0;
 
 	/* Extract price */
-	cur_ask = price_item(o_ptr, ot_ptr->inflation, TRUE);
+	cur_ask = price_item(o_ptr, ot_ptr->inflation, true);
 
 	/* Limit to shopkeeper's purse */
 	if (cur_ask > ot_ptr->max_cost) {
@@ -1805,11 +1856,11 @@ static bool_ sell_haggle(object_type *o_ptr, s32b *price)
 	cur_ask *= o_ptr->number;
 
 	/* Describe the object */
-	object_desc(o_name, o_ptr, TRUE, 3);
+	object_desc(o_name, o_ptr, true, 3);
 
 	/* Prompt */
-	strnfmt(out_val, sizeof(out_val), "%s: " FMTs32b, "Price", cur_ask);
-	put_str(out_val, 1, 0);
+	put_str(fmt::format("Price: {}", cur_ask), 1, 0);
+
 	strnfmt(prompt, sizeof(prompt), "Sell %s?", o_name);
 	cancel = !prompt_yesno(prompt);
 
@@ -1817,13 +1868,13 @@ static bool_ sell_haggle(object_type *o_ptr, s32b *price)
 	if (cancel)
 	{
 		/* Cancel */
-		return (TRUE);
+		return true;
 	}
 	else
 	{
 		*price = cur_ask;
 		/* Do not cancel */
-		return (FALSE);
+		return false;
 	}
 }
 
@@ -1983,7 +2034,7 @@ void store_stole()
 
 		/* Describe the transaction */
 		char o_name[80];
-		object_desc(o_name, j_ptr, TRUE, 3);
+		object_desc(o_name, j_ptr, true, 3);
 
 		/* Message */
 		msg_format("You steal %s.", o_name);
@@ -1992,10 +2043,10 @@ void store_stole()
 		j_ptr->inscription.clear();
 
 		/* Give it to the player */
-		int const item_new = inven_carry(j_ptr, FALSE);
+		int const item_new = inven_carry(j_ptr, false);
 
 		/* Describe the final result */
-		object_desc(o_name, &p_ptr->inventory[item_new], TRUE, 3);
+		object_desc(o_name, &p_ptr->inventory[item_new], true, 3);
 
 		/* Message */
 		msg_format("You have %s (%c).",
@@ -2069,9 +2120,6 @@ void store_stole()
 		/* Kicked out for a LONG time */
 		st_ptr->store_open = turn + 500000 + randint(500000);
 	}
-
-	/* Not kicked out */
-	return;
 }
 
 /*
@@ -2146,7 +2194,7 @@ void store_purchase()
 	}
 
 	/* Determine the "best" price (per item) */
-	auto const best = price_item(j_ptr, ot_ptr->inflation, FALSE);
+	auto const best = price_item(j_ptr, ot_ptr->inflation, false);
 
 	/* Find out how many the player wants */
 	int amt = 1;
@@ -2242,10 +2290,10 @@ void store_purchase()
 
 				/* Describe the transaction */
 				char o_name[80];
-				object_desc(o_name, j_ptr, TRUE, 3);
+				object_desc(o_name, j_ptr, true, 3);
 
 				/* Message */
-				msg_format("You bought %s for " FMTs32b " gold.", o_name, price);
+				msg_print(fmt::format("You bought {} for {} gold.", o_name, price));
 
 				/* Erase the inscription */
 				j_ptr->inscription.clear();
@@ -2261,10 +2309,10 @@ void store_purchase()
 				}
 
 				/* Give it to the player */
-				int const item_new = inven_carry(j_ptr, FALSE);
+				int const item_new = inven_carry(j_ptr, false);
 
 				/* Describe the final result */
-				object_desc(o_name, &p_ptr->inventory[item_new], TRUE, 3);
+				object_desc(o_name, &p_ptr->inventory[item_new], true, 3);
 
 				/* Message */
 				msg_format("You have %s (%c).",
@@ -2344,11 +2392,11 @@ void store_purchase()
 		}
 
 		/* Give it to the player */
-		int const item_new = inven_carry(j_ptr, FALSE);
+		int const item_new = inven_carry(j_ptr, false);
 
 		/* Describe just the result */
 		char o_name[80];
-		object_desc(o_name, &p_ptr->inventory[item_new], TRUE, 3);
+		object_desc(o_name, &p_ptr->inventory[item_new], true, 3);
 
 		/* Message */
 		msg_format("You have %s (%c).", o_name, index_to_label(item_new));
@@ -2379,9 +2427,6 @@ void store_purchase()
 			display_inventory();
 		}
 	}
-
-	/* Not kicked out */
-	return;
 }
 
 
@@ -2406,7 +2451,8 @@ void store_sell()
 	bool museum = bool(st_info[st_ptr->st_idx].flags & STF_MUSEUM);
 
 	/* Prepare prompt */
-	cptr q, s;
+	const char *q;
+	const char *s;
 	if (cur_store_num == STORE_HOME)
 	{
 		q = "Drop which item? ";
@@ -2490,7 +2536,7 @@ void store_sell()
 	}
 
 	/* Get a full description */
-	object_desc(o_name, q_ptr, TRUE, 3);
+	object_desc(o_name, q_ptr, true, 3);
 
 	/* Remove any inscription for stores */
 	if ((cur_store_num != 7) && !museum)
@@ -2564,10 +2610,10 @@ void store_sell()
 			value = object_value(q_ptr) * q_ptr->number;
 
 			/* Get the description all over again */
-			object_desc(o_name, q_ptr, TRUE, 3);
+			object_desc(o_name, q_ptr, true, 3);
 
 			/* Describe the result (in message buffer) */
-			msg_format("You sold %s for " FMTs32b " gold.", o_name, price);
+			msg_print(fmt::format("You sold {} for {} gold.", o_name, price));
 
 			/* Analyze the prices (and comment verbally) */
 			purchase_analyze(price, value, dummy);
@@ -2605,7 +2651,7 @@ void store_sell()
 	else if (museum)
 	{
 		char o2_name[80];
-		object_desc(o2_name, q_ptr, TRUE, 0);
+		object_desc(o2_name, q_ptr, true, 0);
 
 		msg_print("Once you donate something, you cannot take it back.");
 		if (!get_check(format("Do you really want to donate %s?", o2_name))) return;
@@ -2613,7 +2659,6 @@ void store_sell()
 		/* Identify it */
 		object_aware(q_ptr);
 		object_known(q_ptr);
-		q_ptr->ident |= IDENT_MENTAL;
 
 		/*
 		 * Hack -- Allocate charges between those wands or rods sold 
@@ -2728,23 +2773,15 @@ void store_examine()
 		drop_near(o_ptr, -1, p_ptr->py, p_ptr->px);
 	}
 
-	/* Require full knowledge */
-	if (!(o_ptr->ident & (IDENT_MENTAL)))
-	{
-		/* This can only happen in the home */
-		msg_print("You have no special knowledge about that item.");
-		return;
-	}
-
 	/* Description */
 	char o_name[80];
-	object_desc(o_name, o_ptr, TRUE, 3);
+	object_desc(o_name, o_ptr, true, 3);
 
 	/* Describe */
 	msg_format("Examining %s...", o_name);
 
 	/* Show the object's powers. */
-	if (!object_out_desc(o_ptr, NULL, FALSE, TRUE))
+	if (!object_out_desc(o_ptr, NULL, false, true))
 	{
 		msg_print("You see nothing special.");
 	}
@@ -2756,9 +2793,7 @@ void store_examine()
 		do_cmd_browse_aux(o_ptr);
 	}
 
-	return;
 }
-
 
 
 
@@ -2766,7 +2801,7 @@ void store_examine()
 /*
  * Hack -- set this to leave the store
  */
-static bool_ leave_store = FALSE;
+static bool leave_store = false;
 
 
 /*
@@ -2805,12 +2840,15 @@ static store_action_type const *find_store_action(s16b command_cmd)
  * must disable some commands which are allowed in the dungeon
  * but not in the stores, to prevent chaos.
  */
-static bool_ store_process_command()
+static bool store_process_command(s16b *command_ptr)
 {
-	bool_ recreate = FALSE;
+	assert(command_ptr);
+	auto const &command_cmd = *command_ptr;
+
+	bool recreate = false;
 
 	/* Handle repeating the last command */
-	repeat_check();
+	repeat_check(command_ptr);
 
 	auto ba_ptr = find_store_action(command_cmd);
 
@@ -2826,7 +2864,7 @@ static bool_ store_process_command()
 			/* Leave */
 		case ESCAPE:
 			{
-				leave_store = TRUE;
+				leave_store = true;
 				break;
 			}
 
@@ -2865,6 +2903,7 @@ static bool_ store_process_command()
 					}
 					display_inventory();
 				}
+				break;
 			}
 
 			/* Redraw */
@@ -3123,7 +3162,7 @@ void do_cmd_store()
 	int maintain_num;
 	int tmp_chr;
 	int i;
-	bool_ recreate = FALSE;
+	bool recreate = false;
 
 	cave_type *c_ptr;
 
@@ -3172,7 +3211,7 @@ void do_cmd_store()
 
 
 	/* Hack -- Character is in "icky" mode */
-	character_icky = TRUE;
+	character_icky = true;
 
 
 	/* No command argument */
@@ -3208,7 +3247,7 @@ void do_cmd_store()
 	}
 
 	/* Do not leave */
-	leave_store = FALSE;
+	leave_store = false;
 
 	/* Interact with player */
 	while (!leave_store)
@@ -3241,13 +3280,16 @@ void do_cmd_store()
 		show_building(st_ptr);
 
 		/* Get a command */
-		request_command(TRUE);
+		request_command(true);
 
 		/* Process the command */
-		if (store_process_command()) recreate = TRUE;
+		if (store_process_command(&command_cmd))
+		{
+			recreate = true;
+		}
 
 		/* Hack -- Character is still in "icky" mode */
-		character_icky = TRUE;
+		character_icky = true;
 
 		/* Notice stuff */
 		notice_stuff();
@@ -3256,7 +3298,7 @@ void do_cmd_store()
 		handle_stuff();
 
 		/* XXX XXX XXX Pack Overflow */
-		if (p_ptr->inventory[INVEN_PACK].k_idx)
+		if (p_ptr->inventory[INVEN_PACK].k_ptr)
 		{
 			int item = INVEN_PACK;
 
@@ -3269,7 +3311,7 @@ void do_cmd_store()
 				msg_print("Your pack is so full that you flee the store...");
 
 				/* Leave */
-				leave_store = TRUE;
+				leave_store = true;
 			}
 
 			/* Hack -- Flee from the home */
@@ -3279,31 +3321,25 @@ void do_cmd_store()
 				msg_print("Your pack is so full that you flee your home...");
 
 				/* Leave */
-				leave_store = TRUE;
+				leave_store = true;
 			}
 
 			/* Hack -- Drop items into the home */
 			else
 			{
-				int item_pos;
-
-				object_type forge;
-				object_type *q_ptr;
-
-				char o_name[80];
-
-
 				/* Give a message */
 				msg_print("Your pack overflows!");
 
 				/* Get local object */
-				q_ptr = &forge;
+				object_type forge;
+				auto q_ptr = &forge;
 
 				/* Grab a copy of the item */
 				object_copy(q_ptr, o_ptr);
 
 				/* Describe it */
-				object_desc(o_name, q_ptr, TRUE, 3);
+				char o_name[80];
+				object_desc(o_name, q_ptr, true, 3);
 
 				/* Message */
 				msg_format("You drop %s (%c).", o_name, index_to_label(item));
@@ -3315,7 +3351,7 @@ void do_cmd_store()
 				handle_stuff();
 
 				/* Let the home carry it */
-				item_pos = home_carry(q_ptr);
+				int item_pos = home_carry(q_ptr);
 
 				/* Redraw the home */
 				if (item_pos >= 0)
@@ -3330,7 +3366,7 @@ void do_cmd_store()
 		if (tmp_chr != p_ptr->stat_use[A_CHR]) display_inventory();
 
 		/* Hack -- get kicked out of the store */
-		if (st_ptr->store_open >= turn) leave_store = TRUE;
+		if (st_ptr->store_open >= turn) leave_store = true;
 	}
 
 	/* Free turn XXX XXX XXX */
@@ -3343,11 +3379,11 @@ void do_cmd_store()
 		p_ptr->oldpx = p_ptr->px;
 		p_ptr->oldpy = p_ptr->py;
 
-		p_ptr->leaving = TRUE;
+		p_ptr->leaving = true;
 	}
 
 	/* Hack -- Character is no longer in "icky" mode */
-	character_icky = FALSE;
+	character_icky = false;
 
 
 	/* Hack -- Cancel automatic command */
@@ -3619,7 +3655,7 @@ void do_cmd_home_trump()
 
 
 	/* Hack -- Character is in "icky" mode */
-	character_icky = TRUE;
+	character_icky = true;
 
 
 	/* No command argument */
@@ -3656,7 +3692,7 @@ void do_cmd_home_trump()
 	}
 
 	/* Do not leave */
-	leave_store = FALSE;
+	leave_store = false;
 
 	/* Interact with player */
 	while (!leave_store)
@@ -3701,13 +3737,13 @@ void do_cmd_home_trump()
 		prt("You may: ", 21, 0);
 
 		/* Get a command */
-		request_command(TRUE);
+		request_command(true);
 
 		/* Process the command */
-		store_process_command();
+		store_process_command(&command_cmd);
 
 		/* Hack -- Character is still in "icky" mode */
-		character_icky = TRUE;
+		character_icky = true;
 
 		/* Notice stuff */
 		notice_stuff();
@@ -3716,7 +3752,7 @@ void do_cmd_home_trump()
 		handle_stuff();
 
 		/* XXX XXX XXX Pack Overflow */
-		if (p_ptr->inventory[INVEN_PACK].k_idx)
+		if (p_ptr->inventory[INVEN_PACK].k_ptr)
 		{
 			int item = INVEN_PACK;
 
@@ -3729,7 +3765,7 @@ void do_cmd_home_trump()
 				msg_print("Your pack is so full that you flee the store...");
 
 				/* Leave */
-				leave_store = TRUE;
+				leave_store = true;
 			}
 
 			/* Hack -- Flee from the home */
@@ -3739,31 +3775,25 @@ void do_cmd_home_trump()
 				msg_print("Your pack is so full that you flee your home...");
 
 				/* Leave */
-				leave_store = TRUE;
+				leave_store = true;
 			}
 
 			/* Hack -- Drop items into the home */
 			else
 			{
-				int item_pos;
-
-				object_type forge;
-				object_type *q_ptr;
-
-				char o_name[80];
-
-
 				/* Give a message */
 				msg_print("Your pack overflows!");
 
 				/* Get local object */
-				q_ptr = &forge;
+				object_type forge;
+				auto q_ptr = &forge;
 
 				/* Grab a copy of the item */
 				object_copy(q_ptr, o_ptr);
 
 				/* Describe it */
-				object_desc(o_name, q_ptr, TRUE, 3);
+				char o_name[80];
+				object_desc(o_name, q_ptr, true, 3);
 
 				/* Message */
 				msg_format("You drop %s (%c).", o_name, index_to_label(item));
@@ -3775,7 +3805,7 @@ void do_cmd_home_trump()
 				handle_stuff();
 
 				/* Let the home carry it */
-				item_pos = home_carry(q_ptr);
+				int const item_pos = home_carry(q_ptr);
 
 				/* Redraw the home */
 				if (item_pos >= 0)
@@ -3790,12 +3820,12 @@ void do_cmd_home_trump()
 		if (tmp_chr != p_ptr->stat_use[A_CHR]) display_inventory();
 
 		/* Hack -- get kicked out of the store */
-		if (st_ptr->store_open >= turn) leave_store = TRUE;
+		if (st_ptr->store_open >= turn) leave_store = true;
 	}
 
 
 	/* Hack -- Character is no longer in "icky" mode */
-	character_icky = FALSE;
+	character_icky = false;
 
 
 	/* Hack -- Cancel automatic command */

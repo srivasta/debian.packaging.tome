@@ -35,11 +35,10 @@
 #include "stats.hpp"
 #include "tables.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "variable.h"
 #include "variable.hpp"
 #include "xtra1.hpp"
 #include "xtra2.hpp"
+#include "z-form.hpp"
 #include "z-rand.hpp"
 
 #include <fmt/format.h>
@@ -112,8 +111,6 @@ void mindcraft_info(char *p, int power)
  */
 void mimic_info(char *p, int power)
 {
-	auto const &k_info = game->edit_data.k_info;
-
 	int plev = get_skill(SKILL_MIMICRY);
 	object_type *o_ptr = &p_ptr->inventory[INVEN_OUTER];
 
@@ -124,7 +121,7 @@ void mimic_info(char *p, int power)
 	switch (power)
 	{
 	case 0:
-		strnfmt(p, 80, " dur %d", k_info[o_ptr->k_idx].pval2 + get_skill_scale(SKILL_MIMICRY, 1000));
+		strnfmt(p, 80, " dur %d", o_ptr->k_ptr->pval2 + get_skill_scale(SKILL_MIMICRY, 1000));
 		break;
 	case 1:
 		strnfmt(p, 80, " dur %d+d20", 10 + plev);
@@ -212,18 +209,18 @@ static void display_magic_powers(
 /*
  * Allow user to choose a magic power.
  *
- * If a valid spell is chosen, saves it in '*sn' and returns TRUE
- * If the user hits escape, returns FALSE, and set '*sn' to -1
- * If there are no legal choices, returns FALSE, and sets '*sn' to -2
+ * If a valid spell is chosen, saves it in '*sn' and returns true
+ * If the user hits escape, returns false, and set '*sn' to -1
+ * If there are no legal choices, returns false, and sets '*sn' to -2
  *
  * The "prompt" should be "cast", "recite", or "study"
- * The "known" should be TRUE for cast/pray, FALSE for study
+ * The "known" should be true for cast/pray, false for study
  *
  * nb: This function has a (trivial) display bug which will be obvious
  * when you run it. It's probably easy to fix but I haven't tried,
  * sorry.
  */
-static bool_ get_magic_power(int *sn, magic_power *powers, int max_powers,
+static bool get_magic_power(int *sn, magic_power *powers, int max_powers,
                      void (*power_info)(char *p, int power), int plev, int cast_stat)
 {
 	int i;
@@ -240,11 +237,11 @@ static bool_ get_magic_power(int *sn, magic_power *powers, int max_powers,
 
 	char out_val[160];
 
-	cptr p = "power";
+	const char *p = "power";
 
 	magic_power spell;
 
-	bool_ flag;
+	bool flag;
 
 
 	/* Assume cancelled */
@@ -257,12 +254,12 @@ static bool_ get_magic_power(int *sn, magic_power *powers, int max_powers,
 		if (powers[*sn].min_lev <= plev)
 		{
 			/* Success */
-			return (TRUE);
+			return true;
 		}
 	}
 
 	/* Nothing chosen yet */
-	flag = FALSE;
+	flag = false;
 
 	/* Count number of powers that satisfies minimum plev requirement */
 	for (i = 0; i < max_powers; i++)
@@ -278,8 +275,7 @@ static bool_ get_magic_power(int *sn, magic_power *powers, int max_powers,
 	        p, I2A(0), I2A(num - 1), toupper(I2A(0)), toupper(I2A(num - 1)), p);
 
 	/* Save the screen */
-	character_icky = TRUE;
-	Term_save();
+	screen_save_no_flush();
 
 	/* Show the list */
 	display_magic_powers(powers, max_powers, power_info, plev, cast_stat, y, x);
@@ -310,11 +306,10 @@ static bool_ get_magic_power(int *sn, magic_power *powers, int max_powers,
 		if (info)
 		{
 			c_prt(TERM_L_BLUE, spell.desc, 1, 0);
+			inkey();
 
 			/* Restore the screen */
-			inkey();
-			Term_load();
-			character_icky = FALSE;
+			screen_load_no_flush();
 
 			/* Redisplay choices */
 			display_magic_powers(powers, max_powers, power_info, plev, cast_stat, y, x);
@@ -322,15 +317,17 @@ static bool_ get_magic_power(int *sn, magic_power *powers, int max_powers,
 		}
 
 		/* Stop the loop */
-		flag = TRUE;
+		flag = true;
 	}
 
 	/* Restore the screen */
-	Term_load();
-	character_icky = FALSE;
+	screen_load_no_flush();
 
 	/* Abort if needed */
-	if (!flag) return (FALSE);
+	if (!flag)
+	{
+		return false;
+	}
 
 	/* Save the choice */
 	(*sn) = i;
@@ -339,7 +336,7 @@ static bool_ get_magic_power(int *sn, magic_power *powers, int max_powers,
 	repeat_push(*sn);
 
 	/* Success */
-	return (TRUE);
+	return true;
 }
 
 
@@ -349,6 +346,8 @@ static bool_ get_magic_power(int *sn, magic_power *powers, int max_powers,
  */
 void do_cmd_mindcraft()
 {
+	auto const &dungeon_flags = game->dungeon_flags;
+
 	int n = 0, b = 0;
 
 	int chance;
@@ -457,7 +456,7 @@ void do_cmd_mindcraft()
 				msg_print("Your mind unleashes its power in an uncontrollable storm!");
 				project(1, 2 + plev / 10, p_ptr->py, p_ptr->px, plev * 2,
 				        GF_MANA, PROJECT_JUMP | PROJECT_KILL | PROJECT_GRID | PROJECT_ITEM);
-				p_ptr->csp = MAX(0, p_ptr->csp - plev * MAX(1, plev / 10));
+				p_ptr->csp = std::max(0, p_ptr->csp - plev * std::max(1, plev / 10));
 			}
 		}
 	}
@@ -611,15 +610,8 @@ void do_cmd_mindcraft()
 				break;
 			}
 
-			/* Psychometry */
-		case 7:
-			{
-				ident_spell();
-				break;
-			}
-
 			/* Mindwave */
-		case 8:
+		case 7:
 			{
 				msg_print("Mind-warping forces emanate from your brain!");
 				if (plev < 25)
@@ -636,7 +628,7 @@ void do_cmd_mindcraft()
 			}
 
 			/* Adrenaline */
-		case 9:
+		case 8:
 			{
 				set_afraid(0);
 				set_stun(0);
@@ -667,7 +659,7 @@ void do_cmd_mindcraft()
 			}
 
 			/* Psychic Drain */
-		case 10:
+		case 9:
 			{
 				if (!get_aim_dir(&dir)) return;
 
@@ -682,7 +674,7 @@ void do_cmd_mindcraft()
 			}
 
 			/* Telekinesis */
-		case 11:
+		case 10:
 			{
 				msg_print("A wave of pure physical force radiates out from your body!");
 				project(0, 3 + plev / 10, p_ptr->py, p_ptr->px,
@@ -729,7 +721,7 @@ void do_cmd_mindcraft()
 		/* Damage WIS (possibly permanently) */
 		if (rand_int(100) < 50)
 		{
-			bool_ perm = (rand_int(100) < 25);
+			bool perm = (rand_int(100) < 25);
 
 			/* Message */
 			msg_print("You have damaged your mind!");
@@ -764,13 +756,6 @@ static int get_mimic_chance(int mimic)
 
 void do_cmd_mimic_lore()
 {
-	auto const &k_info = game->edit_data.k_info;
-
-	int fail;
-
-	object_type	*o_ptr;
-
-
 	/* Player has to be able to see */
 	if (p_ptr->blind || no_lite())
 	{
@@ -797,7 +782,7 @@ void do_cmd_mimic_lore()
 	/* Not in mimic forms -- Allow transformations */
 	else
 	{
-		o_ptr = &p_ptr->inventory[INVEN_OUTER];
+		object_type const *o_ptr = &p_ptr->inventory[INVEN_OUTER];
 
 		if ((o_ptr->tval != TV_CLOAK) || (o_ptr->sval != SV_MIMIC_CLOAK))
 		{
@@ -806,7 +791,7 @@ void do_cmd_mimic_lore()
 		}
 
 		/* Calculate failure rate */
-		fail = get_mimic_chance(o_ptr->pval2);
+		auto const fail = get_mimic_chance(o_ptr->pval2);
 
 		if (fail > 75)
 		{
@@ -832,7 +817,7 @@ void do_cmd_mimic_lore()
 		/* Success */
 		else
 		{
-			set_mimic(k_info[o_ptr->k_idx].pval2 + get_skill_scale(SKILL_MIMICRY, 1000), o_ptr->pval2, get_skill(SKILL_MIMICRY));
+			set_mimic(o_ptr->k_ptr->pval2 + get_skill_scale(SKILL_MIMICRY, 1000), o_ptr->pval2, get_skill(SKILL_MIMICRY));
 		}
 	}
 
@@ -874,11 +859,11 @@ void do_cmd_mimic()
 
 	magic_power spell;
 
-	static bool_ added_hooks = FALSE;
+	static bool added_hooks = false;
 	if(!added_hooks)
 	{
 		add_hook_new(HOOK_FORBID_TRAVEL, mimic_forbid_travel, "mimic_forbid_travel", NULL);
-		added_hooks = TRUE;
+		added_hooks = true;
 	}
 
 	/* No magic */
@@ -1136,7 +1121,7 @@ void do_cmd_mimic()
 		/* Damage WIS (possibly permanently) */
 		if (rand_int(100) < 50)
 		{
-			bool_ perm = (rand_int(100) < 25);
+			bool perm = (rand_int(100) < 25);
 
 			/* Message */
 			msg_print("You have damaged your mind!");
@@ -1183,7 +1168,7 @@ void do_cmd_beastmaster()
 		/* XXX XXX */
 		if (rand_int(80-(plev) - p_ptr->stat_use[5]-p_ptr->to_s) < 20)
 		{
-			summon_specific_friendly(p_ptr->py, p_ptr->px, plev, rand_int(plev / 2), FALSE);
+			summon_specific_friendly(p_ptr->py, p_ptr->px, plev, rand_int(plev / 2), false);
 		}
 	}
 	else msg_print("You can't summon more pets");
@@ -1308,11 +1293,8 @@ static random_spell* select_spell_from_batch(std::size_t batch)
 	char which;
 	random_spell* ret = nullptr;
 
-	/* Enter "icky" mode */
-	character_icky = TRUE;
-
 	/* Save the screen */
-	Term_save();
+	screen_save_no_flush();
 
 	int const mut_max = (random_spells.size() < (batch + 1) * 10)
 	        ? random_spells.size() - batch * 10
@@ -1323,7 +1305,7 @@ static random_spell* select_spell_from_batch(std::size_t batch)
 
 	prt(tmp, 0, 0);
 
-	while (1)
+	while (true)
 	{
 		/* Print power list */
 		print_spell_batch(batch, mut_max);
@@ -1373,10 +1355,7 @@ static random_spell* select_spell_from_batch(std::size_t batch)
 	}
 
 	/* Restore the screen */
-	Term_load();
-
-	/* Leave "icky" mode */
-	character_icky = FALSE;
+	screen_load_no_flush();
 
 	/* Return selection */
 	return (ret);
@@ -1413,26 +1392,20 @@ static random_spell* select_spell()
 	/* How many spells in the last batch? */
 	int batch_max = (random_spells.size() - 1) / 10;
 
-	/* Enter "icky" mode */
-	character_icky = TRUE;
-
 	/* Save the screen */
-	Term_save();
+	screen_save_no_flush();
 
 	strnfmt(tmp, 160, "(a-%c) Select batch of powers: ", I2A(batch_max));
 
 	prt(tmp, 0, 0);
 
-	while (1)
+	while (true)
 	{
 		which = inkey();
 
 		if (which == ESCAPE)
 		{
-			Term_load();
-
 			ret = NULL;
-
 			break;
 		}
 
@@ -1440,10 +1413,7 @@ static random_spell* select_spell()
 		{
 			if (batch_max == 0)
 			{
-				Term_load();
-
 				ret = select_spell_from_batch(0);
-
 				break;
 			}
 
@@ -1453,10 +1423,7 @@ static random_spell* select_spell()
 		which = tolower(which);
 		if (isalpha(which) && (A2I(which) <= batch_max))
 		{
-			Term_load();
-
 			ret = select_spell_from_batch(A2I(which));
-
 			break;
 		}
 		else
@@ -1465,8 +1432,8 @@ static random_spell* select_spell()
 		}
 	}
 
-	/* Leave "icky" mode */
-	character_icky = FALSE;
+	/* Restore screen */
+	screen_load_no_flush();
 
 	return (ret);
 }
@@ -1689,7 +1656,7 @@ void brand_ammo(int brand_type, int bolts_only)
 		o_ptr->name2 = aura_type;
 
 		/* Apply the ego */
-		apply_magic(o_ptr, dun_level, FALSE, FALSE, FALSE);
+		apply_magic(o_ptr, dun_level, false, false, false);
 		o_ptr->discount = 100;
 
 		enchant(o_ptr, rand_int(3) + 4, ENCH_TOHIT | ENCH_TODAM);
@@ -1710,7 +1677,7 @@ void summon_monster(int sumtype)
 	/* Take a turn */
 	energy_use = 100;
 
-	if (summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level + randint(5), sumtype, TRUE))
+	if (summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level + randint(5), sumtype, true))
 	{
 		msg_print("You summon some help.");
 	}
@@ -1747,7 +1714,7 @@ void do_cmd_possessor()
 	}
 
 
-	while (TRUE)
+	while (true)
 	{
 		if (!get_com("Use your [R]ace powers or your [I]ncarnating powers?", &ch))
 		{
@@ -1789,7 +1756,7 @@ void do_cmd_possessor()
 		}
 		else
 		{
-			do_cmd_leave_body(TRUE);
+			do_cmd_leave_body(true);
 		}
 	}
 	else
@@ -1857,7 +1824,7 @@ void do_cmd_archer()
 		strnfmt(com, 80, "Create [S]hots? ");
 	}
 
-	while (TRUE)
+	while (true)
 	{
 		if (!get_com(com, &ch))
 		{
@@ -1905,14 +1872,12 @@ void do_cmd_archer()
 				q_ptr->number = (byte)rand_range(15, 30);
 			else
 				q_ptr->number = 1;
-			object_aware(q_ptr);
-			object_known(q_ptr);
-			q_ptr->ident |= IDENT_MENTAL;
-			apply_magic(q_ptr, dun_level, TRUE, TRUE, (magik(20)) ? TRUE : FALSE);
+
+			apply_magic(q_ptr, dun_level, true, true, (magik(20)) ? true : false);
 			q_ptr->discount = 90;
 			q_ptr->found = OBJ_FOUND_SELFMADE;
 
-			inven_carry(q_ptr, FALSE);
+			inven_carry(q_ptr, false);
 
 			msg_print("You make some ammo.");
 
@@ -1944,10 +1909,8 @@ void do_cmd_archer()
 			q_ptr->number = (byte)rand_range(15, 30);
 		else
 			q_ptr->number = 1;
-		object_aware(q_ptr);
-		object_known(q_ptr);
-		q_ptr->ident |= IDENT_MENTAL;
-		apply_magic(q_ptr, dun_level, TRUE, TRUE, (magik(20)) ? TRUE : FALSE);
+
+		apply_magic(q_ptr, dun_level, true, true, (magik(20)) ? true : false);
 		q_ptr->discount = 90;
 		q_ptr->found = OBJ_FOUND_SELFMADE;
 
@@ -1955,7 +1918,7 @@ void do_cmd_archer()
 
 		inc_stack_size(item, -1);
 
-		inven_carry(q_ptr, FALSE);
+		inven_carry(q_ptr, false);
 	}
 
 	/**********Create bolts*********/
@@ -1980,10 +1943,8 @@ void do_cmd_archer()
 			q_ptr->number = (byte)rand_range(15, 30);
 		else
 			q_ptr->number = 1;
-		object_aware(q_ptr);
-		object_known(q_ptr);
-		q_ptr->ident |= IDENT_MENTAL;
-		apply_magic(q_ptr, dun_level, TRUE, TRUE, (magik(20)) ? TRUE : FALSE);
+
+		apply_magic(q_ptr, dun_level, true, true, (magik(20)) ? true : false);
 		q_ptr->discount = 90;
 		q_ptr->found = OBJ_FOUND_SELFMADE;
 
@@ -1991,7 +1952,7 @@ void do_cmd_archer()
 
 		inc_stack_size(item, -1);
 
-		inven_carry(q_ptr, FALSE);
+		inven_carry(q_ptr, false);
 	}
 }
 
@@ -2012,7 +1973,7 @@ void do_cmd_set_piercing()
 
 	strnfmt(com, 80, "Allow shots to pierce? ");
 
-	while (TRUE)
+	while (true)
 	{
 		if (!get_com(com, &ch))
 		{
@@ -2070,6 +2031,8 @@ void necro_info(char *p, int power)
  */
 void do_cmd_necromancer()
 {
+	auto &k_info = game->edit_data.k_info;
+
 	int n = 0, b = 0;
 	int chance;
 	int dir;
@@ -2238,23 +2201,20 @@ void do_cmd_necromancer()
 				object_type forge, *o_ptr = &forge;
 				int k_idx = test_item_name("& Necromantic Teeth~");
 
-				k_allow_special[k_idx] = TRUE;
+				k_info[k_idx]->allow_special = true;
 
 				object_prep(o_ptr, k_idx);
-				apply_magic(o_ptr, plev * 2, TRUE, TRUE, TRUE);
+				apply_magic(o_ptr, plev * 2, true, true, true);
 
 				o_ptr->art_flags |= TR_TEMPORARY;
 				o_ptr->timeout = dur;
 
 				/* These objects are "storebought" */
-				o_ptr->ident |= IDENT_MENTAL;
 				o_ptr->number = 1;
 
-				object_aware(o_ptr);
-				object_known(o_ptr);
-				inven_carry(o_ptr, FALSE);
+				inven_carry(o_ptr, false);
 
-				k_allow_special[k_idx] = FALSE;
+				k_info[k_idx]->allow_special = false;
 
 				break;
 			}
@@ -2347,7 +2307,7 @@ void do_cmd_necromancer()
 		/* Damage CON (possibly permanently) */
 		if (rand_int(100) < 50)
 		{
-			bool_ perm = (rand_int(100) < 25);
+			bool perm = (rand_int(100) < 25);
 
 			/* Message */
 			msg_print("You have damaged your body!");
@@ -2373,7 +2333,7 @@ s32b sroot(s32b n)
 
 	if (n < 2) return (n);
 
-	while (1)
+	while (true)
 	{
 		s32b err = (i - n / (i + 1)) / 2;
 
@@ -2422,7 +2382,7 @@ void do_cmd_unbeliever()
 
 
 	/* Select what to do */
-	while (TRUE)
+	while (true)
 	{
 		if (!get_com("Disrupt [C]ontinuum or [D]estroy Doors", &ch))
 		{
@@ -2520,10 +2480,10 @@ void do_cmd_summoner_extract()
 	/* Get the item */
 	object_type *o_ptr = get_object(item);
 
-	bool_ partial;
+	bool partial;
 	if (r_info[o_ptr->pval2].flags & RF_UNIQUE)
 	{
-		partial = FALSE;
+		partial = false;
 	}
 	else
 	{
@@ -2550,10 +2510,7 @@ void do_cmd_summoner_extract()
 	q_ptr->pval2 = 0;
 	q_ptr->number = 1;
 	q_ptr->found = OBJ_FOUND_SELFMADE;
-	object_aware(q_ptr);
-	object_known(q_ptr);
-	q_ptr->ident |= IDENT_MENTAL;
-	inven_carry(q_ptr, FALSE);
+	inven_carry(q_ptr, false);
 
 	msg_print("You extract a totem from the dead corpse.");
 	energy_use += 100;
@@ -2566,7 +2523,7 @@ void summon_true(int r_idx, int item)
 
 	int i, status, x = 1, y = 1, rx, ry = 0, chance;
 
-	bool_ used;
+	bool used;
 
 	auto r_ptr = &r_info[r_idx];
 
@@ -2575,7 +2532,7 @@ void summon_true(int r_idx, int item)
 	if (r_ptr->flags & RF_UNIQUE)
 	{
 		/* Because it's unique, it will always be destroyed */
-		used = TRUE;
+		used = true;
 
 		/* About twice as hard as non-uniques */
 		chance = (get_skill(SKILL_SUMMON) * 70 / (r_ptr->level + 1));
@@ -2595,16 +2552,16 @@ void summon_true(int r_idx, int item)
 	{
 		if (get_skill(SKILL_SUMMON) == 0)
 		{
-			used = TRUE;
+			used = true;
 		}
 		else
 		{
 			/* It can be used multiple times */
-			used = FALSE;
+			used = false;
 
 			/* But it is not 100% sure (note: skill > 0) */
 			chance = (r_ptr->level * 25 / get_skill(SKILL_SUMMON));
-			if (magik(chance)) used = TRUE;
+			if (magik(chance)) used = true;
 		}
 
 		chance = (get_skill(SKILL_SUMMON) * 130 / (r_ptr->level + 1));
@@ -2640,8 +2597,8 @@ void summon_true(int r_idx, int item)
 	}
 
 	/* Summon the monster */
-	bypass_r_ptr_max_num = TRUE;
-	if (!(i = place_monster_one (y, x, r_idx, 0, 0, status)))
+	bypass_r_ptr_max_num = true;
+	if (!(i = place_monster_one (y, x, r_idx, 0, false, status)))
 	{
 		msg_print("The summoning fails.");
 	}
@@ -2650,7 +2607,7 @@ void summon_true(int r_idx, int item)
 		m_list[i].status = status;
 		m_list[i].mflag |= MFLAG_NO_DROP;
 	}
-	bypass_r_ptr_max_num = FALSE;
+	bypass_r_ptr_max_num = false;
 
 	/* Destroy the totem if the used flag is set */
 	if (used)
@@ -2658,9 +2615,6 @@ void summon_true(int r_idx, int item)
 		/* Eliminate the totem */
 		inc_stack_size(item, -1);
 	}
-
-	/* Done */
-	return;
 }
 
 
@@ -2668,7 +2622,8 @@ void do_cmd_summoner_summon()
 {
 	int item, x = 1, y = 1, rx, ry, m_idx = 0, i;
 
-	cptr q, s;
+	const char *q;
+	const char *s;
 
 	monster_type *m_ptr;
 
@@ -2714,10 +2669,10 @@ void do_cmd_summoner_summon()
 	}
 
 	/* Summon the monster */
-	bypass_r_ptr_max_num = TRUE;
-	place_monster_one_no_drop = TRUE;
-	m_idx = place_monster_one(y, x, o_ptr->pval, 0, 0, MSTATUS_PET);
-	bypass_r_ptr_max_num = FALSE;
+	bypass_r_ptr_max_num = true;
+	place_monster_one_no_drop = true;
+	m_idx = place_monster_one(y, x, o_ptr->pval, 0, false, MSTATUS_PET);
+	bypass_r_ptr_max_num = false;
 
 	/* Failure. */
 	if (!m_idx)
@@ -2766,7 +2721,7 @@ void do_cmd_summoner()
 	}
 
 	/* Select what to do */
-	while (TRUE)
+	while (true)
 	{
 		if (!get_com("[E]xtract a totem, [S]ummon", &ch))
 		{
@@ -2839,8 +2794,6 @@ void use_ability_blade()
 	{
 		msg_format("You will usually dodge successfully a level %d monster.", dun_level);
 	}
-
-	return;
 }
 
 /*
@@ -2996,8 +2949,6 @@ void do_cmd_symbiotic()
 						object_aware(q_ptr);
 						object_known(q_ptr);
 
-						q_ptr->ident |= IDENT_STOREB;
-
 						drop_near(q_ptr, 0, y, x);
 
 						delete_monster(y, x);
@@ -3042,19 +2993,18 @@ void do_cmd_symbiotic()
 
 				if (d >= 100) return;
 
-				if ((m_idx = place_monster_one(y, x, o_ptr->pval, 0, FALSE, MSTATUS_PET)) == 0) return;
+				if ((m_idx = place_monster_one(y, x, o_ptr->pval, 0, false, MSTATUS_PET)) == 0) return;
 
-				/* TODO fix this hack hack hack hackity hack with ToME 3 flags */
 				/* Have to be careful here; releasing the symbiote into a
-                 * dungeon with leveled monsters will level the symbiote
-                 * before we can get hold of it. We'll be nice and use the
-                 * larger of the saved exp and the exp that the newly-generated
-                 * monster starts with. */
+				* dungeon with leveled monsters will level the symbiote
+				* before we can get hold of it. We'll be nice and use the
+				* larger of the saved exp and the exp that the newly-generated
+				* monster starts with. */
 				m_ptr = &m_list[m_idx];
 				if (m_ptr->exp < o_ptr->exp)
 				{
 					m_ptr->exp = o_ptr->exp;
-					monster_check_experience(m_idx, TRUE);
+					monster_check_experience(m_idx, true);
 					if (m_ptr->level != o_ptr->elevel)
 						cmsg_format(TERM_VIOLET, "ERROR: level-%d HYPNOS becomes level-%d symbiote", o_ptr->elevel, m_ptr->level);
 				}
@@ -3084,7 +3034,7 @@ void do_cmd_symbiotic()
 			{
 				s32b percent1, percent2;
 
-				if (!o_ptr->k_idx)
+				if (!o_ptr->k_ptr)
 				{
 					msg_print("You are not in symbiosis.");
 					break;
@@ -3115,7 +3065,7 @@ void do_cmd_symbiotic()
 			/* Minor Symbiotic Powers */
 		case 4:
 			{
-				if (!o_ptr->k_idx)
+				if (!o_ptr->k_ptr)
 				{
 					msg_print("You are not in symbiosis.");
 					break;
@@ -3130,17 +3080,20 @@ void do_cmd_symbiotic()
 			/* Heal Symbiote */
 		case 5:
 			{
-				int hp;
-
-				if (!o_ptr->k_idx)
+				if (!o_ptr->k_ptr)
 				{
 					msg_print("You are not in symbiosis.");
 					break;
 				}
 
-				hp = o_ptr->pval3 * (15 + get_skill_scale(SKILL_SYMBIOTIC, 35)) / 100;
+				int const hp =
+					o_ptr->pval3 * (15 + get_skill_scale(SKILL_SYMBIOTIC, 35)) / 100;
+
 				o_ptr->pval2 += hp;
-				if (o_ptr->pval2 > o_ptr->pval3) o_ptr->pval2 = o_ptr->pval3;
+				if (o_ptr->pval2 > o_ptr->pval3)
+				{
+					o_ptr->pval2 = o_ptr->pval3;
+				}
 
 				msg_format("%s is healed.", symbiote_name(true).c_str());
 
@@ -3154,13 +3107,13 @@ void do_cmd_symbiotic()
 			/* Major Symbiotic Powers */
 		case 6:
 			{
-				if (!o_ptr->k_idx)
+				if (!o_ptr->k_ptr)
 				{
 					msg_print("You are not in symbiosis.");
 					break;
 				}
 
-				if(0 > use_symbiotic_power(o_ptr->pval, true))
+				if (0 > use_symbiotic_power(o_ptr->pval, true))
 					return;
 
 				break;
@@ -3169,7 +3122,7 @@ void do_cmd_symbiotic()
 			/* Summon never-moving pet */
 		case 7:
 			{
-				summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_MINE, FALSE);
+				summon_specific_friendly(p_ptr->py, p_ptr->px, dun_level, SUMMON_MINE, false);
 
 				break;
 			}
@@ -3228,7 +3181,7 @@ void do_cmd_symbiotic()
 		/* Damage CON (possibly permanently) */
 		if (rand_int(100) < 50)
 		{
-			bool_ perm = (rand_int(100) < 25);
+			bool perm = (rand_int(100) < 25);
 
 			/* Message */
 			msg_print("You have damaged your body!");
@@ -3275,13 +3228,10 @@ void do_cmd_create_boulder()
 		/* Hack -- Give the player some shots */
 		object_prep(q_ptr, lookup_kind(TV_JUNK, SV_BOULDER));
 		q_ptr->number = (byte)rand_range(2, 5);
-		object_aware(q_ptr);
-		object_known(q_ptr);
-		q_ptr->ident |= IDENT_MENTAL;
 		q_ptr->discount = 90;
 		q_ptr->found = OBJ_FOUND_SELFMADE;
 
-		inven_carry(q_ptr, FALSE);
+		inven_carry(q_ptr, false);
 
 		msg_print("You make some boulders.");
 
