@@ -9,7 +9,10 @@
 #include "xtra1.hpp"
 #include "z-rand.hpp"
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <cassert>
+
+using boost::algorithm::equals;
 
 /**
  * Mimicry forms
@@ -25,11 +28,11 @@ typedef struct mimic_form_type mimic_form_type;
 struct mimic_form_type
 {
 	int modules[3]; /* Modules where this mimicry form is available; terminated with a -1 entry */
-	cptr name;     /* Name of mimicry form */
-	cptr obj_name; /* Object mimicry form name */
-	cptr desc;     /* Description */
-	cptr realm;    /* Realm of mimicry */
-	bool_ limit;   /* If true, the form is not available except through special means */
+	const char *name;     /* Name of mimicry form */
+	const char *obj_name; /* Object mimicry form name */
+	const char *desc;     /* Description */
+	const char *realm;    /* Realm of mimicry */
+	bool limit;   /* If true, the form is not available except through special means */
 	byte level;
 	byte rarity;
 	mimic_duration_type duration;
@@ -73,13 +76,13 @@ static void mouse_power()
 {
 	if (p_ptr->mimic_level >= 30)
 	{
-		p_ptr->powers[POWER_INVISIBILITY] = TRUE;
+		p_ptr->powers.insert(POWER_INVISIBILITY);
 	}
 }
 
 static s32b eagle_calc()
 {
-	p_ptr->ffall = TRUE;
+	p_ptr->ffall = true;
 	p_ptr->pspeed = p_ptr->pspeed + 2 + (p_ptr->mimic_level / 6);
 
 	p_ptr->stat_add[A_STR] += -3;
@@ -175,7 +178,7 @@ static void spider_power()
 {
 	if (p_ptr->mimic_level >= 25)
 	{
-		p_ptr->powers[POWER_WEB] = TRUE;
+		p_ptr->powers.insert(POWER_WEB);
 	}
 }
 
@@ -205,7 +208,7 @@ static s32b ent_calc()
 
 static void ent_power()
 {
-	p_ptr->powers[PWR_GROW_TREE] = TRUE;
+	p_ptr->powers.insert(PWR_GROW_TREE);
 }
 
 static s32b vapour_calc()
@@ -417,7 +420,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		"Abominable Cloak",
 		"Abominations are failed experiments of powerful wizards.",
 		NULL /* no realm */,
-		FALSE,
+		false,
 		1, 101, {20, 100},
 		abomination_calc,
 		NULL,
@@ -433,7 +436,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		"Mouse Fur",
 		"Mice are small, fast and very stealthy",
 		"nature",
-		FALSE,
+		false,
 		1, 10, {20, 40},
 		mouse_calc,
 		mouse_power,
@@ -445,7 +448,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		"Feathers Cloak",
 		"Eagles are master of the air, good hunters with excellent vision.",
 		"nature",
-		FALSE,
+		false,
 		10, 30, {10, 50},
 		eagle_calc,
 		NULL,
@@ -457,7 +460,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		"Feathered Cloak",
 		"Eagles are master of the air, good hunters with excellent vision.",
 		"nature",
-		FALSE,
+		false,
 		10, 30, {10, 50},
 		eagle_calc,
 		NULL,
@@ -469,7 +472,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		"Wolf Pelt",
 		"Wolves are masters of movement, strong and have excellent eyesight.",
 		"nature",
-		FALSE,
+		false,
 		20, 40, {10, 50},
 		wolf_calc,
 		NULL,
@@ -481,7 +484,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		"Spider Web",
 		"Spiders are clever and become good climbers.",
 		"nature",
-		FALSE,
+		false,
 		25, 50, {10, 50},
 		spider_calc,
 		spider_power,
@@ -493,7 +496,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		"Entish Bark",
 		"Ents are powerful tree-like beings dating from the dawn of time.",
 		"nature",
-		TRUE,
+		true,
 		40, 60, {10, 30},
 		ent_calc,
 		ent_power,
@@ -505,7 +508,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		"Cloak of Mist",
 		"A sentient cloud, darting around",
 		"nature",
-		FALSE,
+		false,
 		15, 10, {10, 40},
 		vapour_calc,
 		NULL,
@@ -517,7 +520,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		"Snakeskin Cloak",
 		"Serpents are fast, lethal predators.",
 		"nature",
-		FALSE,
+		false,
 		30, 25, {15, 20},
 		serpent_calc,
 		NULL,
@@ -529,7 +532,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		"Mumak Hide",
 		"A giant, elaphantine form.",
 		"nature",
-		FALSE,
+		false,
 		40, 40, {15, 20},
 		mumak_calc,
 		NULL,
@@ -545,7 +548,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		NULL,
 		"A fierce, terrible bear.",
 		NULL /* no realm */,
-		TRUE,
+		true,
 		1, 101, {50, 200},
 		bear_calc,
 		NULL,
@@ -557,7 +560,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		NULL,
 		"A corrupted maia.",
 		NULL /* no realm */,
-		TRUE,
+		true,
 		1, 101, {30, 70},
 		balrog_calc,
 		NULL,
@@ -569,7 +572,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		NULL,
 		"A near god-like being.",
 		NULL /* no realm */,
-		TRUE,
+		true,
 		1, 101, {30, 70},
 		maia_calc,
 		NULL,
@@ -581,7 +584,7 @@ static mimic_form_type mimic_forms[MIMIC_FORMS_MAX] =
 		NULL,
 		"A towering column of flames",
 		NULL /* no realm */,
-		TRUE,
+		true,
 		1, 101, {10, 10},
 		fire_elemental_calc,
 		NULL,
@@ -598,11 +601,11 @@ static bool mimic_form_enabled(mimic_form_type const *f)
 	{
 		if (f->modules[i] == game_module_idx)
 		{
-			return TRUE;
+			return true;
 		}
 	}
 
-	return FALSE;
+	return false;
 }
 
 /*
@@ -618,12 +621,12 @@ static mimic_form_type *get_mimic_form(int mf_idx)
 /*
  * Find a mimic by name
  */
-s16b resolve_mimic_name(cptr name)
+s16b resolve_mimic_name(const char *name)
 {
 	for (s16b i = 0; i < MIMIC_FORMS_MAX; i++)
 	{
 		auto const mf_ptr = get_mimic_form(i);
-		if (mimic_form_enabled(mf_ptr) && streq(mf_ptr->name, name))
+		if (mimic_form_enabled(mf_ptr) && equals(mf_ptr->name, name))
 		{
 			return i;
 		}
@@ -635,7 +638,7 @@ s16b resolve_mimic_name(cptr name)
 /*
  * Find a random mimic form
  */
-s16b find_random_mimic_shape(byte level, bool_ limit)
+s16b find_random_mimic_shape(byte level, bool limit)
 {
 	int tries = 1000;
 
@@ -666,7 +669,7 @@ s16b find_random_mimic_shape(byte level, bool_ limit)
 /*
  * Get mimic name
  */
-cptr get_mimic_name(s16b mf_idx)
+const char *get_mimic_name(s16b mf_idx)
 {
 	return get_mimic_form(mf_idx)->name;
 }
@@ -674,7 +677,7 @@ cptr get_mimic_name(s16b mf_idx)
 /*
  * Get mimic object name
  */
-cptr get_mimic_object_name(s16b mf_idx)
+const char *get_mimic_object_name(s16b mf_idx)
 {
 	return get_mimic_form(mf_idx)->obj_name;
 }

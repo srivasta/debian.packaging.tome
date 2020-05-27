@@ -1,12 +1,13 @@
 #include "loadsave.hpp"
-#include "loadsave.h"
 
 #include "artifact_type.hpp"
 #include "birth.hpp"
 #include "cave_type.hpp"
 #include "dungeon_info_type.hpp"
 #include "ego_item_type.hpp"
+#include "files.hpp"
 #include "game.hpp"
+#include "hooks.hpp"
 #include "init1.hpp"
 #include "init2.hpp"
 #include "levels.hpp"
@@ -24,24 +25,24 @@
 #include "player_race.hpp"
 #include "player_race_mod.hpp"
 #include "player_type.hpp"
-#include "hooks.hpp"
 #include "skill_type.hpp"
 #include "store_type.hpp"
 #include "tables.hpp"
 #include "timer_type.hpp"
 #include "town_type.hpp"
 #include "util.hpp"
-#include "util.h"
 #include "wilderness_map.hpp"
-#include "variable.h"
 #include "variable.hpp"
 #include "xtra2.hpp"
 #include "z-rand.hpp"
 
 #include <boost/filesystem.hpp>
 #include <cassert>
+#include <fcntl.h>
 #include <fmt/format.h>
 #include <memory>
+
+namespace fs = boost::filesystem;
 
 static u32b vernum; /* Version flag */
 static FILE *fff; 	/* Local savefile ptr */
@@ -51,7 +52,7 @@ static FILE *fff; 	/* Local savefile ptr */
  *
  * Avoid the top two lines, to avoid interference with "msg_print()".
  */
-static void note(cptr msg)
+static void note(const char *msg)
 {
 	static int y = 2;
 
@@ -80,7 +81,7 @@ namespace {
 
 struct option_value {
 	std::string name;
-	bool_ value;
+	bool value;
 };
 
 } // namespace (anonymous)
@@ -131,16 +132,6 @@ static void do_byte(byte *v, ls_flag_t flag)
 static void do_char(char *c, ls_flag_t flag)
 {
 	do_byte((byte *) c, flag);
-}
-
-static void do_bool(bool_ *f, ls_flag_t flag)
-{
-	byte b = *f;
-	do_byte(&b, flag);
-	if (flag == ls_flag_t::LOAD)
-	{
-		*f = b;
-	}
 }
 
 static void do_std_bool(bool *x, ls_flag_t flag)
@@ -216,6 +207,23 @@ static void do_s32b(s32b *ip, ls_flag_t flag)
 	do_u32b((u32b *)ip, flag);
 }
 
+static void do_int(int *sz, ls_flag_t flag)
+{
+	u32b x;
+
+	if (flag == ls_flag_t::SAVE)
+	{
+		x = *sz;
+	}
+
+	do_u32b(&x, flag);
+
+	if (flag == ls_flag_t::LOAD)
+	{
+		*sz = x;
+	}
+}
+
 static void save_std_string(std::string const *s)
 {
 	// Length prefix.
@@ -264,7 +272,7 @@ static void do_std_string(std::string &s, ls_flag_t flag)
 static void do_option_value(option_value *option_value, ls_flag_t flag)
 {
 	do_std_string(option_value->name, flag);
-	do_bool(&option_value->value, flag);
+	do_std_bool(&option_value->value, flag);
 }
 
 
@@ -322,6 +330,96 @@ template<typename A, typename F> void do_array(std::string const &what, ls_flag_
 	}
 }
 
+template<typename M, typename FK, typename FV> void do_fixed_map(ls_flag_t flag, M &map, FK fk, FV fv)
+{
+	// Since our file format is currently quite inflexible, we'll
+	// have to prefix with the size of the map and store everything
+	// as key-value pairs.
+	u32b n = map.size();
+	do_u32b(&n, flag);
+
+	if (flag == ls_flag_t::LOAD)
+	{
+		// Read each of the n entries. We ignore data for keys
+		// which no longer exist. This is pretty common if e.g.
+		// game data gets removed.
+		for (std::size_t i = 0; i < n; i++)
+		{
+			// Read key
+			typename M::key_type key;
+			fk(&key, flag);
+			// If the key is present, we'll update the value
+			// by reading. Otherwise just read into a dummy
+			// value.
+			if (map.count(key))
+			{
+				fv(map.at(key), flag);
+			}
+			else
+			{
+				typename M::mapped_type v;
+				fv(v, flag);
+			}
+		}
+	}
+
+	if (flag == ls_flag_t::SAVE)
+	{
+		// Write each of the n entries.
+		for (auto &entry: map)
+		{
+			auto key = entry.first;
+			auto value = entry.second;
+			fk(&key, flag);
+			fv(value, flag);
+		}
+	}
+}
+
+template<typename S, typename F> void do_unordered_set(ls_flag_t flag, S &set, F f)
+{
+	// Since our file format is currently quite inflexible, we'll
+	// have to prefix with the size of the set.
+	u32b n = set.size();
+	do_u32b(&n, flag);
+
+	if (flag == ls_flag_t::LOAD)
+	{
+		// Read each of the n entries.
+		for (std::size_t i = 0; i < n; i++)
+		{
+			// Read entry
+			typename S::key_type key;
+			f(&key, flag);
+
+			// Insert into set
+			set.insert(key);
+		}
+	}
+
+	if (flag == ls_flag_t::SAVE)
+	{
+		// We must copy out the entries because the 'f' function
+		// takes a non-const argument (for loading) and the fact
+		// that iterating through the set only allows us 'const'
+		// access to the keys. (We could cast away the const, but
+		// that might lead to accidental UB; here the worst case
+		// is that 'f' modifies the keys and has no effect on the
+		// original set.)
+		std::vector<typename S::key_type> keys;
+		std::copy(
+			std::cbegin(set),
+			std::cend(set),
+			std::back_inserter(keys));
+
+		// Write each of the n entries.
+		for (auto &key: keys)
+		{
+			f(&key, flag);
+		}
+	}
+}
+
 static void do_bytes(ls_flag_t flag, std::uint8_t *buf, std::size_t n)
 {
 	for (std::size_t i = 0; i < n; i++)
@@ -344,6 +442,40 @@ static void do_seed(seed_t *seed, ls_flag_t flag)
 	if (flag == ls_flag_t::LOAD)
 	{
 		*seed = seed_t::from_bytes(buf);
+	}
+}
+
+template <typename T, typename F>
+static void do_boost_optional(boost::optional<T> &maybe_v, ls_flag_t flag, F f)
+{
+	if (flag == ls_flag_t::SAVE)
+	{
+		// Size
+		u32b n = maybe_v
+			? 1
+			: 0;
+		do_u32b(&n, flag);
+
+		// Value
+		if (maybe_v)
+		{
+			auto v = *maybe_v;
+			f(&v, flag);
+		}
+	}
+
+	if (flag == ls_flag_t::LOAD)
+	{
+		// Size
+		u32b n;
+		do_u32b(&n, flag);
+
+		// Value
+		while (n-- > 0)
+		{
+			maybe_v.emplace(); // Default-construct in place
+			f(&maybe_v.get(), flag);
+		}
 	}
 }
 
@@ -370,7 +502,7 @@ static void do_quick_start(ls_flag_t flag, birther &previous_char)
 	}
 	do_s16b(&previous_char.luck, flag);
 
-	do_bool(&previous_char.quick_ok, flag);
+	do_std_bool(&previous_char.quick_ok, flag);
 }
 
 static void do_skill_modifier(skill_modifier *s, ls_flag_t flag)
@@ -405,7 +537,7 @@ static void do_subrace(ls_flag_t flag)
 	do_std_string(sr_ptr->title, flag);
 	do_std_string(sr_ptr->description, flag);
 
-	do_bool(&sr_ptr->place, flag);
+	do_std_bool(&sr_ptr->place, flag);
 
 	for (i = 0; i < 6; i++)
 	{
@@ -479,7 +611,7 @@ static void do_level_marker(level_marker *marker, ls_flag_t flag)
 /*
  * Misc. other data
  */
-static bool_ do_extra(ls_flag_t flag)
+static bool do_extra(ls_flag_t flag)
 {
 	auto const &d_info = game->edit_data.d_info;
 	auto &s_info = game->s_info;
@@ -499,7 +631,7 @@ static bool_ do_extra(ls_flag_t flag)
 		{
 			if (tmp8u > d_info.size())
 			{
-				note(format("Too many dungeon types!", static_cast<int>(tmp8u)));
+				note(fmt::format("Too many dungeon types: {:d}", tmp8u).c_str());
 			}
 		}
 
@@ -509,7 +641,7 @@ static bool_ do_extra(ls_flag_t flag)
 		{
 			if (tmp16u > MAX_DUNGEON_DEPTH)
 			{
-				note(format("Too many (%d) max level by dungeon type!", static_cast<int>(tmp16u)));
+				note(fmt::format("Too many max level by dungeon type: {:d}", tmp16u).c_str());
 			}
 		}
 
@@ -625,7 +757,7 @@ static bool_ do_extra(ls_flag_t flag)
 	/* Gods */
 	do_s32b(&p_ptr->grace, flag);
 	do_s32b(&p_ptr->grace_delay, flag);
-	do_bool(&p_ptr->praying, flag);
+	do_std_bool(&p_ptr->praying, flag);
 	do_s16b(&p_ptr->melkor_sacrifice, flag);
 	do_byte(&p_ptr->pgod, flag);
 
@@ -745,16 +877,16 @@ static bool_ do_extra(ls_flag_t flag)
 
 	do_array("corruptions", flag, p_ptr->corruptions, CORRUPTIONS_MAX,
 		[](auto corruption, auto flag) -> void {
-			do_bool(corruption, flag);
+			do_std_bool(corruption, flag);
 		}
 	);
 
-	do_bool(&p_ptr->corrupt_anti_teleport_stopped, flag);
+	do_std_bool(&p_ptr->corrupt_anti_teleport_stopped, flag);
 
 	do_byte(&p_ptr->confusing, flag);
-	do_bool(&p_ptr->black_breath, flag);
-	do_bool(&fate_flag, flag);
-	do_bool(&ambush_flag, flag);
+	do_std_bool(&p_ptr->black_breath, flag);
+	do_std_bool(&fate_flag, flag);
+	do_std_bool(&ambush_flag, flag);
 	do_byte(&p_ptr->allow_one_death, flag);
 
 	do_s16b(&no_breeds, flag);
@@ -767,17 +899,51 @@ static bool_ do_extra(ls_flag_t flag)
 	do_u32b(&p_ptr->necro_extra2, flag);
 
 	do_u16b(&p_ptr->body_monster, flag);
-	do_bool(&p_ptr->disembodied, flag);
+	do_std_bool(&p_ptr->disembodied, flag);
 
 	/* Are we in astral mode? */
-	do_bool(&p_ptr->astral, flag);
+	do_std_bool(&p_ptr->astral, flag);
 
 	// Powers
-	do_array("powers", flag, p_ptr->powers_mod, POWER_MAX,
-		[](auto pwr, auto flag) -> void {
-			do_bool(pwr, flag);
+	do_unordered_set(
+		flag,
+		p_ptr->powers_mod,
+		[](auto *pwr_idx, auto flag) -> void {
+			// Key
+			s32b tmp;
+
+			if (flag == ls_flag_t::SAVE)
+			{
+				tmp = *pwr_idx;
+			}
+
+			do_s32b(&tmp, flag);
+
+			if (flag == ls_flag_t::LOAD)
+			{
+				*pwr_idx = tmp;
+			}
 		}
 	);
+
+	// Fix up any removed powers.
+	if (flag == ls_flag_t::LOAD)
+	{
+		for (auto it = std::begin(p_ptr->powers_mod);
+		     it != std::end(p_ptr->powers_mod); )
+		{
+			if (game->powers.count(*it))
+			{
+				// Exists, skip.
+				++it;
+			}
+			else
+			{
+				// Does not exist, delete.
+				it = p_ptr->powers_mod.erase(it);
+			}
+		}
+	}
 
 	/* The tactic */
 	do_char(&p_ptr->tactic, flag);
@@ -789,7 +955,7 @@ static bool_ do_extra(ls_flag_t flag)
 	do_s16b(&p_ptr->companion_killed, flag);
 
 	/* The fate */
-	do_bool(&p_ptr->no_mortal, flag);
+	do_std_bool(&p_ptr->no_mortal, flag);
 
 	/* Random spells */
 	do_vector(flag, p_ptr->random_spells, do_random_spell);
@@ -803,7 +969,7 @@ static bool_ do_extra(ls_flag_t flag)
 	do_u16b(&noscore, flag);
 
 	/* Write death */
-	do_bool(&death, flag);
+	do_std_bool(&death, flag);
 
 	/* Level feeling */
 	do_s16b(&feeling, flag);
@@ -814,7 +980,7 @@ static bool_ do_extra(ls_flag_t flag)
 	/* Current turn */
 	do_s32b(&turn, flag);
 
-	return TRUE;
+	return true;
 }
 
 
@@ -876,7 +1042,7 @@ static void do_monster(monster_type *m_ptr, ls_flag_t flag)
 /*
  * Determine if an item can be wielded/worn (e.g. helmet, sword, bow, arrow)
  */
-static bool_ wearable_p(object_type *o_ptr)
+static bool wearable_p(object_type *o_ptr)
 {
 	/* Valid "tval" codes */
 	switch (o_ptr->tval)
@@ -916,12 +1082,12 @@ static bool_ wearable_p(object_type *o_ptr)
 	case TV_DAEMON_BOOK:
 	case TV_TOOL:
 		{
-			return (TRUE);
+			return true;
 		}
 	}
 
 	/* Nope */
-	return (FALSE);
+	return false;
 }
 
 
@@ -930,15 +1096,24 @@ static bool_ wearable_p(object_type *o_ptr)
  */
 static void do_item(object_type *o_ptr, ls_flag_t flag)
 {
-	auto &k_info = game->edit_data.k_info;
 	auto &a_info = game->edit_data.a_info;
 	auto &e_info = game->edit_data.e_info;
+	auto &k_info = game->edit_data.k_info;
 
 	byte old_dd;
 	byte old_ds;
 
 	/* Kind */
-	do_s16b(&o_ptr->k_idx, flag);
+	if (flag == ls_flag_t::SAVE)
+	{
+		do_s16b(&o_ptr->k_ptr->idx, flag);
+	}
+	if (flag == ls_flag_t::LOAD)
+	{
+		s16b k_idx;
+		do_s16b(&k_idx, flag);
+		o_ptr->k_ptr = k_info.at(k_idx);
+	}
 
 	/* Location */
 	do_byte(&o_ptr->iy, flag);
@@ -984,7 +1159,7 @@ static void do_item(object_type *o_ptr, ls_flag_t flag)
 		do_byte(&o_ptr->ds, ls_flag_t::SAVE);
 	}
 
-	do_byte(&o_ptr->ident, flag);
+	do_std_bool(&o_ptr->identified, flag);
 
 	do_byte(&o_ptr->marked, flag);
 
@@ -1003,9 +1178,6 @@ static void do_item(object_type *o_ptr, ls_flag_t flag)
 
 	do_byte(&o_ptr->elevel, flag);
 	do_s32b(&o_ptr->exp, flag);
-
-	/* Read the pseudo-id */
-	do_byte(&o_ptr->sense, flag);
 
 	/* Read the found info */
 	do_byte(&o_ptr->found, flag);
@@ -1029,7 +1201,7 @@ static void do_item(object_type *o_ptr, ls_flag_t flag)
 	/*********** END OF ls_flag_t::SAVE ***************/
 
 	/* Obtain the "kind" template */
-	object_kind *k_ptr = &k_info[o_ptr->k_idx];
+	auto k_ptr = o_ptr->k_ptr;
 
 	/* Obtain tval/sval from k_info */
 	o_ptr->tval = k_ptr->tval;
@@ -1073,7 +1245,10 @@ static void do_item(object_type *o_ptr, ls_flag_t flag)
 		e_ptr = &e_info[o_ptr->name2];
 
 		/* Verify that ego-item */
-		if (!e_ptr->name) o_ptr->name2 = 0;
+		if (e_ptr->name.empty())
+		{
+			o_ptr->name2 = 0;
+		}
 	}
 
 
@@ -1122,7 +1297,7 @@ static void do_cave_type(cave_type *c_ptr, ls_flag_t flag)
 	do_s16b(&c_ptr->special2, flag);
 	do_s16b(&c_ptr->inscription, flag);
 	do_byte(&c_ptr->mana, flag);
-	do_s16b(&c_ptr->effect, flag);
+	do_boost_optional(c_ptr->maybe_effect, flag, do_s16b);
 }
 
 static void do_grid(ls_flag_t flag)
@@ -1203,7 +1378,7 @@ static bool do_objects(ls_flag_t flag, bool no_companions)
 			/* Oops */
 			if (i != o_idx)
 			{
-				note(format("Object allocation error (%d <> %d)", i, o_idx));
+				note(fmt::format("Object allocation error ({} <> {})", i, o_idx).c_str());
 				return false;
 			}
 
@@ -1303,7 +1478,7 @@ static bool do_monsters(ls_flag_t flag, bool no_companions)
 			/* Oops */
 			if (i != m_idx)
 			{
-				note(format("Monster allocation error (%d <> %d)", i, m_idx));
+				note(fmt::format("Monster allocation error ({} <> {})", i, m_idx).c_str());
 				return false;
 			}
 
@@ -1350,8 +1525,11 @@ static bool do_monsters(ls_flag_t flag, bool no_companions)
  * The monsters/objects must be loaded in the same order
  * that they were stored, since the actual indexes matter.
  */
-static bool_ do_dungeon(ls_flag_t flag, bool no_companions)
+static bool do_dungeon(ls_flag_t flag, bool no_companions)
 {
+	auto &dungeon_flags = game->dungeon_flags;
+	auto &effects = game->lasting_effects;
+
 	/* Header info */
 	do_s16b(&dun_level, flag);
 	do_byte(&dungeon_type, flag);
@@ -1370,7 +1548,7 @@ static bool_ do_dungeon(ls_flag_t flag, bool no_companions)
 	do_s16b(&last_teleportation_y, flag);
 
 	/* Spell effects */
-	do_array("spell effects", flag, effects, MAX_EFFECTS,
+	do_vector(flag, effects,
 		[](auto effect, auto flag) -> void {
 			do_s16b(&effect->type, flag);
 			do_s16b(&effect->dam, flag);
@@ -1395,14 +1573,14 @@ static bool_ do_dungeon(ls_flag_t flag, bool no_companions)
 		int ystart = 0;
 		/* Init the wilderness */
 		process_dungeon_file("w_info.txt", &ystart, &xstart, cur_hgt, cur_wid,
-				     TRUE, FALSE);
+				     true, false);
 
 		/* Init the town */
 		xstart = 0;
 		ystart = 0;
 		init_flags = 0;
 		process_dungeon_file("t_info.txt", &ystart, &xstart, cur_hgt, cur_wid,
-				     TRUE, FALSE);
+				     true, false);
 	}
 
 	do_grid(flag);
@@ -1410,44 +1588,45 @@ static bool_ do_dungeon(ls_flag_t flag, bool no_companions)
 	/*** Objects ***/
 	if (!do_objects(flag, no_companions))
 	{
-		return FALSE;
+		return false;
 	}
 
 	/*** Monsters ***/
 	if (!do_monsters(flag, no_companions))
 	{
-		return FALSE;
+		return false;
 	}
 
 	/*** Success ***/
 
 	/* The dungeon is ready */
-	if (flag == ls_flag_t::LOAD) character_dungeon = TRUE;
+	if (flag == ls_flag_t::LOAD)
+	{
+		character_dungeon = true;
+	}
 
 	/* Success */
-	return (TRUE);
+	return true;
 }
 
 /* Save the current persistent dungeon -SC- */
 void save_dungeon()
 {
-	char tmp[16];
-	char name[1024], buf[5];
+	if (!dun_level)
+	{
+		return;
+	}
 
-	/* Save only persistent dungeons */
-	if (!get_dungeon_save(buf) || (!dun_level)) return;
+	if (auto ext = get_dungeon_save_extension())
+	{
+		/* Open the file */
+		fff = my_fopen(name_file_dungeon_save(*ext).c_str(), "wb");
 
-	/* Construct filename */
-	sprintf(tmp, "%s.%s", game->player_base.c_str(), buf);
-	path_build(name, 1024, ANGBAND_DIR_SAVE, tmp);
+		/* Save the dungeon */
+		do_dungeon(ls_flag_t::SAVE, true);
 
-	/* Open the file */
-	fff = my_fopen(name, "wb");
-
-	/* Save the dungeon */
-	do_dungeon(ls_flag_t::SAVE, true);
-
-	my_fclose(fff);
+		my_fclose(fff);
+	}
 }
 
 
@@ -1510,11 +1689,6 @@ static void do_randomizer(ls_flag_t flag)
 	if (flag == ls_flag_t::LOAD)
 	{
 		set_complex_rng_state(state);
-	}
-
-	/* Accept */
-	if (flag == ls_flag_t::LOAD)
-	{
 		set_complex_rng();
 	}
 }
@@ -1547,16 +1721,16 @@ static void do_options(ls_flag_t flag)
 	do_byte(&options->hitpoint_warn, flag);
 
 	/*** Cheating options ***/
-	do_bool(&wizard, flag);
-	do_bool(&options->cheat_peek, flag);
-	do_bool(&options->cheat_hear, flag);
-	do_bool(&options->cheat_room, flag);
-	do_bool(&options->cheat_xtra, flag);
-	do_bool(&options->cheat_live, flag);
+	do_std_bool(&wizard, flag);
+	do_std_bool(&options->cheat_peek, flag);
+	do_std_bool(&options->cheat_hear, flag);
+	do_std_bool(&options->cheat_room, flag);
+	do_std_bool(&options->cheat_xtra, flag);
+	do_std_bool(&options->cheat_live, flag);
 
 	/*** Autosave options */
-	do_bool(&options->autosave_l, flag);
-	do_bool(&options->autosave_t, flag);
+	do_std_bool(&options->autosave_l, flag);
+	do_std_bool(&options->autosave_t, flag);
 	do_s16b(&options->autosave_freq, flag);
 
 	// Standard options
@@ -1679,7 +1853,7 @@ static void do_options(ls_flag_t flag)
  * Handle player inventory. Note that the inventory is
  * "re-sorted" later by "dungeon()".
  */
-static bool_ do_inventory(ls_flag_t flag)
+static bool do_inventory(ls_flag_t flag)
 {
 	auto const &a_info = game->edit_data.a_info;
 
@@ -1695,7 +1869,7 @@ static bool_ do_inventory(ls_flag_t flag)
 		equip_cnt = 0;
 
 		/* Read until done */
-		while (1)
+		while (true)
 		{
 			u16b n;
 
@@ -1715,7 +1889,7 @@ static bool_ do_inventory(ls_flag_t flag)
 			do_item(q_ptr, ls_flag_t::LOAD);
 
 			/* Hack -- verify item */
-			if (!q_ptr->k_idx) return (FALSE);
+			if (!q_ptr->k_ptr) return false;
 
 			/* Wield equipment */
 			if (n >= INVEN_WIELD)
@@ -1726,7 +1900,7 @@ static bool_ do_inventory(ls_flag_t flag)
 				/* Take care of item sets */
 				if (q_ptr->name1)
 				{
-					wield_set(q_ptr->name1, a_info[q_ptr->name1].set, TRUE);
+					wield_set(q_ptr->name1, a_info[q_ptr->name1].set, true);
 				}
 
 				/* One more item */
@@ -1740,7 +1914,7 @@ static bool_ do_inventory(ls_flag_t flag)
 				note("Too many items in the inventory!");
 
 				/* Fail */
-				return (FALSE);
+				return false;
 			}
 
 			/* Carry inventory */
@@ -1762,7 +1936,7 @@ static bool_ do_inventory(ls_flag_t flag)
 		for (u16b i = 0; i < INVEN_TOTAL; i++)
 		{
 			object_type *o_ptr = &p_ptr->inventory[i];
-			if (!o_ptr->k_idx) continue;
+			if (!o_ptr->k_ptr) continue;
 			do_u16b(&i, flag);
 			do_item(o_ptr, flag);
 		}
@@ -1771,7 +1945,7 @@ static bool_ do_inventory(ls_flag_t flag)
 		do_u16b(&sent, ls_flag_t::SAVE);
 	}
 	/* Success */
-	return (TRUE);
+	return true;
 }
 
 
@@ -1813,28 +1987,22 @@ static void do_messages(ls_flag_t flag)
 	}
 }
 
-/* Returns TRUE if we successfully load the dungeon */
-bool_ load_dungeon(char *ext)
+/* Returns true if we successfully load the dungeon */
+bool load_dungeon(std::string const &ext)
 {
-	char tmp[16];
-	char name[1024];
 	byte old_dungeon_type = dungeon_type;
 	s16b old_dun = dun_level;
 
-	/* Construct name */
-	sprintf(tmp, "%s.%s", game->player_base.c_str(), ext);
-	path_build(name, 1024, ANGBAND_DIR_SAVE, tmp);
-
 	/* Open the file */
-	fff = my_fopen(name, "rb");
+	fff = my_fopen(name_file_dungeon_save(ext).c_str(), "rb");
 
-	if (fff == NULL)
+	if (fff == nullptr)
 	{
 		dun_level = old_dun;
 		dungeon_type = old_dungeon_type;
 
 		my_fclose(fff);
-		return (FALSE);
+		return false;
 	}
 
 	/* Read the dungeon */
@@ -1844,7 +2012,7 @@ bool_ load_dungeon(char *ext)
 		dungeon_type = old_dungeon_type;
 
 		my_fclose(fff);
-		return (FALSE);
+		return false;
 	}
 
 	dun_level = old_dun;
@@ -1852,7 +2020,7 @@ bool_ load_dungeon(char *ext)
 
 	/* Done */
 	my_fclose(fff);
-	return (TRUE);
+	return true;
 }
 
 /*
@@ -1925,7 +2093,7 @@ static bool do_monster_lore(ls_flag_t flag)
 		[](auto r_ptr, auto flag) -> void {
 			do_s16b(&r_ptr->r_pkills, flag);
 			do_s16b(&r_ptr->max_num, flag);
-			do_bool(&r_ptr->on_saved, flag);
+			do_std_bool(&r_ptr->on_saved, flag);
 		}
 	);
 
@@ -1940,11 +2108,10 @@ static bool do_object_lore(ls_flag_t flag)
 {
 	auto &k_info = game->edit_data.k_info;
 
-	do_array("object kinds", flag, k_info, k_info.size(),
-		[](auto k_ptr, auto flag) -> void {
-			do_bool(&k_ptr->aware, flag);
-			do_bool(&k_ptr->tried, flag);
-			do_bool(&k_ptr->artifact, flag);
+	do_fixed_map(flag, k_info, do_int,
+		[](std::shared_ptr<object_kind> k_ptr, auto flag) -> void {
+			do_std_bool(&k_ptr->aware, flag);
+			do_std_bool(&k_ptr->artifact, flag);
 		}
 	);
 
@@ -1983,7 +2150,7 @@ static bool do_towns(ls_flag_t flag)
 	{
 		auto town = &town_info[i];
 
-		do_bool(&town->destroyed, flag);
+		do_std_bool(&town->destroyed, flag);
 
 		if (i >= TOWN_RANDOM)
 		{
@@ -2045,7 +2212,7 @@ static bool do_quests(ls_flag_t flag)
 				do_s32b(&quest_data, flag);
 			}
 			// Initialize if necessary
-			if ((flag == ls_flag_t::LOAD) && (q->init != NULL))
+			if ((flag == ls_flag_t::LOAD) && (q->init != nullptr))
 			{
 				q->init();
 			}
@@ -2062,8 +2229,8 @@ static bool do_wilderness(ls_flag_t flag)
 	// Player position and "mode" wrt. wilderness
 	do_s32b(&p_ptr->wilderness_x, flag);
 	do_s32b(&p_ptr->wilderness_y, flag);
-	do_bool(&p_ptr->wild_mode, flag);
-	do_bool(&p_ptr->old_wild_mode, flag);
+	do_std_bool(&p_ptr->wild_mode, flag);
+	do_std_bool(&p_ptr->old_wild_mode, flag);
 
 	// Size of the wilderness
 	u16b wild_x_size = wilderness.width();
@@ -2088,7 +2255,7 @@ static bool do_wilderness(ls_flag_t flag)
 			auto w = &wilderness(x, y);
 			do_seed(&w->seed, flag);
 			do_u16b(&w->entrance, flag);
-			do_bool(&w->known, flag);
+			do_std_bool(&w->known, flag);
 		}
 	}
 
@@ -2139,7 +2306,7 @@ static bool do_fates(ls_flag_t flag)
 			do_s16b(&fate->r_idx, flag);
 			do_s16b(&fate->count, flag);
 			do_s16b(&fate->time, flag);
-			do_bool(&fate->know, flag);
+			do_std_bool(&fate->know, flag);
 		}
 	);
 
@@ -2174,7 +2341,7 @@ static bool do_player_hd(ls_flag_t flag)
 /*
  * Actually read the savefile
  */
-static bool_ do_savefile_aux(ls_flag_t flag)
+static bool do_savefile_aux(ls_flag_t flag)
 {
 	auto &class_info = game->edit_data.class_info;
 	auto const &race_info = game->edit_data.race_info;
@@ -2186,7 +2353,7 @@ static bool_ do_savefile_aux(ls_flag_t flag)
 		if (vernum != SAVEFILE_VERSION)
 		{
 			note("Incompatible save file version");
-			return FALSE;
+			return false;
 		}
 	}
 
@@ -2222,7 +2389,7 @@ static bool_ do_savefile_aux(ls_flag_t flag)
 				note(fmt::format("Bad game module. Savefile was saved with module '{:s}' but game is '{:s}'.",
 					loaded_game_module,
 					game_module).c_str());
-				return FALSE;
+				return false;
 			}
 		}
 	}
@@ -2234,7 +2401,7 @@ static bool_ do_savefile_aux(ls_flag_t flag)
 	do_randomizer(flag);
 
 	/* Automatizer state */
-	do_bool(&automatizer_enabled, flag);
+	do_std_bool(&automatizer_enabled, flag);
 
 	/* Then the options */
 	do_options(flag);
@@ -2244,57 +2411,57 @@ static bool_ do_savefile_aux(ls_flag_t flag)
 
 	if (!do_monster_lore(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (!do_object_lore(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (!do_towns(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (!do_quests(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (!do_wilderness(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (!do_randarts(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (!do_artifacts(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (!do_fates(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (!do_floor_inscriptions(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (!do_extra(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (!do_player_hd(flag))
 	{
-		return FALSE;
+		return false;
 	}
 
 	if (flag == ls_flag_t::LOAD)
@@ -2321,7 +2488,7 @@ static bool_ do_savefile_aux(ls_flag_t flag)
 		if (flag == ls_flag_t::LOAD)
 		{
 			note("Unable to read inventory");
-			return FALSE;
+			return false;
 		}
 	}
 
@@ -2340,7 +2507,7 @@ static bool_ do_savefile_aux(ls_flag_t flag)
 		if ((flag == ls_flag_t::LOAD) && (!do_dungeon(ls_flag_t::LOAD, false)))
 		{
 			note("Error reading dungeon data");
-			return FALSE;
+			return false;
 		}
 
 		if (flag == ls_flag_t::SAVE)
@@ -2350,7 +2517,7 @@ static bool_ do_savefile_aux(ls_flag_t flag)
 	}
 
 	/* Success */
-	return TRUE;
+	return true;
 }
 
 
@@ -2363,7 +2530,7 @@ static errr rd_savefile()
 	errr err = 0;
 
 	/* The savefile is a binary file */
-	fff = my_fopen(savefile, "rb");
+	fff = my_fopen(name_file_save().c_str(), "rb");
 
 	/* Paranoia */
 	if (!fff) return ( -1);
@@ -2390,47 +2557,52 @@ static errr rd_savefile()
  * the player loads a savefile belonging to someone else, and then is not
  * allowed to save his game when he quits.
  *
- * We return "TRUE" if the savefile was usable, and we set the global
+ * We return "true" if the savefile was usable, and we set the global
  * flag "character_loaded" if a real, living, character was loaded.
  *
  * Note that we always try to load the "current" savefile, even if
  * there is no such file, so we must check for "empty" savefile names.
  */
-bool_ load_player()
+bool load_player(program_args const &args)
 {
 	errr err = 0;
 
-	cptr what = "generic";
+	const char *what = "generic";
 
 	/* Paranoia */
 	turn = 0;
 
 	/* Paranoia */
-	death = FALSE;
+	death = false;
 
+	/* Save file */
+	auto savefile = name_file_save();
 
 	/* Allow empty savefile name */
-	if (!savefile[0]) return (TRUE);
+	if (savefile.empty())
+	{
+		return true;
+	}
 
 
 	/* XXX XXX XXX Fix this */
 
 	/* Verify the existance of the savefile */
-	if (!boost::filesystem::exists(savefile))
+	if (!fs::exists(savefile))
 	{
 		/* Give a message */
-		msg_format("Savefile does not exist: %s", savefile);
-		msg_print(NULL);
+		msg_format("Savefile does not exist: %s", savefile.c_str());
+		msg_print(nullptr);
 
 		/* Allow this */
-		return (TRUE);
+		return true;
 	}
 
 	/* Okay */
 	if (!err)
 	{
 		/* Open the savefile */
-		int fd = fd_open(savefile, O_RDONLY);
+		int fd = fd_open(savefile.c_str(), O_RDONLY);
 
 		/* No file */
 		if (fd < 0) err = -1;
@@ -2446,7 +2618,7 @@ bool_ load_player()
 	if (!err)
 	{
 		/* Open the file XXX XXX XXX XXX Should use Angband file interface */
-		fff = my_fopen(savefile, "rb");
+		fff = my_fopen(savefile.c_str(), "rb");
 
 		/* Read the first four bytes */
 		do_u32b(&vernum, ls_flag_t::LOAD);
@@ -2486,27 +2658,27 @@ bool_ load_player()
 		if (death)
 		{
 			/* Player is no longer "dead" */
-			death = FALSE;
+			death = false;
 
 			/* Cheat death (unless the character retired) */
-			if (arg_wizard && !total_winner)
+			if (args.wizard && !total_winner)
 			{
 				/* A character was loaded */
-				character_loaded = TRUE;
+				character_loaded = true;
 
 				/* Done */
-				return (TRUE);
+				return true;
 			}
 
 			/* Forget turns */
 			turn = old_turn = 0;
 
 			/* Done */
-			return (TRUE);
+			return true;
 		}
 
 		/* A character was loaded */
-		character_loaded = TRUE;
+		character_loaded = true;
 
 		/* Still alive */
 		if (p_ptr->chp >= 0)
@@ -2516,17 +2688,17 @@ bool_ load_player()
 		}
 
 		/* Success */
-		return (TRUE);
+		return true;
 	}
 
 
 	/* Message */
-	msg_format("Error (%s) reading savefile (version " FMTu32b ").",
-		   what, vernum);
-	msg_print(NULL);
+	msg_print(fmt::format("Error ({}) reading savefile (version {}).",
+		what, vernum));
+	msg_print(nullptr);
 
 	/* Oops */
-	return (FALSE);
+	return false;
 }
 
 
@@ -2534,14 +2706,14 @@ bool_ load_player()
 /*
  * Medium level player saver
  */
-static bool_ save_player_aux(char *name)
+static bool save_player_aux(char const *name)
 {
-	bool_ ok = FALSE;
+	bool ok = false;
 	int fd = -1;
 	int mode = 0644;
 
 	/* No file yet */
-	fff = NULL;
+	fff = nullptr;
 
 	/* Create the savefile */
 	fd = fd_make(name, mode);
@@ -2559,10 +2731,10 @@ static bool_ save_player_aux(char *name)
 		if (fff)
 		{
 			/* Write the savefile */
-			if (do_savefile_aux(ls_flag_t::SAVE)) ok = TRUE;
+			if (do_savefile_aux(ls_flag_t::SAVE)) ok = true;
 
 			/* Attempt to close it */
-			if (my_fclose(fff)) ok = FALSE;
+			if (my_fclose(fff)) ok = false;
 		}
 
 		/* "broken" savefile */
@@ -2574,53 +2746,50 @@ static bool_ save_player_aux(char *name)
 	}
 
 	/* Failure */
-	if (!ok) return (FALSE);
+	if (!ok) return false;
 
 	/* Success */
-	return (TRUE);
+	return true;
 }
 
 /*
  * Attempt to save the player in a savefile
  */
-bool_ save_player()
+bool save_player()
 {
-	int result = FALSE;
-	char safe[1024];
+	int result = false;
+
+	auto savefile = name_file_save();
 
 	/* New savefile */
-	strcpy(safe, savefile);
-	strcat(safe, ".new");
+	auto safe = savefile + ".new";
 
 	/* Remove it */
-	fd_kill(safe);
+	fd_kill(safe.c_str());
 
 	/* Attempt to save the player */
-	if (save_player_aux(safe))
+	if (save_player_aux(safe.c_str()))
 	{
-		char temp[1024];
-
 		/* Old savefile */
-		strcpy(temp, savefile);
-		strcat(temp, ".old");
+		auto temp = savefile + ".old";
 
 		/* Remove it */
-		fd_kill(temp);
+		fd_kill(temp.c_str());
 
 		/* Preserve old savefile */
-		fd_move(savefile, temp);
+		fd_move(savefile.c_str(), temp.c_str());
 
 		/* Activate new savefile */
-		fd_move(safe, savefile);
+		fd_move(safe.c_str(), savefile.c_str());
 
 		/* Remove preserved savefile */
-		fd_kill(temp);
+		fd_kill(temp.c_str());
 
 		/* Hack -- Pretend the character was loaded */
-		character_loaded = TRUE;
+		character_loaded = true;
 
 		/* Success */
-		result = TRUE;
+		result = true;
 	}
 
 	save_savefile_names();

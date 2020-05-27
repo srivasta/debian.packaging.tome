@@ -20,6 +20,9 @@
 #include "util.hpp"
 #include "variable.hpp"
 #include "z-rand.hpp"
+#include "z-term.hpp"
+
+#include <fmt/format.h>
 
 #define cquest (quest[QUEST_POISON])
 
@@ -31,24 +34,21 @@ static int wild_locs[4][2] =
 	{ 34, 48, },
 };
 
-static bool_ create_molds_hook(int r_idx)
+static bool create_molds_hook(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
+	if (r_ptr->spells & SF_MULTIPLY) return false;
 
-	auto r_ptr = &r_info[r_idx];
+	if (r_ptr->d_char == 'm') return true;
+	if (r_ptr->d_char == ',') return true;
+	if (r_ptr->d_char == 'e') return true;
 
-	if (r_ptr->spells & SF_MULTIPLY) return FALSE;
-
-	if (r_ptr->d_char == 'm') return TRUE;
-	else if (r_ptr->d_char == ',') return TRUE;
-	else if (r_ptr->d_char == 'e') return TRUE;
-	else return FALSE;
+	return false;
 }
 
 static bool quest_poison_gen_hook(void *, void *, void *)
 {
 	int cy = 1, cx = 1, x, y, tries = 10000, r_idx;
-	bool_ (*old_get_mon_num_hook)(int r_idx);
+	bool (*old_get_monster_hook)(monster_race const *);
 
 	if (cquest.status != QUEST_STATUS_TAKEN)
 	{
@@ -87,10 +87,10 @@ static bool quest_poison_gen_hook(void *, void *, void *)
 	/* Place the baddies */
 
 	/* Backup the old hook */
-	old_get_mon_num_hook = get_mon_num_hook;
+	old_get_monster_hook = get_monster_hook;
 
 	/* Require "okay" monsters */
-	get_mon_num_hook = create_molds_hook;
+	get_monster_hook = create_molds_hook;
 
 	/* Prepare allocation table */
 	get_mon_num_prep();
@@ -125,7 +125,7 @@ static bool quest_poison_gen_hook(void *, void *, void *)
 				int m_idx;
 
 				r_idx = get_mon_num(30);
-				m_idx = place_monster_one(y, x, r_idx, 0, FALSE, MSTATUS_ENEMY);
+				m_idx = place_monster_one(y, x, r_idx, 0, false, MSTATUS_ENEMY);
 				if (m_idx) m_list[m_idx].mflag |= MFLAG_QUEST;
 
 				/* Sometimes make it up some levels */
@@ -136,7 +136,7 @@ static bool quest_poison_gen_hook(void *, void *, void *)
 					if (m_ptr->level < p_ptr->lev)
 					{
 						m_ptr->exp = monster_exp(m_ptr->level + randint(p_ptr->lev - m_ptr->level));
-						monster_check_experience(m_idx, TRUE);
+						monster_check_experience(m_idx, true);
 					}
 				}
 			}
@@ -144,7 +144,7 @@ static bool quest_poison_gen_hook(void *, void *, void *)
 	}
 
 	/* Reset restriction */
-	get_mon_num_hook = old_get_mon_num_hook;
+	get_monster_hook = old_get_monster_hook;
 
 	/* Prepare allocation table */
 	get_mon_num_prep();
@@ -171,17 +171,15 @@ static bool quest_poison_finish_hook(void *, void *in_, void *)
 	q_ptr->found = OBJ_FOUND_REWARD;
 	q_ptr->number = 1;
 	q_ptr->name2 = EGO_ELVENKIND;
-	apply_magic(q_ptr, 1, FALSE, FALSE, FALSE);
-	object_aware(q_ptr);
-	object_known(q_ptr);
-	q_ptr->ident |= IDENT_STOREB;
-	inven_carry(q_ptr, FALSE);
+	apply_magic(q_ptr, 1, false, false, false);
+
+	inven_carry(q_ptr, false);
 
 	/* Continue the plot */
 	*(quest[q_idx].plot) = QUEST_NULL;
 
 	del_hook_new(HOOK_QUEST_FINISH, quest_poison_finish_hook);
-	process_hooks_restart = TRUE;
+	process_hooks_restart = true;
 
 	return true;
 }
@@ -212,15 +210,12 @@ static bool quest_poison_quest_hook(void *, void *in_, void *)
 	q_ptr = &forge;
 	object_prep(q_ptr, lookup_kind(TV_POTION2, SV_POTION2_CURE_WATER));
 	q_ptr->number = 99;
-	object_aware(q_ptr);
-	object_known(q_ptr);
-	q_ptr->ident |= IDENT_STOREB;
 	q_ptr->inscription = "quest";
 
-	inven_carry(q_ptr, FALSE);
+	inven_carry(q_ptr, false);
 
 	del_hook_new(HOOK_INIT_QUEST, quest_poison_quest_hook);
-	process_hooks_restart = TRUE;
+	process_hooks_restart = true;
 
 	return false;
 }
@@ -298,7 +293,7 @@ static bool quest_poison_drop_hook(void *, void *in_, void *)
 		cquest.status = QUEST_STATUS_COMPLETED;
 
 		del_hook_new(HOOK_DROP, quest_poison_drop_hook);
-		process_hooks_restart = TRUE;
+		process_hooks_restart = true;
 
 		return false;
 	}
@@ -317,11 +312,11 @@ void quest_poison_init_hook()
 	/* Get a place to place the poison */
 	if (!cquest.data[1])
 	{
-		cquest.data[1] = TRUE;
+		cquest.data[1] = true;
 		cquest.data[0] = rand_int(4);
 		if (wizard)
 		{
-			messages.add(format("Wilderness poison %d, %d", wild_locs[cquest.data[0]][0], wild_locs[cquest.data[0]][1]), TERM_BLUE);
+			messages.add(fmt::format("Wilderness poison {}, {}", wild_locs[cquest.data[0]][0], wild_locs[cquest.data[0]][1]), TERM_BLUE);
 		}
 	}
 

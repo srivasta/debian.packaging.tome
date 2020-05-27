@@ -1771,22 +1771,6 @@ A:15/1
 D:This scroll will try to enchant a piece of armour in your possession, making it more effective
 D:in protecting you. Highly enchanted armour is likely not to accept this enchantment, however.
 
-N:176:Identify
-G:?:d
-I:70:12:0
-W:1:0:5:50
-A:1/1:5/1:10/1:30/1
-D:If you read this scroll, the identity of an item you specify will be laid open to you.
-
-N:177:*Identify*
-G:?:d
-I:70:13:0
-W:30:0:5:1000
-A:30/1:50/2:80/1:100/1
-D:This scroll will allow you to gain insight into an object's special properties.
-D:Only the highly magical objects, like rare rings and amulets or very unusual weapons
-D:and armour possess abilities which warrant the use of this magic.
-
 N:178:Rumour
 G:?:d
 I:70:51:0
@@ -2895,13 +2879,6 @@ W:30:0:50:100
 A:30/1
 P:0:1d2:0:0:0
 
-N:313:Identify
-G:_:d
-I:55:14:-1:SPELL=Identify
-W:10:0:50:100
-A:10/1
-P:0:1d2:0:0:0
-
 N:314:Sense Hidden
 G:_:d
 I:55:15:-1:SPELL=Sense Hidden
@@ -3066,65 +3043,6 @@ F:FULL_NAME
 D:A thick book with solid leather binding. It looks entirely 
 D:unremarkable, but as you hold it, you feel strangely able 
 D:to learn the inner workings of things and creatures.
-
-##### Chests #####
-
-N:338:& Small wooden chest~
-G:~:s
-I:7:1:0
-W:5:0:250:20
-A:5/1
-P:0:2d3:0:0:0
-D:A small wooden box, locked and possibly trapped.
-
-N:339:& Large wooden chest~
-G:~:s
-I:7:5:0
-W:15:0:500:60
-A:15/1
-P:0:2d5:0:0:0
-D:A large wooden box, locked and possibly trapped
-
-N:340:& Small iron chest~
-G:~:s
-I:7:2:0
-W:25:0:300:100
-A:25/1
-P:0:2d4:0:0:0
-D:A small rectangular container made of wood and reinforced with iron corners and latches.
-D:It is locked and possibly trapped.
-
-N:341:& Large iron chest~
-G:~:s
-I:7:6:0
-W:35:0:1000:150
-A:35/1
-P:0:2d6:0:0:0
-D:A large container made of wood, with a heavy iron lock, and probably a trap.
-
-N:342:& Small steel chest~
-G:~:s
-I:7:3:0
-W:45:0:500:200
-A:45/1
-P:0:2d4:0:0:0
-D:A small wooden box with strong steel locks and reinforcements. It's likely to be trapped.
-
-N:343:& Large steel chest~
-G:~:s
-I:7:7:0
-W:55:0:1000:250
-A:55/1
-P:0:2d6:0:0:0
-D:A nearly indestructible chest of wood and steel. The lock doesn't look impenetrable, but it
-D:might be trapped.
-
-N:344:& Ruined chest~
-G:~:s
-I:7:0:0
-W:0:0:250:0
-A:75/1
-D:A broken, empty chest.
 
 ##### Various Stuff #####
 
@@ -3416,18 +3334,6 @@ F:IGNORE_COLD
 F:IGNORE_ELEC
 F:IGNORE_FIRE
 D:This rod grants you knowledge of your surroundings.
-
-N:372:Perception
-G:-:d
-I:66:2:20
-W:50:0:15:13000
-A:50/8:100/8
-P:0:1d1:0:0:0
-F:IGNORE_ACID
-F:IGNORE_COLD
-F:IGNORE_ELEC
-F:IGNORE_FIRE
-D:This rod makes you insightful, laying open the identity of your possessions.
 
 N:373:Curing
 G:-:d
@@ -5166,94 +5072,6 @@ W:40:0:5:500
 A:40/3
 D:This parchment contains information about unique
 D:artifacts that are rumoured to exist upon Arda.
-
-N:594:Monstrous Compendium 1
-G:?:o
-I:8:9:0
-W:10:0:5:100
-A:10/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
-
-N:595:Monstrous Compendium 2
-G:?:o
-I:8:10:0
-W:11:0:5:200
-A:11/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
-
-N:596:Monstrous Compendium 3
-G:?:o
-I:8:11:0
-W:12:0:5:300
-A:12/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
-
-N:597:Monstrous Compendium 4
-G:?:o
-I:8:12:0
-W:13:0:5:400
-A:13/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
-
-N:598:Monstrous Compendium 5
-G:?:o
-I:8:13:0
-W:14:0:5:500
-A:14/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
-
-N:599:Monstrous Compendium 6
-G:?:o
-I:8:14:0
-W:15:0:5:600
-A:15/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
-
-N:600:Monstrous Compendium 7
-G:?:o
-I:8:15:0
-W:16:0:5:700
-A:16/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
-
-N:601:Monstrous Compendium 8
-G:?:o
-I:8:16:0
-W:17:0:5:800
-A:17/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
-
-N:602:Monstrous Compendium 9
-G:?:o
-I:8:17:0
-W:18:0:5:900
-A:18/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
-
-N:603:Monstrous Compendium 10
-G:?:o
-I:8:18:0
-W:19:0:5:1000
-A:19/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
-
-N:604:Monstrous Compendium 11
-G:?:o
-I:8:19:0
-W:20:0:5:1200
-A:20/2
-D:This parchment contains a small part of the collected
-D:lore concerning monsters inhabiting Arda.
 
 #### Here come the shape-shifting potions. ####
 

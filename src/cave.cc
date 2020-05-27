@@ -1,6 +1,7 @@
 #include "cave.hpp"
 
 #include "cave_type.hpp"
+#include "config.hpp"
 #include "dungeon_flag.hpp"
 #include "feature_flag.hpp"
 #include "feature_type.hpp"
@@ -21,10 +22,10 @@
 #include "store_info_type.hpp"
 #include "tables.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "variable.h"
 #include "variable.hpp"
+#include "z-form.hpp"
 #include "z-rand.hpp"
+#include "z-util.hpp"
 
 #include <cassert>
 #include <vector>
@@ -64,10 +65,10 @@ int distance(int y1, int x1, int y2, int x2)
 
 
 /*
- * Returns TRUE if a grid is considered to be a wall for the purpose
+ * Returns true if a grid is considered to be a wall for the purpose
  * of magic mapping / clairvoyance
  */
-static bool_ is_wall(cave_type *c_ptr)
+static bool is_wall(cave_type *c_ptr)
 {
 	auto const &f_info = game->edit_data.f_info;
 
@@ -77,22 +78,37 @@ static bool_ is_wall(cave_type *c_ptr)
 		: c_ptr->feat;
 
 	/* Paranoia */
-	if (feat >= f_info.size()) return FALSE;
+	if (feat >= f_info.size())
+	{
+		return false;
+	}
 
 	/* Vanilla floors and doors aren't considered to be walls */
-	if (feat < FEAT_SECRET) return FALSE;
+	if (feat < FEAT_SECRET)
+	{
+		return false;
+	}
 
 	/* Exception #1: a glass wall is a wall but doesn't prevent LOS */
-	if (feat == FEAT_GLASS_WALL) return FALSE;
+	if (feat == FEAT_GLASS_WALL)
+	{
+		return false;
+	}
 
 	/* Exception #2: an illusion wall is not a wall but obstructs view */
-	if (feat == FEAT_ILLUS_WALL) return TRUE;
+	if (feat == FEAT_ILLUS_WALL)
+	{
+		return true;
+	}
 
 	/* Exception #3: a small tree is a floor but obstructs view */
-	if (feat == FEAT_SMALL_TREES) return TRUE;
+	if (feat == FEAT_SMALL_TREES)
+	{
+		return true;
+	}
 
 	/* Normal cases: use the WALL flag in f_info.txt */
-	return (f_info[feat].flags & FF_WALL) ? TRUE : FALSE;
+	return !!(f_info[feat].flags & FF_WALL);
 }
 
 
@@ -100,10 +116,10 @@ static bool_ is_wall(cave_type *c_ptr)
  * A simple, fast, integer-based line-of-sight algorithm.  By Joseph Hall,
  * 4116 Brewster Drive, Raleigh NC 27606.  Email to jnh@ecemwl.ncsu.edu.
  *
- * Returns TRUE if a line of sight can be traced from (x1,y1) to (x2,y2).
+ * Returns true if a line of sight can be traced from (x1,y1) to (x2,y2).
  *
  * The LOS begins at the center of the tile (x1,y1) and ends at the center of
- * the tile (x2,y2).  If los() is to return TRUE, all of the tiles this line
+ * the tile (x2,y2).  If los() is to return true, all of the tiles this line
  * passes through must be floor tiles, except for (x1,y1) and (x2,y2).
  *
  * We assume that the "mathematical corner" of a non-floor tile does not
@@ -131,7 +147,7 @@ static bool_ is_wall(cave_type *c_ptr)
  *
  * Use the "update_view()" function to determine player line-of-sight.
  */
-bool_ los(int y1, int x1, int y2, int x2)
+bool los(int y1, int x1, int y2, int x2)
 {
 	/* Delta */
 	int dx, dy;
@@ -165,11 +181,14 @@ bool_ los(int y1, int x1, int y2, int x2)
 
 
 	/* Handle adjacent (or identical) grids */
-	if ((ax < 2) && (ay < 2)) return (TRUE);
+	if ((ax < 2) && (ay < 2))
+	{
+		return true;
+	}
 
 
 	/* Paranoia -- require "safe" origin */
-	/* if (!in_bounds(y1, x1)) return (FALSE); */
+	/* if (!in_bounds(y1, x1)) return false; */
 
 
 	/* Directly South/North */
@@ -180,7 +199,10 @@ bool_ los(int y1, int x1, int y2, int x2)
 		{
 			for (ty = y1 + 1; ty < y2; ty++)
 			{
-				if (!cave_sight_bold(ty, x1)) return (FALSE);
+				if (!cave_sight_bold(ty, x1))
+				{
+					return false;
+				}
 			}
 		}
 
@@ -189,12 +211,15 @@ bool_ los(int y1, int x1, int y2, int x2)
 		{
 			for (ty = y1 - 1; ty > y2; ty--)
 			{
-				if (!cave_sight_bold(ty, x1)) return (FALSE);
+				if (!cave_sight_bold(ty, x1))
+				{
+					return false;
+				}
 			}
 		}
 
 		/* Assume los */
-		return (TRUE);
+		return true;
 	}
 
 	/* Directly East/West */
@@ -205,7 +230,10 @@ bool_ los(int y1, int x1, int y2, int x2)
 		{
 			for (tx = x1 + 1; tx < x2; tx++)
 			{
-				if (!cave_sight_bold(y1, tx)) return (FALSE);
+				if (!cave_sight_bold(y1, tx))
+				{
+					return false;
+				}
 			}
 		}
 
@@ -214,12 +242,15 @@ bool_ los(int y1, int x1, int y2, int x2)
 		{
 			for (tx = x1 - 1; tx > x2; tx--)
 			{
-				if (!cave_sight_bold(y1, tx)) return (FALSE);
+				if (!cave_sight_bold(y1, tx))
+				{
+					return false;
+				}
 			}
 		}
 
 		/* Assume los */
-		return (TRUE);
+		return true;
 	}
 
 
@@ -228,21 +259,25 @@ bool_ los(int y1, int x1, int y2, int x2)
 	sy = (dy < 0) ? -1 : 1;
 
 
-	/* Vertical "knights" */
+	/* Knight's moves */
 	if (ax == 1)
 	{
 		if (ay == 2)
 		{
-			if (cave_sight_bold(y1 + sy, x1)) return (TRUE);
+			if (cave_sight_bold(y1 + sy, x1))
+			{
+				return true;
+			}
 		}
 	}
-
-	/* Horizontal "knights" */
 	else if (ay == 1)
 	{
 		if (ax == 2)
 		{
-			if (cave_sight_bold(y1, x1 + sx)) return (TRUE);
+			if (cave_sight_bold(y1, x1 + sx))
+			{
+				return true;
+			}
 		}
 	}
 
@@ -278,7 +313,10 @@ bool_ los(int y1, int x1, int y2, int x2)
 		/* the LOS exactly meets the corner of a tile. */
 		while (x2 - tx)
 		{
-			if (!cave_sight_bold(ty, tx)) return (FALSE);
+			if (!cave_sight_bold(ty, tx))
+			{
+				return false;
+			}
 
 			qy += m;
 
@@ -289,7 +327,10 @@ bool_ los(int y1, int x1, int y2, int x2)
 			else if (qy > f2)
 			{
 				ty += sy;
-				if (!cave_sight_bold(ty, tx)) return (FALSE);
+				if (!cave_sight_bold(ty, tx))
+				{
+					return false;
+				}
 				qy -= f1;
 				tx += sx;
 			}
@@ -325,7 +366,10 @@ bool_ los(int y1, int x1, int y2, int x2)
 		/* the LOS exactly meets the corner of a tile. */
 		while (y2 - ty)
 		{
-			if (!cave_sight_bold(ty, tx)) return (FALSE);
+			if (!cave_sight_bold(ty, tx))
+			{
+				return false;
+			}
 
 			qx += m;
 
@@ -336,7 +380,10 @@ bool_ los(int y1, int x1, int y2, int x2)
 			else if (qx > f2)
 			{
 				tx += sx;
-				if (!cave_sight_bold(ty, tx)) return (FALSE);
+				if (!cave_sight_bold(ty, tx))
+				{
+					return false;
+				}
 				qx -= f1;
 				ty += sy;
 			}
@@ -350,7 +397,7 @@ bool_ los(int y1, int x1, int y2, int x2)
 	}
 
 	/* Assume los */
-	return (TRUE);
+	return true;
 }
 
 
@@ -358,7 +405,7 @@ bool_ los(int y1, int x1, int y2, int x2)
 /*
  * Returns true if the player's grid is dark
  */
-bool_ no_lite()
+bool no_lite()
 {
 	return (!player_can_see_bold(p_ptr->py, p_ptr->px));
 }
@@ -370,12 +417,15 @@ bool_ no_lite()
  *
  * Used by destruction spells, and for placing stairs, etc.
  */
-bool_ cave_valid_bold(int y, int x)
+bool cave_valid_bold(int y, int x)
 {
 	cave_type const *c_ptr = &cave[y][x];
 
 	/* Forbid perma-grids */
-	if (cave_perma_grid(c_ptr)) return (FALSE);
+	if (cave_perma_grid(c_ptr))
+	{
+		return false;
+	}
 
 	/* Check objects */
 	for (auto const o_idx: c_ptr->o_idxs)
@@ -386,12 +436,12 @@ bool_ cave_valid_bold(int y, int x)
 		/* Forbid artifact grids */
 		if (artifact_p(o_ptr))
 		{
-			return (FALSE);
+			return false;
 		}
 	}
 
 	/* Accept */
-	return (TRUE);
+	return true;
 }
 
 
@@ -438,31 +488,10 @@ static void image_object(byte *ap, char *cp)
 {
 	auto const &k_info = game->edit_data.k_info;
 
-	// Cached state which keeps a list of the "live" object_kind entries.
-	static std::vector<size_t> *instance = nullptr;
-
-	// First-time initialization
-	if (!instance)
-	{
-		// Create the list of "live" indexes
-		instance = new std::vector<size_t>();
-		// Filter all the "live" entries
-		for (size_t i = 0; i < k_info.size(); i++)
-		{
-			if (k_info[i].name)
-			{
-				instance->push_back(i);
-			}
-		}
-	}
-
-	// Sanity check
-	assert(instance != nullptr);
-
 	// Select an object kind at random
-	int n = rand_int(instance->size());
-	*cp = k_info[(*instance)[n]].x_char;
-	*ap = k_info[(*instance)[n]].x_attr;
+	auto const &k_ptr = uniform_element(k_info)->second;
+	*cp = k_ptr->x_char;
+	*ap = k_ptr->x_attr;
 }
 
 
@@ -592,7 +621,7 @@ static byte multi_hued_attr(std::shared_ptr<monster_race> r_ptr)
 	/* Check breaths */
 	for (std::size_t i = 0; i < monster_spell_flag_set::nbits; i++)
 	{
-		bool_ stored = FALSE;
+		bool stored = false;
 
 		/* Don't have that breath */
 		if (!(r_ptr->spells.bit(i))) continue;
@@ -622,7 +651,7 @@ static byte multi_hued_attr(std::shared_ptr<monster_race> r_ptr)
 		for (std::size_t j = 0; j < stored_colors; j++)
 		{
 			/* Already stored */
-			if (allowed_attrs[j] == first_color) stored = TRUE;
+			if (allowed_attrs[j] == first_color) stored = true;
 		}
 		if (!stored)
 		{
@@ -847,24 +876,20 @@ static byte darker_attrs[16] =
 };
 
 
-static void map_info(int y, int x, byte *ap, char *cp)
+static void map_info_layer1(
+	cave_type const *c_ptr,
+	bool apply_effects,
+	std::tuple<char, byte> feature_fn(feature_type const *),
+	std::tuple<char, byte> store_fn(store_info_type const *),
+	char *cp,
+	byte *ap)
 {
 	auto const &st_info = game->edit_data.st_info;
-	auto const &r_info = game->edit_data.r_info;
 	auto const &f_info = game->edit_data.f_info;
-	auto const &k_info = game->edit_data.k_info;
+	auto const &lasting_effects = game->lasting_effects;
 
+	char c;
 	byte a;
-
-	byte c;
-
-	/**** Preparation ****/
-
-	/* Access the grid */
-	cave_type *c_ptr = &cave[y][x];
-
-
-	/* Cache some frequently used values */
 
 	/* Grid info */
 	auto info = c_ptr->info;
@@ -878,9 +903,6 @@ static void map_info(int y, int x, byte *ap, char *cp)
 	/* Access floor */
 	auto f_ptr = &f_info[feat];
 
-
-	/**** Layer 1 -- Terrain feature ****/
-
 	/* Only memorised or visible grids are displayed */
 	if (info & (CAVE_MARK | CAVE_SEEN))
 	{
@@ -889,18 +911,14 @@ static void map_info(int y, int x, byte *ap, char *cp)
 		/* 'Sane' terrain features */
 		if (feat != FEAT_SHOP)
 		{
-			/* Normal char */
-			c = f_ptr->x_char;
-
-			/* Normal attr */
-			a = f_ptr->x_attr;
+			std::tie(c, a) = feature_fn(f_ptr);
 		}
 
 		/* Mega-Hack 1 -- Building don't conform to f_info */
 		else
 		{
-			c = st_info[c_ptr->special].x_char;
-			a = st_info[c_ptr->special].x_attr;
+			std::tie(c, a) =
+				store_fn(&st_info[c_ptr->special]);
 		}
 
 		/* Mega-Hack 2 -- stair to dungeon branch are purple */
@@ -910,12 +928,12 @@ static void map_info(int y, int x, byte *ap, char *cp)
 		}
 
 		/**** Step 2 -- Apply special random effects ****/
-		if (!options->avoid_other && !options->avoid_shimmer)
+		if (apply_effects)
 		{
 			/* Special terrain effect */
-			if (c_ptr->effect)
+			if (auto effect_idx = c_ptr->maybe_effect)
 			{
-				a = spell_color(effects[c_ptr->effect].type);
+				a = spell_color(lasting_effects[*effect_idx].type);
 			}
 
 			/* Multi-hued attr */
@@ -941,7 +959,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 
 		/* view_special_lite: lighting effects for boring features */
 		if (options->view_special_lite &&
-		                ((f_ptr->flags & (FF_FLOOR | FF_REMEMBER)) == FF_FLOOR))
+				((f_ptr->flags & (FF_FLOOR | FF_REMEMBER)) == FF_FLOOR))
 		{
 			if (!p_ptr->wild_mode)
 			{
@@ -981,7 +999,7 @@ static void map_info(int y, int x, byte *ap, char *cp)
 
 		/* view_granite_lite: lighting effects for walls and doors */
 		else if (options->view_granite_lite &&
-		                (f_ptr->flags & (FF_NO_VISION | FF_DOOR)))
+				(f_ptr->flags & (FF_NO_VISION | FF_DOOR)))
 		{
 			if (!p_ptr->wild_mode)
 			{
@@ -1017,13 +1035,8 @@ static void map_info(int y, int x, byte *ap, char *cp)
 	else
 	{
 		/* Access darkness */
-		f_ptr = &f_info[FEAT_NONE];
-
-		/* Normal attr */
-		a = f_ptr->x_attr;
-
-		/* Normal char */
-		c = f_ptr->x_char;
+		std::tie(c, a) =
+			feature_fn(&f_info[FEAT_NONE]);
 	}
 
 	/*
@@ -1040,10 +1053,15 @@ static void map_info(int y, int x, byte *ap, char *cp)
 	/* Save the info */
 	*ap = a;
 	*cp = c;
+}
 
 
-	/**** Layer 2 -- Objects ****/
-
+static void map_info_layer2(
+	cave_type const *c_ptr,
+	std::tuple<char, byte> object_fn(object_type const *),
+	char *cp,
+	byte *ap)
+{
 	for (auto const o_idx: c_ptr->o_idxs)
 	{
 		/* Acquire object */
@@ -1052,33 +1070,42 @@ static void map_info(int y, int x, byte *ap, char *cp)
 		/* Memorized objects */
 		if (o_ptr->marked)
 		{
-			/* Normal char */
-			*cp = object_char(o_ptr);
-
-			/* Normal attr */
-			*ap = object_attr(o_ptr);
+			/* Normal char + attr */
+			std::tie(*cp, *ap) = object_fn(o_ptr);
 
 			/* Multi-hued attr */
-			if (!options->avoid_other && (k_info[o_ptr->k_idx].flags & TR_ATTR_MULTI))
+			if (!options->avoid_other && (o_ptr->k_ptr->flags & TR_ATTR_MULTI))
 			{
 				*ap = get_shimmer_color();
 			}
 
 			/* Hack -- hallucination */
-			if (p_ptr->image) image_object(ap, cp);
+			if (p_ptr->image)
+			{
+				image_object(ap, cp);
+			}
 
 			/* Done */
 			break;
 		}
 	}
+}
 
 
-	/**** Layer 3 -- Handle monsters ****/
+static void map_info_layer3(
+		cave_type const *c_ptr,
+		std::tuple<char, byte> object_fn(object_type const *),
+		std::tuple<char, byte> race_fn(std::shared_ptr<monster_race const>),
+		char *cp,
+		byte *ap)
+{
+	char c;
+	byte a;
 
 	if (c_ptr->m_idx)
 	{
 		monster_type *m_ptr = &m_list[c_ptr->m_idx];
-		auto const r_ptr = m_ptr->race();
+		auto r_ptr = m_ptr->race();
 
 		if (r_ptr->flags & RF_MIMIC)
 		{
@@ -1089,13 +1116,11 @@ static void map_info(int y, int x, byte *ap, char *cp)
 			if (o_ptr->marked)
 			{
 				/* Normal char */
-				*cp = object_char(o_ptr);
-
-				/* Normal attr */
-				*ap = object_attr(o_ptr);
+				std::tie(*cp, *ap) =
+					object_fn(o_ptr);
 
 				/* Multi-hued attr */
-				if (!options->avoid_other && (k_info[o_ptr->k_idx].flags & TR_ATTR_MULTI))
+				if (!options->avoid_other && o_ptr->k_ptr && (o_ptr->k_ptr->flags & TR_ATTR_MULTI))
 				{
 					*ap = get_shimmer_color();
 				}
@@ -1110,8 +1135,8 @@ static void map_info(int y, int x, byte *ap, char *cp)
 			if (m_ptr->ml)
 			{
 				/* Desired attr/char */
-				c = r_ptr->x_char;
-				a = r_ptr->x_attr;
+				std::tie(c, a) =
+					race_fn(r_ptr);
 
 				/* Ignore weird codes */
 				if (options->avoid_other)
@@ -1195,28 +1220,38 @@ static void map_info(int y, int x, byte *ap, char *cp)
 			}
 		}
 	}
+}
 
-	/* Handle "player" */
+
+static void map_info_layer4(
+	int y,
+	int x,
+	std::tuple<char, byte> race_fn(monster_race const *),
+	bool player_char_health,
+	char *cp,
+	byte *ap)
+{
+	auto const &r_info = game->edit_data.r_info;
+
+	char c;
+	byte a;
+
 	if ((y == p_ptr->py) && (x == p_ptr->px) &&
-	                (!p_ptr->invis || p_ptr->see_inv))
+		(!p_ptr->invis || p_ptr->see_inv))
 	{
 		auto r_ptr = &r_info[p_ptr->body_monster];
 
-		/* Get the "player" attr */
+		/* Get the "player" char + attr */
+		std::tie(c, a) =
+			race_fn(r_ptr);
+
 		if (!options->avoid_other && (r_ptr->flags & RF_ATTR_MULTI))
 		{
 			a = get_shimmer_color();
 		}
-		else
-		{
-			a = r_ptr->x_attr;
-		}
-
-		/* Get the "player" char */
-		c = r_ptr->x_char;
 
 		/* Show player health char instead? */
-		if (options->player_char_health)
+		if (player_char_health)
 		{
 			int percent = p_ptr->chp * 10 / p_ptr->mhp;
 
@@ -1230,8 +1265,57 @@ static void map_info(int y, int x, byte *ap, char *cp)
 		/* Save the info */
 		*ap = a;
 		*cp = c;
-
 	}
+}
+
+
+static void map_info(int y, int x, byte *ap, char *cp)
+{
+	auto c_ptr = &cave[y][x];
+
+	auto feature_fn = [](auto f_ptr)
+	{
+		return std::make_tuple(
+			f_ptr->x_char,
+			f_ptr->x_attr);
+	};
+
+	auto store_fn = [](auto st_ptr)
+	{
+		return std::make_tuple(
+			st_ptr->x_char,
+			st_ptr->x_attr);
+	};
+
+	auto object_fn = [](auto o_ptr)
+	{
+		return std::make_tuple(
+			object_char(o_ptr),
+			object_attr(o_ptr));
+	};
+
+	auto race_fn = [](auto r_ptr)
+	{
+		return std::make_tuple(
+			r_ptr->x_char,
+			r_ptr->x_attr);
+	};
+
+	// Layer 1: Terrain
+	map_info_layer1(
+		c_ptr, !options->avoid_other && !options->avoid_shimmer,
+		feature_fn, store_fn, cp, ap);
+
+	// Layer 2: Objects
+	map_info_layer2(c_ptr, object_fn, cp, ap);
+
+	// Layer 3: Monsters
+	map_info_layer3(
+		c_ptr, object_fn, race_fn, cp, ap);
+
+	// Layer 4: Player
+	map_info_layer4(
+		y, x, race_fn, options->player_char_health, cp, ap);
 }
 
 
@@ -1241,374 +1325,52 @@ static void map_info(int y, int x, byte *ap, char *cp)
  */
 void map_info_default(int y, int x, byte *ap, char *cp)
 {
-	auto const &st_info = game->edit_data.st_info;
-	auto const &r_info = game->edit_data.r_info;
-	auto const &f_info = game->edit_data.f_info;
-	auto const &k_info = game->edit_data.k_info;
+	auto c_ptr = &cave[y][x];
 
-	byte a;
-
-	byte c;
-
-	/* Shorthand */
-	auto const avoid_other = options->avoid_other;
-
-	/**** Preparation ****/
-
-	/* Access the grid */
-	auto const c_ptr = &cave[y][x];
-
-
-	/* Cache some frequently used values */
-
-	/* Grid info */
-	auto info = c_ptr->info;
-
-	/* Feature code */
-	auto const feat = c_ptr->mimic
-		? c_ptr->mimic
-		: f_info[c_ptr->feat].mimic;
-
-	/* Access floor */
-	feature_type const *f_ptr = &f_info[feat];
-
-
-	/**** Layer 1 -- Terrain feature ****/
-
-	/* Only memorised or visible grids are displayed */
-	if (info & (CAVE_MARK | CAVE_SEEN))
+	auto feature_fn = [](auto f_ptr)
 	{
-		/**** Step 1 -- Retrieve base attr/char ****/
+		return std::make_tuple(
+			f_ptr->d_char,
+			f_ptr->d_attr);
+	};
 
-		/* 'Sane' terrain features */
-		if (feat != FEAT_SHOP)
-		{
-			/* Default char */
-			c = f_ptr->d_char;
-
-			/* Default attr */
-			a = f_ptr->d_attr;
-		}
-
-		/* Mega-Hack 1 -- Building don't conform to f_info */
-		else
-		{
-			c = st_info[c_ptr->special].d_char;
-			a = st_info[c_ptr->special].d_attr;
-		}
-
-		/* Mega-Hack 2 -- stair to dungeon branch are purple */
-		if (c_ptr->special &&
-		                ((feat == FEAT_MORE) || (feat == FEAT_LESS)))
-		{
-			a = TERM_VIOLET;
-		}
-
-		/**** Step 2 -- Apply special random effects ****/
-		if (!avoid_other)
-		{
-			/* Special terrain effect */
-			if (c_ptr->effect)
-			{
-				a = spell_color(effects[c_ptr->effect].type);
-			}
-
-			/* Multi-hued attr */
-			else if (f_ptr->flags & FF_ATTR_MULTI)
-			{
-				a = f_ptr->shimmer[rand_int(7)];
-			}
-		}
-
-
-		/*
-		 * Step 3
-		 *
-		 * Special lighting effects, if specified and applicable
-		 * This will never happen for
-		 * - any grids in the overhead map
-		 * - (graphics modes) terrain features without corresponding
-		 *   "darker" tiles.
-		 *
-		 * All the if's here are flag checks, so changed order shouldn't
-		 * affect performance a lot, I hope...
-		 */
-
-		/* view_special_lite: lighting effects for boring features */
-		if (options->view_special_lite &&
-		                ((f_ptr->flags & (FF_FLOOR | FF_REMEMBER)) == FF_FLOOR))
-		{
-			if (!p_ptr->wild_mode)
-			{
-				/* Handle "seen" grids */
-				if (info & (CAVE_SEEN))
-				{
-					/* Only lit by "torch" light */
-					if (options->view_yellow_lite && !(info & (CAVE_GLOW)))
-					{
-						/* Use "yellow" */
-						a = TERM_YELLOW;
-					}
-				}
-
-				/* Handle "blind" */
-				else if (p_ptr->blind)
-				{
-					/* Use darker colour */
-					a = darker_attrs[a & 0xF];
-				}
-
-				/* Handle "dark" grids */
-				else if (!(info & (CAVE_GLOW)))
-				{
-					/* Use darkest colour */
-					a = TERM_L_DARK;
-				}
-
-				/* "Out-of-sight" glowing grids -- handle "view_bright_lite" */
-				else if (options->view_bright_lite)
-				{
-					/* Use darker colour */
-					a = dark_attrs[a & 0xF];
-				}
-			}
-		}
-
-		/* view_granite_lite: lighting effects for walls and doors */
-		else if (options->view_granite_lite &&
-		                (f_ptr->flags & (FF_NO_VISION | FF_DOOR)))
-		{
-			if (!p_ptr->wild_mode)
-			{
-				/* Handle "seen" grids */
-				if (info & (CAVE_SEEN))
-				{
-					/* Do nothing */
-				}
-
-				/* Handle "blind" */
-				else if (p_ptr->blind)
-				{
-					/* Use darker colour */
-					a = darker_attrs[a & 0xF];
-				}
-
-				/* Handle "view_bright_lite" */
-				else if (options->view_bright_lite)
-				{
-					/* Use darker colour */
-					a = dark_attrs[a & 0xF];
-				}
-			}
-		}
-	}
-
-	/* Unknown grids */
-	else
+	auto store_fn = [](auto st_ptr)
 	{
-		/* Access darkness */
-		f_ptr = &f_info[FEAT_NONE];
+		return std::make_tuple(
+			st_ptr->d_char,
+			st_ptr->d_attr);
+	};
 
-		/* Default attr */
-		a = f_ptr->d_attr;
-
-		/* Default char */
-		c = f_ptr->d_char;
-	}
-
-	/*
-	 * Hack -- rare random hallucination
-	 * Because we cannot be sure which is outer dungeon walls,
-	 * the check for 'feat' has been removed
-	 */
-	if (p_ptr->image && (rand_int(256) == 0))
+	auto object_fn = [](auto o_ptr)
 	{
-		/* Hallucinate */
-		image_random(ap, cp);
-	}
+		return std::make_tuple(
+			object_char_default(o_ptr),
+			object_attr_default(o_ptr));
+	};
 
-	/* Save the info */
-	*ap = a;
-	*cp = c;
-
-
-	/**** Layer 2 -- Objects ****/
-
-	for (auto const this_o_idx: c_ptr->o_idxs)
+	auto race_fn = [](auto r_ptr)
 	{
-		/* Acquire object */
-		object_type *o_ptr = &o_list[this_o_idx];
+		return std::make_tuple(
+			r_ptr->d_char,
+			r_ptr->d_attr);
+	};
 
-		/* Memorized objects */
-		if (o_ptr->marked)
-		{
-			/* Normal char */
-			*cp = object_char_default(o_ptr);
+	// Layer 1: Terrain
+	map_info_layer1(
+		c_ptr, !options->avoid_other,
+		feature_fn, store_fn, cp, ap);
 
-			/* Normal attr */
-			*ap = object_attr_default(o_ptr);
+	// Layer 2: Objects
+	map_info_layer2(
+		c_ptr, object_fn, cp, ap);
 
-			/* Multi-hued attr */
-			if (!avoid_other && (k_info[o_ptr->k_idx].flags & TR_ATTR_MULTI))
-			{
-				*ap = get_shimmer_color();
-			}
+	// Layer 3: Monsters
+	map_info_layer3(
+		c_ptr, object_fn, race_fn, cp, ap);
 
-			/* Hack -- hallucination */
-			if (p_ptr->image) image_object(ap, cp);
-
-			/* Done */
-			break;
-		}
-	}
-
-
-	/**** Layer 3 -- Handle monsters ****/
-
-	if (c_ptr->m_idx)
-	{
-		monster_type *m_ptr = &m_list[c_ptr->m_idx];
-		auto const r_ptr = m_ptr->race();
-
-		if (r_ptr->flags & RF_MIMIC)
-		{
-			/* Acquire object being mimicked */
-			object_type *o_ptr = &o_list[m_ptr->mimic_o_idx()];
-
-			/* Memorized objects */
-			if (o_ptr->marked)
-			{
-				/* Normal char */
-				*cp = object_char_default(o_ptr);
-
-				/* Normal attr */
-				*ap = object_attr_default(o_ptr);
-
-				/* Multi-hued attr */
-				if (!avoid_other && (k_info[o_ptr->k_idx].flags & TR_ATTR_MULTI))
-				{
-					*ap = get_shimmer_color();
-				}
-
-				/* Hack -- hallucination */
-				if (p_ptr->image) image_object(ap, cp);
-			}
-		}
-		else
-		{
-			/* Visible monster */
-			if (m_ptr->ml)
-			{
-				/* Default attr/char */
-				c = r_ptr->d_char;
-				a = r_ptr->d_attr;
-
-				/* Ignore weird codes */
-				if (avoid_other)
-				{
-					/* Use char */
-					*cp = c;
-
-					/* Use attr */
-					*ap = a;
-				}
-
-				/* Multi-hued monster */
-				else if (r_ptr->flags & RF_ATTR_MULTI)
-				{
-					/* Is it a shapechanger? */
-					if (r_ptr->flags & RF_SHAPECHANGER)
-					{
-						image_random(ap, cp);
-					}
-					else
-						*cp = c;
-
-					/* Multi-hued attr */
-					if (r_ptr->flags & RF_ATTR_ANY)
-					{
-						*ap = randint(15);
-					}
-					else
-					{
-						*ap = multi_hued_attr(r_ptr);
-					}
-				}
-
-				/* Normal monster (not "clear" in any way) */
-				else if (!(r_ptr->flags & (RF_ATTR_CLEAR | RF_CHAR_CLEAR)))
-				{
-					/* Use char */
-					*cp = c;
-
-					/* Use attr */
-					*ap = a;
-				}
-
-				/* Hack -- Bizarre grid under monster */
-				else if ((*ap & 0x80) || (*cp & 0x80))
-				{
-					/* Use char */
-					*cp = c;
-
-					/* Use attr */
-					*ap = a;
-				}
-
-				/* Normal */
-				else
-				{
-					/* Normal (non-clear char) monster */
-					if (!(r_ptr->flags & RF_CHAR_CLEAR))
-					{
-						/* Normal char */
-						*cp = c;
-					}
-
-					/* Normal (non-clear attr) monster */
-					else if (!(r_ptr->flags & RF_ATTR_CLEAR))
-					{
-						/* Normal attr */
-						*ap = a;
-					}
-				}
-
-				/* Hack -- hallucination */
-				if (p_ptr->image)
-				{
-					/* Hallucinatory monster */
-					image_monster(ap, cp);
-				}
-			}
-		}
-	}
-
-
-	/* Handle "player" */
-	if ((y == p_ptr->py) && (x == p_ptr->px) &&
-	                (!p_ptr->invis ||
-	                 (p_ptr->invis && p_ptr->see_inv)))
-	{
-		auto r_ptr = &r_info[p_ptr->body_monster];
-
-		/* Get the "player" attr */
-		if (!avoid_other && (r_ptr->flags & RF_ATTR_MULTI))
-		{
-			a = get_shimmer_color();
-		}
-		else
-		{
-			a = r_ptr->d_attr;
-		}
-
-		/* Get the "player" char */
-		c = r_ptr->d_char;
-
-		/* Save the info */
-		*ap = a;
-		*cp = c;
-
-	}
+	// Layer 4: Player */
+	map_info_layer4(
+		y, x, race_fn, false, cp, ap);
 }
 
 
@@ -1709,7 +1471,7 @@ void note_spot(int y, int x)
 		object_type *o_ptr = &o_list[this_o_idx];
 
 		/* Memorize objects */
-		o_ptr->marked = TRUE;
+		o_ptr->marked = true;
 	}
 
 	if (c_ptr->m_idx)
@@ -1720,7 +1482,7 @@ void note_spot(int y, int x)
 		if (r_ptr->flags & RF_MIMIC)
 		{
 			object_type *o_ptr = &o_list[m_ptr->mimic_o_idx()];
-			o_ptr->marked = TRUE;
+			o_ptr->marked = true;
 		}
 	}
 
@@ -1783,38 +1545,30 @@ void lite_spot(int y, int x)
  */
 void prt_map()
 {
-	int x, y;
-
-	int v;
-
 	/* Access the cursor state */
-	Term_get_cursor(&v);
+	Term_with_saved_cursor_visbility([] {
+		/* Hide the cursor */
+		Term_hide_cursor();
 
-	/* Hide the cursor */
-	Term_set_cursor(0);
-
-	/* Dump the map */
-	for (y = panel_row_min; y <= panel_row_max; y++)
-	{
-		/* Scan the columns of row "y" */
-		for (x = panel_col_min; x <= panel_col_max; x++)
+		/* Dump the map */
+		for (int y = panel_row_min; y <= panel_row_max; y++)
 		{
-			byte a;
-			char c;
+			for (int x = panel_col_min; x <= panel_col_max; x++)
+			{
+				byte a;
+				char c;
 
-			/* Determine what is there */
-			map_info(y, x, &a, &c);
+				/* Determine what is there */
+				map_info(y, x, &a, &c);
 
-			/* Efficiency -- Redraw that grid of the map */
-			Term_queue_char(panel_col_of(x), y - panel_row_prt, a, c);
+				/* Efficiency -- Redraw that grid of the map */
+				Term_queue_char(panel_col_of(x), y - panel_row_prt, a, c);
+			}
 		}
-	}
 
-	/* Display player */
-	lite_spot(p_ptr->py, p_ptr->px);
-
-	/* Restore the cursor */
-	Term_set_cursor(v);
+		/* Display player */
+		lite_spot(p_ptr->py, p_ptr->px);
+	});
 }
 
 
@@ -1917,7 +1671,7 @@ static byte priority(byte a, char c)
 	int i, p0, p1;
 
 	/* Scan the table */
-	for (i = 0; TRUE; i++)
+	for (i = 0; true; i++)
 	{
 		/* Priority level */
 		p1 = priority_table[i][1];
@@ -1990,8 +1744,8 @@ void display_map(int *cy, int *cx)
 	auto const old_view_granite_lite = options->view_granite_lite;
 
 	/* Disable lighting effects */
-	options->view_special_lite = FALSE;
-	options->view_granite_lite = FALSE;
+	options->view_special_lite = false;
+	options->view_granite_lite = false;
 
 
 	/* Set up initial maps */
@@ -2106,11 +1860,8 @@ void do_cmd_view_map()
 	/* Retrive current screen size */
 	Term_get_size(&wid, &hgt);
 
-	/* Enter "icky" mode */
-	character_icky = TRUE;
-
 	/* Save the screen */
-	Term_save();
+	screen_save_no_flush();
 
 	/* Note */
 	prt("Please wait...", 0, 0);
@@ -2128,16 +1879,13 @@ void do_cmd_view_map()
 	put_str("Hit any key to continue", hgt - 1, (wid - COL_MAP) / 2);
 
 	/* Hilite the player */
-	move_cursor(cy, cx);
+	Term_gotoxy(cx, cy);
 
 	/* Get any key */
 	inkey();
 
 	/* Restore the screen */
-	Term_load();
-
-	/* Leave "icky" mode */
-	character_icky = FALSE;
+	screen_load_no_flush();
 }
 
 
@@ -3485,7 +3233,7 @@ void update_mon_lite()
 	cave_type *c_ptr;
 	u16b info;
 
-	bool_ invis;
+	bool invis;
 
 	s16b fast_lite_n = lite_n;
 	s16b fast_temp_n;
@@ -3649,7 +3397,7 @@ void update_mon_lite()
 			if (player_has_los_bold(y, x) && c_ptr->m_idx)
 			{
 				/* Hide the monster */
-				update_mon(c_ptr->m_idx, FALSE);
+				update_mon(c_ptr->m_idx, false);
 			}
 			else
 			{
@@ -3687,7 +3435,7 @@ void update_mon_lite()
 			if (c_ptr->m_idx)
 			{
 				/* Show it */
-				update_mon(c_ptr->m_idx, FALSE);
+				update_mon(c_ptr->m_idx, false);
 			}
 			else
 			{
@@ -3930,13 +3678,13 @@ void wiz_lite()
 		object_type *o_ptr = &o_list[i];
 
 		/* Skip dead objects */
-		if (!o_ptr->k_idx) continue;
+		if (!o_ptr->k_ptr) continue;
 
 		/* Skip held objects */
 		if (o_ptr->held_m_idx) continue;
 
 		/* Memorize */
-		o_ptr->marked = TRUE;
+		o_ptr->marked = true;
 	}
 
 	/* Scan all normal grids */
@@ -3955,7 +3703,7 @@ void wiz_lite()
 				if (r_ptr->flags & RF_MIMIC)
 				{
 					object_type *o_ptr = &o_list[m_ptr->mimic_o_idx()];
-					o_ptr->marked = TRUE;
+					o_ptr->marked = true;
 				}
 			}
 
@@ -4041,13 +3789,13 @@ void wiz_dark()
 		object_type *o_ptr = &o_list[i];
 
 		/* Skip dead objects */
-		if (!o_ptr->k_idx) continue;
+		if (!o_ptr->k_ptr) continue;
 
 		/* Skip held objects */
 		if (o_ptr->held_m_idx) continue;
 
 		/* Forget the object */
-		o_ptr->marked = FALSE;
+		o_ptr->marked = false;
 	}
 
 	/* Fully update the visuals */
@@ -4202,15 +3950,14 @@ void mmove2(int *y, int *x, int y1, int x1, int y2, int x2)
  *
  * This is slightly (but significantly) different from "los(y1,x1,y2,x2)".
  */
-bool_ projectable(int y1, int x1, int y2, int x2)
+bool projectable(int y1, int x1, int y2, int x2)
 {
-	int dist, y, x;
-
 	/* Start at the initial location */
-	y = y1, x = x1;
+	int y = y1;
+	int x = x1;
 
 	/* See "project()" */
-	for (dist = 0; dist <= MAX_RANGE; dist++)
+	for (int dist = 0; dist <= MAX_RANGE; dist++)
 	{
 		/* Check for arrival at "final target" */
 		/*
@@ -4219,18 +3966,23 @@ bool_ projectable(int y1, int x1, int y2, int x2)
 		 * lets monsters shoot a the player if s/he is
 		 * visible but in a wall
 		 */
-		if ((x == x2) && (y == y2)) return (TRUE);
+		if ((x == x2) && (y == y2))
+		{
+			return true;
+		}
 
 		/* Never pass through walls */
-		if (dist && (!cave_sight_bold(y, x) || !cave_floor_bold(y, x))) break;
+		if (dist && (!cave_sight_bold(y, x) || !cave_floor_bold(y, x)))
+		{
+			break;
+		}
 
 		/* Calculate the new location */
 		mmove2(&y, &x, y1, x1, y2, x2);
 	}
 
-
 	/* Assume obstruction */
-	return (FALSE);
+	return false;
 }
 
 
@@ -4406,6 +4158,8 @@ void disturb_on_other()
  */
 static int random_quest_number()
 {
+	auto const &dungeon_flags = game->dungeon_flags;
+
 	if ((dun_level >= 1) && (dun_level < MAX_RANDOM_QUEST) &&
 			(dungeon_flags & DF_PRINCIPAL) &&
 			(random_quests[dun_level].type) &&
@@ -4439,33 +4193,30 @@ int is_quest(int level)
 }
 
 
-/*
- * handle spell effects
+/**
+ * Create a new lasting effect.
  */
-int effect_pop()
+boost::optional<s16b> new_effect(int type, int dam, int time, int cy, int cx, int rad, s32b flags)
 {
-	int i;
+	auto &lasting_effects = game->lasting_effects;
 
-	for (i = 1; i < MAX_EFFECTS; i++)
-		if (!effects[i].time)
-			return i;
-	return -1;
-}
+	// Limit to 128 effects at most.
+	if (lasting_effects.size() >= 128)
+	{
+		return boost::none;
+	}
 
-int new_effect(int type, int dam, int time, int cy, int cx, int rad, s32b flags)
-{
-	int i;
+	effect_type effect;
+	effect.type = type;
+	effect.dam = dam;
+	effect.time = time;
+	effect.flags = flags;
+	effect.cx = cx;
+	effect.cy = cy;
+	effect.rad = rad;
 
-	if ((i = effect_pop()) == -1) return -1;
-
-	effects[i].type = type;
-	effects[i].dam = dam;
-	effects[i].time = time;
-	effects[i].flags = flags;
-	effects[i].cx = cx;
-	effects[i].cy = cy;
-	effects[i].rad = rad;
-	return i;
+	lasting_effects.push_back(effect);
+	return lasting_effects.size() - 1;
 }
 
 /**

@@ -99,9 +99,9 @@ static s32b get_level_school_1(spell_type *spell, s32b max, s32b min)
 {
 	// Delegate
 	s32b level;
-	bool_ na;
+	bool na;
 	get_level_school(spell, max, min, &level, &na);
-	// Note: It is tempting to add an assertion here for "na == FALSE" here,
+	// Note: It is tempting to add an assertion here for "na == false" here,
 	// but there are cases where we haven't actually checked if the spell is
 	// really castable before calling this function (indirectly). Thus we
 	// MUST NOT assert anything about "na" as the code currently stands.
@@ -215,19 +215,19 @@ void get_map_size(const char *name, int *ysize, int *xsize)
 	*xsize = 0;
 	*ysize = 0;
 	init_flags = INIT_GET_SIZE;
-	process_dungeon_file(name, ysize, xsize, cur_hgt, cur_wid, TRUE, TRUE);
+	process_dungeon_file(name, ysize, xsize, cur_hgt, cur_wid, true, true);
 }
 
 void load_map(const char *name, int *y, int *x)
 {
 	/* Set the correct monster hook */
-	set_mon_num_hook();
+	reset_get_monster_hook();
 
 	/* Prepare allocation table */
 	get_mon_num_prep();
 
 	init_flags = INIT_CREATE_DUNGEON;
-	process_dungeon_file(name, y, x, cur_hgt, cur_wid, TRUE, TRUE);
+	process_dungeon_file(name, y, x, cur_hgt, cur_wid, true, true);
 }
 
 void increase_mana(int delta)

@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <fmt/format.h>
 #include <vector>
 
 s32b NOXIOUSCLOUD = -1; /* Identifier */
@@ -59,8 +60,6 @@ s32b DEMON_SUMMON;
 s32b DISCHARGE_MINION;
 s32b CONTROL_DEMON;
 
-s32b STARIDENTIFY;
-s32b IDENTIFY;
 s32b VISION;
 s32b SENSEHIDDEN;
 s32b REVEALWAYS;
@@ -74,7 +73,6 @@ s32b SHAKE;
 
 s32b ERU_SEE;
 s32b ERU_LISTEN;
-s32b ERU_UNDERSTAND;
 s32b ERU_PROT;
 
 s32b GLOBELIGHT;
@@ -205,29 +203,6 @@ static void find_position(int y, int x, int *yy, int *xx)
 	while (!(in_bounds(*yy, *xx) && cave_floor_bold(*yy, *xx)) && --attempts);
 }
 
-static casting_result cast(bool_ effect)
-{
-	return effect ? CAST_OBVIOUS : CAST_HIDDEN;
-}
-
-static casting_result cplus(casting_result old, bool_ effect)
-{
-	if (old == NO_CAST)
-	{
-		return cast(effect);
-	}
-	else
-	{
-		if ((old == CAST_OBVIOUS) || (effect == TRUE)) {
-			return CAST_OBVIOUS;
-		}
-		else
-		{
-			return CAST_HIDDEN;
-		}
-	}
-}
-
 GENERATE_MONSTER_LOOKUP_FN(get_fire_golem, "Fire golem")
 
 // -------------------------------------------------------------
@@ -251,17 +226,15 @@ casting_result air_noxious_cloud()
 	}
 
 	fire_cloud(type, dir, 7 + get_level_s(NOXIOUSCLOUD, 150), 3, 5 + get_level_s(NOXIOUSCLOUD, 40));
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *air_noxious_cloud_info()
+std::string air_noxious_cloud_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam " FMTs32b " rad 3 dur " FMTs32b,
-		(7 + get_level_s(NOXIOUSCLOUD, 150)),
-		(5 + get_level_s(NOXIOUSCLOUD, 40)));
-	return buf;
+	return fmt::format(
+		"dam {} rad 3 dur {}",
+		7 + get_level_s(NOXIOUSCLOUD, 150),
+		5 + get_level_s(NOXIOUSCLOUD, 40));
 }
 
 casting_result air_wings_of_winds()
@@ -270,44 +243,41 @@ casting_result air_wings_of_winds()
 	{
 		if (p_ptr->tim_fly == 0)
 		{
-			return cast(set_tim_fly(randint(10) + 5 + get_level_s(AIRWINGS, 25)));
+			set_tim_fly(randint(10) + 5 + get_level_s(AIRWINGS, 25));
 		}
 	}
 	else
 	{
 		if (p_ptr->tim_ffall == 0)
 		{
-			return cast(set_tim_ffall(randint(10) + 5 + get_level_s(AIRWINGS, 25)));
+			set_tim_ffall(randint(10) + 5 + get_level_s(AIRWINGS, 25));
 		}
 	}
 
-	return CAST_HIDDEN;
+	return CAST;
 }
 
-const char *air_wings_of_winds_info()
+std::string air_wings_of_winds_info()
 {
-	static char buf[128];
-	sprintf(buf, "dur " FMTs32b "+d10", (5 + get_level_s(AIRWINGS, 25)));
-	return buf;
+	return fmt::format("dur {}+d10", 5 + get_level_s(AIRWINGS, 25));
 }
 
 casting_result air_invisibility()
 {
 	if (p_ptr->tim_invisible == 0)
 	{
-		return cast(set_invis(randint(20) + 15 + get_level_s(INVISIBILITY, 50), 20 + get_level_s(INVISIBILITY, 50)));
+		set_invis(randint(20) + 15 + get_level_s(INVISIBILITY, 50), 20 + get_level_s(INVISIBILITY, 50));
 	}
 
-	return CAST_HIDDEN;
+	return CAST;
 }
 
-const char *air_invisibility_info()
+std::string air_invisibility_info()
 {
-	static char buf[128];
-	sprintf(buf, "dur " FMTs32b "+d20 power " FMTs32b,
-		(15 + get_level_s(INVISIBILITY, 50)),
-		(20 + get_level_s(INVISIBILITY, 50)));
-	return buf;
+	return fmt::format(
+		"dur {}+d20 power {}",
+		15 + get_level_s(INVISIBILITY, 50),
+		20 + get_level_s(INVISIBILITY, 50));
 }
 
 casting_result air_poison_blood()
@@ -316,61 +286,57 @@ casting_result air_poison_blood()
 
 	if (p_ptr->oppose_pois == 0)
 	{
-		result = cplus(result, set_oppose_pois(randint(30) + 25 + get_level_s(POISONBLOOD, 25)));
+		set_oppose_pois(randint(30) + 25 + get_level_s(POISONBLOOD, 25));
+		result = CAST;
 	}
 
 	if ((p_ptr->tim_poison == 0) &&
 	    (get_level_s(POISONBLOOD, 50) >= 15))
 	{
-		result = cplus(result, set_poison(randint(30) + 25 + get_level_s(POISONBLOOD, 25)));
+		set_poison(randint(30) + 25 + get_level_s(POISONBLOOD, 25));
+		result = CAST;
 	}
 
 	return result;
 }
 
-const char *air_poison_blood_info()
+std::string air_poison_blood_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d30",
-		(25 + get_level_s(POISONBLOOD, 25)));
-	return buf;
+	return fmt::format(
+		"dur {}+d30",
+		25 + get_level_s(POISONBLOOD, 25));
 }
 
 casting_result air_thunderstorm()
 {
 	if (p_ptr->tim_thunder == 0)
 	{
-		return cast(set_tim_thunder(randint(10) + 10 + get_level_s(THUNDERSTORM, 25), 5 + get_level_s(THUNDERSTORM, 10), 10 + get_level_s(THUNDERSTORM, 25)));
+		set_tim_thunder(randint(10) + 10 + get_level_s(THUNDERSTORM, 25), 5 + get_level_s(THUNDERSTORM, 10), 10 + get_level_s(THUNDERSTORM, 25));
 	}
 
-	return CAST_HIDDEN;
+	return CAST;
 }
 
-const char *air_thunderstorm_info()
+std::string air_thunderstorm_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam " FMTs32b "d" FMTs32b " dur " FMTs32b "+d10",
-		(5 + get_level_s(THUNDERSTORM, 10)),
-		(10 + get_level_s(THUNDERSTORM, 25)),
-		(10 + get_level_s(THUNDERSTORM, 25)));
-	return buf;
+	return fmt::format(
+		"dam {}d{} dur {}+d10",
+		5 + get_level_s(THUNDERSTORM, 10),
+		10 + get_level_s(THUNDERSTORM, 25),
+		10 + get_level_s(THUNDERSTORM, 25));
 }
 
 casting_result air_sterilize()
 {
 	set_no_breeders((30) + 20 + get_level_s(STERILIZE, 70));
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *air_sterilize_info()
+std::string air_sterilize_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d30",
-		(20 + get_level_s(STERILIZE, 70)));
-	return buf;
+	return fmt::format(
+		"dur {}+d30",
+		20 + get_level_s(STERILIZE, 70));
 }
 
 casting_result convey_blink()
@@ -382,45 +348,41 @@ casting_result convey_blink()
 
 		teleport_player(10 + get_level_s(BLINK, 8));
 		create_between_gate(0, oy, ox);
-		return CAST_OBVIOUS;
 	}
 	else
 	{
 		teleport_player(10 + get_level_s(BLINK, 8));
-		return CAST_OBVIOUS;
 	}
+
+	return CAST;
 }
 
-const char *convey_blink_info()
+std::string convey_blink_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"distance " FMTs32b,
-		(10 + get_level_s(BLINK, 8)));
-	return buf;
+	return fmt::format(
+		"distance {}",
+		10 + get_level_s(BLINK, 8));
 }
 
 casting_result convey_teleport()
 {
 	p_ptr->energy -= (25 - get_level_s(TELEPORT, 50));
 	teleport_player(100 + get_level_s(TELEPORT, 100));
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *convey_teleport_info()
+std::string convey_teleport_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"distance " FMTs32b,
-		(100 + get_level_s(TELEPORT, 100)));
-	return buf;
+	return fmt::format(
+		"distance {}",
+		100 + get_level_s(TELEPORT, 100));
 }
 
 casting_result convey_teleport_away()
 {
 	if (get_level_s(TELEAWAY, 50) >= 20)
 	{
-		return cast(project_hack(GF_AWAY_ALL, 100));
+		project_hack(GF_AWAY_ALL, 100);
 	}
 	else if (get_level_s(TELEAWAY, 50) >= 10)
 	{
@@ -430,7 +392,7 @@ casting_result convey_teleport_away()
 			return NO_CAST;
 		}
 
-		return cast(fire_ball(GF_AWAY_ALL, dir, 100, 3 + get_level_s(TELEAWAY, 4)));
+		fire_ball(GF_AWAY_ALL, dir, 100, 3 + get_level_s(TELEAWAY, 4));
 	}
 	else
 	{
@@ -439,8 +401,10 @@ casting_result convey_teleport_away()
 		{
 			return NO_CAST;
 		}
-		return cast(teleport_monster(dir));
+		teleport_monster(dir);
 	}
+
+	return CAST;
 }
 
 static int recall_get_d()
@@ -481,12 +445,12 @@ casting_result convey_recall()
 		int d = recall_get_d();
 		int f = recall_get_f();
 		recall_player(d, f);
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 	else if (c_ptr->m_idx > 0)
 	{
 		swap_position(y, x);
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 	else if (!c_ptr->o_idxs.empty())
 	{
@@ -497,13 +461,13 @@ casting_result convey_recall()
 		// Fetch item
 		if (get_level_s(RECALL, 50) >= 15)
 		{
-			fetch(5, 10 + get_level_s(RECALL, 150), FALSE);
+			fetch(5, 10 + get_level_s(RECALL, 150), false);
 		}
 		else
 		{
-			fetch(5, 10 + get_level_s(RECALL, 150), TRUE);
+			fetch(5, 10 + get_level_s(RECALL, 150), true);
 		}
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 	else
 	{
@@ -511,30 +475,27 @@ casting_result convey_recall()
 	}
 }
 
-const char *convey_recall_info()
+std::string convey_recall_info()
 {
-	static char buf[128];
 	int d = recall_get_d();
 	int f = recall_get_f();
 
-	sprintf(buf,
-		"dur %d+d%d weight " FMTs32b "lb",
-		f, d, (1 + get_level_s(RECALL, 15)));
-	return buf;
+	return fmt::format(
+		"dur {}+d{} weight {}lb",
+		f, d, 1 + get_level_s(RECALL, 15));
 }
 
 casting_result convey_probability_travel()
 {
-	return cast(set_prob_travel(randint(20) + get_level_s(PROBABILITY_TRAVEL, 60)));
+	set_prob_travel(randint(20) + get_level_s(PROBABILITY_TRAVEL, 60));
+	return CAST;
 }
 
-const char *convey_probability_travel_info()
+std::string convey_probability_travel_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d20",
+	return fmt::format(
+		"dur {}+d20",
 		get_level_s(PROBABILITY_TRAVEL, 60));
-	return buf;
 }
 
 casting_result demonology_demon_blade()
@@ -553,26 +514,25 @@ casting_result demonology_demon_blade()
 		rad = 1;
 	}
 
-	return cast(set_project(randint(20) + get_level_s(DEMON_BLADE, 80),
-				type,
-				4 + get_level_s(DEMON_BLADE, 40),
-				rad,
-				PROJECT_STOP | PROJECT_KILL));
+	set_project(
+		randint(20) + get_level_s(DEMON_BLADE, 80),
+		type,
+		4 + get_level_s(DEMON_BLADE, 40),
+		rad,
+		PROJECT_STOP | PROJECT_KILL);
+	return CAST;
 }
 
-const char *demonology_demon_blade_info()
+std::string demonology_demon_blade_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d20 dam " FMTs32b "/blow",
-		(get_level_s(DEMON_BLADE, 80)),
-		(4 + get_level_s(DEMON_BLADE, 40)));
-	return buf;
+	return fmt::format(
+		"dur {}+d20 dam {}/blow",
+		get_level_s(DEMON_BLADE, 80),
+		4 + get_level_s(DEMON_BLADE, 40));
 }
 
 casting_result demonology_demon_madness()
 {
-	casting_result result = NO_CAST;
 	int dir, type, y1, x1, y2, x2;
 
 	if (!get_aim_dir(&dir))
@@ -611,30 +571,28 @@ casting_result demonology_demon_madness()
 	y2 = p_ptr->py - (y1 - p_ptr->py);
 	x2 = p_ptr->px - (x1 - p_ptr->px);
 
-	result = cplus(result,
-		       project(0, 1 + get_level(DEMON_MADNESS, 4),
-			       y1, x1,
-			       20 + get_level_s(DEMON_MADNESS, 200),
-			       type,
-			       PROJECT_STOP | PROJECT_GRID | PROJECT_ITEM | PROJECT_KILL));
-	result = cplus(result,
-		       project(0, 1 + get_level(DEMON_MADNESS, 4),
-			       y2, x2,
-			       20 + get_level_s(DEMON_MADNESS, 200),
-			       type,
-			       PROJECT_STOP | PROJECT_GRID | PROJECT_ITEM | PROJECT_KILL));
+	project(
+		0, 1 + get_level(DEMON_MADNESS, 4),
+		y1, x1,
+		20 + get_level_s(DEMON_MADNESS, 200),
+		type,
+		PROJECT_STOP | PROJECT_GRID | PROJECT_ITEM | PROJECT_KILL);
+	project(
+		0, 1 + get_level(DEMON_MADNESS, 4),
+		y2, x2,
+		20 + get_level_s(DEMON_MADNESS, 200),
+		type,
+		PROJECT_STOP | PROJECT_GRID | PROJECT_ITEM | PROJECT_KILL);
 
-	return result;
+	return CAST;
 }
 
-const char *demonology_demon_madness_info()
+std::string demonology_demon_madness_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam " FMTs32b " rad " FMTs32b,
-		(20 + get_level_s(DEMON_MADNESS, 200)),
-		(1 + get_level(DEMON_MADNESS, 4)));
-	return buf;
+	return fmt::format(
+		"dam {} rad {}",
+		20 + get_level_s(DEMON_MADNESS, 200),
+		1 + get_level(DEMON_MADNESS, 4));
 }
 
 casting_result demonology_demon_field()
@@ -646,41 +604,41 @@ casting_result demonology_demon_field()
 		return NO_CAST;
 	}
 	
-	return cast(fire_cloud(GF_NEXUS,
-			       dir,
-			       20 + get_level_s(DEMON_FIELD, 70),
-			       7,
-			       30 + get_level_s(DEMON_FIELD, 100)));
+	fire_cloud(
+		GF_NEXUS,
+		dir,
+		20 + get_level_s(DEMON_FIELD, 70),
+		7,
+		30 + get_level_s(DEMON_FIELD, 100));
+	return CAST;
 }
 
-const char *demonology_demon_field_info()
+std::string demonology_demon_field_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam " FMTs32b " dur " FMTs32b,
-		(20 + get_level_s(DEMON_FIELD, 70)),
-		(30 + get_level_s(DEMON_FIELD, 100)));
-	return buf;
+	return fmt::format(
+		"dam {} dur {}",
+		20 + get_level_s(DEMON_FIELD, 70),
+		30 + get_level_s(DEMON_FIELD, 100));
 }
 
 casting_result demonology_doom_shield()
 {
-	return cast(set_shield(randint(10) + 20 + get_level_s(DOOM_SHIELD, 100),
-			       -300 + get_level_s(DOOM_SHIELD, 100),
-			       SHIELD_COUNTER,
-			       1 + get_level_s(DOOM_SHIELD, 14),
-			       10 + get_level_s(DOOM_SHIELD, 15)));
+	set_shield(
+		randint(10) + 20 + get_level_s(DOOM_SHIELD, 100),
+		-300 + get_level_s(DOOM_SHIELD, 100),
+		SHIELD_COUNTER,
+		1  + get_level_s(DOOM_SHIELD, 14),
+		10 + get_level_s(DOOM_SHIELD, 15));
+	return CAST;
 }
 
-const char *demonology_doom_shield_info()
+std::string demonology_doom_shield_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d10 dam " FMTs32b "d" FMTs32b,
-		(20 + get_level_s(DOOM_SHIELD, 100)),
-		(1 + get_level_s(DOOM_SHIELD, 14)),
-		(10 + get_level_s(DOOM_SHIELD, 15)));
-	return buf;
+	return fmt::format(
+		"dur {}+d10 dam {}d{}",
+		20 + get_level_s(DOOM_SHIELD, 100),
+		1 + get_level_s(DOOM_SHIELD, 14),
+		10 + get_level_s(DOOM_SHIELD, 15));
 }
 
 casting_result demonology_unholy_word()
@@ -732,7 +690,7 @@ casting_result demonology_unholy_word()
 			delete_monster_idx(c_ptr->m_idx);
 		}
 		
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 	else
 	{
@@ -740,27 +698,24 @@ casting_result demonology_unholy_word()
 	}
 }
 
-const char *demonology_unholy_word_info()
+std::string demonology_unholy_word_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"heal mhp%% of " FMTs32b "%%",
-		(30 + get_level(UNHOLY_WORD, 50)));
-	return buf;
+	return fmt::format(
+		"heal mhp% of {}%",
+		30 + get_level(UNHOLY_WORD, 50));
 }
 
 casting_result demonology_demon_cloak()
 {
-	return cast(set_tim_reflect(randint(5) + 5 + get_level(DEMON_CLOAK, 15)));
+	set_tim_reflect(randint(5) + 5 + get_level(DEMON_CLOAK, 15));
+	return CAST;
 }
 
-const char *demonology_demon_cloak_info()
+std::string demonology_demon_cloak_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d5",
-		(5 + get_level(DEMON_CLOAK, 15)));
-	return buf;
+	return fmt::format(
+		"dur {}+d5",
+		5 + get_level(DEMON_CLOAK, 15));
 }
 
 casting_result demonology_summon_demon()
@@ -783,24 +738,19 @@ casting_result demonology_summon_demon()
 		type = SUMMON_HI_DEMON;
 	}
 
-	if (summon_specific_friendly(p_ptr->py, p_ptr->px, level, type, TRUE))
-	{
-		return CAST_OBVIOUS;
-	}
-	else
+	if (!summon_specific_friendly(p_ptr->py, p_ptr->px, level, type, true))
 	{
 		msg_print("Something blocks your summoning!");
-		return CAST_HIDDEN;
 	}
+
+	return CAST;
 }
 
-const char *demonology_summon_demon_info()
+std::string demonology_summon_demon_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"level " FMTs32b,
-		(5 + get_level_s(DEMON_SUMMON, 100)));
-	return buf;
+	return fmt::format(
+		"level {}",
+		5 + get_level_s(DEMON_SUMMON, 100));
 }
 
 casting_result demonology_discharge_minion()
@@ -835,9 +785,10 @@ casting_result demonology_discharge_minion()
 		}
 
 		/* We use project instead of fire_ball because we must tell it exactly where to land */
-		return cast(project(0, 2, y, x, dam,
-				    GF_GRAVITY,
-				    PROJECT_STOP | PROJECT_GRID | PROJECT_ITEM | PROJECT_KILL));
+		project(0, 2, y, x, dam,
+			GF_GRAVITY,
+			PROJECT_STOP | PROJECT_GRID | PROJECT_ITEM | PROJECT_KILL);
+		return CAST;
 	}
 	else
 	{
@@ -845,14 +796,12 @@ casting_result demonology_discharge_minion()
 	}
 }
 
-const char *demonology_discharge_minion_info()
+std::string demonology_discharge_minion_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam " FMTs32b "%% max " FMTs32b,
-		(20 + get_level(DISCHARGE_MINION, 60)),
-		(100 + get_level(DISCHARGE_MINION, 500)));
-	return buf;
+	return fmt::format(
+		"dam {}% max {}",
+		20 + get_level(DISCHARGE_MINION, 60),
+		100 + get_level(DISCHARGE_MINION, 500));
 }
 
 casting_result demonology_control_demon()
@@ -863,55 +812,15 @@ casting_result demonology_control_demon()
 		return NO_CAST;
 	}
 
-	return cast(fire_ball(GF_CONTROL_DEMON, dir, 50 + get_level_s(CONTROL_DEMON, 250), 0));
+	fire_ball(GF_CONTROL_DEMON, dir, 50 + get_level_s(CONTROL_DEMON, 250), 0);
+	return CAST;
 }
 
-const char *demonology_control_demon_info()
+std::string demonology_control_demon_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"power " FMTs32b,
-		(50 + get_level_s(CONTROL_DEMON, 250)));
-	return buf;
-}
-
-casting_result divination_greater_identify()
-{
-	identify_fully();
-	return CAST_OBVIOUS;
-}
-
-casting_result divination_identify()
-{
-	if (get_level_s(IDENTIFY, 50) >= 17)
-	{
-		casting_result result = NO_CAST;
-		result = cplus(result, identify_pack());
-		return result;
-	}
-	else if (ident_spell())
-	{
-		return CAST_OBVIOUS;
-	}
-	else
-	{
-		return NO_CAST;
-	}
-}
-
-const char *divination_identify_info()
-{
-	static char buf[128];
-
-	if (get_level_s(IDENTIFY, 50) >= 27)
-	{
-		sprintf(buf, "rad " FMTs32b, get_level_s(IDENTIFY, 3));
-		return buf;
-	}
-	else
-	{
-		return "";
-	}
+	return fmt::format(
+		"power {}",
+		50 + get_level_s(CONTROL_DEMON, 250));
 }
 
 casting_result divination_vision()
@@ -924,128 +833,109 @@ casting_result divination_vision()
 	{
 		map_area();
 	}
-	return CAST_OBVIOUS;
 
+	return CAST;
 }
 
 casting_result divination_sense_hidden()
 {
-	casting_result result = NO_CAST;
-	result = cplus(result, set_tim_invis(10 + randint(20) + get_level_s(SENSEHIDDEN, 40)));
-
-	return result;
+	set_tim_invis(10 + randint(20) + get_level_s(SENSEHIDDEN, 40));
+	return CAST;
 }
 
-const char *divination_sense_hidden_info()
+std::string divination_sense_hidden_info()
 {
-	static char buf[128];
-
 	if (get_level_s(SENSEHIDDEN, 50) >= 15)
 	{
-		sprintf(buf,
-			"rad " FMTs32b " dur " FMTs32b "+d20",
-			(15 + get_level_s(SENSEHIDDEN, 40)),
-			(10 + get_level_s(SENSEHIDDEN, 40)));
+		return fmt::format(
+			"rad {} dur {}+d20",
+			15 + get_level_s(SENSEHIDDEN, 40),
+			10 + get_level_s(SENSEHIDDEN, 40));
 	}
 	else
 	{
-		sprintf(buf,
-			"rad " FMTs32b,
-			(15 + get_level_s(SENSEHIDDEN, 40)));
+		return fmt::format(
+			"rad {}",
+			15 + get_level_s(SENSEHIDDEN, 40));
 	}
-
-	return buf;
 }
 
 casting_result divination_reveal_ways()
 {
-	casting_result result = NO_CAST;
-	result = cplus(result, detect_doors(10 + get_level(REVEALWAYS, 40)));
-	result = cplus(result, detect_stairs(10 + get_level(REVEALWAYS, 40)));
-	return result;
+	detect_doors(10 + get_level(REVEALWAYS, 40));
+	detect_stairs(10 + get_level(REVEALWAYS, 40));
+	return CAST;
 }
 
-const char *divination_reveal_ways_info()
+std::string divination_reveal_ways_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"rad " FMTs32b,
-		(10 + get_level_s(REVEALWAYS, 40)));
-	return buf;
+	return fmt::format(
+		"rad {}",
+		10 + get_level_s(REVEALWAYS, 40));
 }
 
 casting_result divination_sense_monsters()
 {
-	casting_result result = NO_CAST;
-
-	result = cplus(result, detect_monsters_normal(10 + get_level(SENSEMONSTERS, 40)));
+	detect_monsters_normal(10 + get_level(SENSEMONSTERS, 40));
 	if (get_level_s(SENSEMONSTERS, 50) >= 30)
 	{
-		result = cplus(result, set_tim_esp(10 + randint(10) + get_level_s(SENSEMONSTERS, 20)));
+		set_tim_esp(10 + randint(10) + get_level_s(SENSEMONSTERS, 20));
 	}
-	return result;
+	return CAST;
 }
 
-const char *divination_sense_monsters_info()
+std::string divination_sense_monsters_info()
 {
-	static char buf[128];
-
 	if (get_level_s(SENSEMONSTERS, 50) >= 30)
 	{
-		sprintf(buf,
-			"rad " FMTs32b " dur " FMTs32b "+d10",
-			(10 + get_level_s(SENSEMONSTERS, 40)),
-			(10 + get_level_s(SENSEMONSTERS, 20)));
+		return fmt::format(
+			"rad {} dur {}+d10",
+			10 + get_level_s(SENSEMONSTERS, 40),
+			10 + get_level_s(SENSEMONSTERS, 20));
 	}
 	else
 	{
-		sprintf(buf,
-			"rad " FMTs32b,
-			(10 + get_level_s(SENSEMONSTERS, 40)));
+		return fmt::format(
+			"rad {}",
+			10 + get_level_s(SENSEMONSTERS, 40));
 	}
-
-	return buf;
 }
 
 casting_result earth_stone_skin()
 {
-	int type;
-
-	type = 0;
+	int type = 0;
 	if (get_level_s(STONESKIN, 50) >= 25)
 	{
 		type = SHIELD_COUNTER;
 	}
 
-	return cast(set_shield(randint(10) + 10 + get_level_s(STONESKIN, 100),
-			       10 + get_level_s(STONESKIN, 50),
-			       type,
-			       2 + get_level_s(STONESKIN, 5),
-			       3 + get_level_s(STONESKIN, 5)));
+	set_shield(
+		randint(10) + 10 + get_level_s(STONESKIN, 100),
+		10 + get_level_s(STONESKIN, 50),
+		type,
+		2 + get_level_s(STONESKIN, 5),
+		3 + get_level_s(STONESKIN, 5));
+	return CAST;
 }
 
-const char *earth_stone_skin_info()
+std::string earth_stone_skin_info()
 {
-	static char buf[128];
-
 	if (get_level_s(STONESKIN, 50) >= 25)
 	{
-		sprintf(buf,
-			"dam " FMTs32b "d" FMTs32b " dur " FMTs32b "+d10 AC " FMTs32b,
-			(2 + get_level_s(STONESKIN, 5)),
-			(3 + get_level_s(STONESKIN, 5)),
-			(10 + get_level_s(STONESKIN, 100)),
-			(10 + get_level_s(STONESKIN, 50)));
+		return fmt::format(
+			"dam {}d{} dur {}+d10 AC {}",
+			2 + get_level_s(STONESKIN, 5),
+			3 + get_level_s(STONESKIN, 5),
+			10 + get_level_s(STONESKIN, 100),
+			10 + get_level_s(STONESKIN, 50));
 	}
 	else
 	{
-		sprintf(buf,
-			"dur " FMTs32b "+d10 AC " FMTs32b,
-			(10 + get_level_s(STONESKIN, 100)),
-			(10 + get_level_s(STONESKIN, 50)));
+		return fmt::format(
+			"dur {}+d10 AC {}",
+			10 + get_level_s(STONESKIN, 100),
+			10 + get_level_s(STONESKIN, 50));
 	}
-
-	return buf;
 }
 
 casting_result earth_dig()
@@ -1056,7 +946,8 @@ casting_result earth_dig()
 		return NO_CAST;
 	}
 
-	return cast(wall_to_mud(dir));
+	wall_to_mud(dir);
+	return CAST;
 }
 
 casting_result earth_stone_prison()
@@ -1077,44 +968,41 @@ casting_result earth_stone_prison()
 	}
 
 	wall_stone(y, x);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 casting_result earth_strike()
 {
-	int dir, dmg;
-
+	int dir;
 	if (!get_aim_dir(&dir))
 	{
 		return NO_CAST;
 	}
 
-	dmg = 50 + get_level_s(STRIKE, 50);
+	int dmg = 50 + get_level_s(STRIKE, 50);
 	if (get_level_s(STRIKE, 50) >= 12)
 	{
-		return cast(fire_ball(GF_FORCE, dir, dmg, 1));
+		fire_ball(GF_FORCE, dir, dmg, 1);
 	}
 	else
 	{
-		return cast(fire_ball(GF_FORCE, dir, dmg, 0));
+		fire_ball(GF_FORCE, dir, dmg, 0);
 	}
+	return CAST;
 }
 
-const char *earth_strike_info()
+std::string earth_strike_info()
 {
-	static char buf[128];
 	int dmg = 50 + get_level_s(STRIKE, 50);
 
 	if (get_level_s(STRIKE, 50) >= 12)
 	{
-		sprintf(buf, "dam %d rad 1", dmg);
+		return fmt::format("dam {} rad 1", dmg);
 	}
 	else
 	{
-		sprintf(buf, "dam %d", dmg);
+		return fmt::format("dam {}", dmg);
 	}
-
-	return buf;
 }
 
 casting_result earth_shake()
@@ -1133,142 +1021,113 @@ casting_result earth_shake()
 		x = p_ptr->px;
 		y = p_ptr->py;
 	}
+
 	earthquake(y, x, 4 + get_level_s(SHAKE, 10));
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *earth_shake_info()
+std::string earth_shake_info()
 {
-	static char buf[128];
-	sprintf(buf, "rad " FMTs32b, (4 + get_level_s(SHAKE, 10)));
-	return buf;
+	return fmt::format("rad {}", 4 + get_level_s(SHAKE, 10));
 }
 
 casting_result eru_see_the_music()
 {
-	casting_result result = NO_CAST;
-
-	result = cplus(result, set_tim_invis(randint(20) + 10 + get_level_s(ERU_SEE, 100)));
+	set_tim_invis(randint(20) + 10 + get_level_s(ERU_SEE, 100));
 
 	if (get_level_s(ERU_SEE, 50) >= 30)
 	{
 		wiz_lite_extra();
-		result = CAST_OBVIOUS;
 	}
 	else if (get_level_s(ERU_SEE, 50) >= 10)
 	{
 		map_area();
-		result = CAST_OBVIOUS;
 	}
 
 	if (get_level_s(ERU_SEE, 50) >= 20)
 	{
-		result = cplus(result, set_blind(0));
+		set_blind(0);
 	}
 
-	return result;
+	return CAST;
 }
 
-const char *eru_see_the_music_info()
+std::string eru_see_the_music_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d20",
-		(10 + get_level_s(ERU_SEE, 100)));
-	return buf;
+	return fmt::format(
+		"dur {}+d20",
+		10 + get_level_s(ERU_SEE, 100));
 }
 
 casting_result eru_listen_to_the_music()
 {
-	casting_result result = NO_CAST;
-
 	if (get_level_s(ERU_LISTEN, 50) >= 30)
 	{
-		result = cplus(result, ident_all());
-		result = cplus(result, identify_pack());
+		ident_all();
+		identify_pack();
 	}
 	else if (get_level_s(ERU_LISTEN, 50) >= 14)
 	{
-		result = cplus(result, identify_pack());
+		identify_pack();
 	}
 	else
 	{
-		result = cplus(result, ident_spell());
+		ident_spell();
 	}
 
-	return result;
-}
-
-casting_result eru_know_the_music()
-{
-	if (get_level_s(ERU_UNDERSTAND, 50) >= 10)
-	{
-		identify_pack_fully();
-		return CAST_OBVIOUS;
-	}
-	else
-	{
-		return cast(identify_fully());
-	}
+	return CAST;
 }
 
 casting_result eru_lay_of_protection()
 {
-	return cast(fire_ball(GF_MAKE_GLYPH, 0, 1, 1 + get_level(ERU_PROT, 2)));
+	fire_ball(GF_MAKE_GLYPH, 0, 1, 1 + get_level(ERU_PROT, 2));
+	return CAST;
 }
 
-const char *eru_lay_of_protection_info()
+std::string eru_lay_of_protection_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"rad " FMTs32b,
-		(1 + get_level(ERU_PROT, 2)));
-	return buf;
+	return fmt::format(
+		"rad {}",
+		1 + get_level(ERU_PROT, 2));
 }
 
 casting_result fire_globe_of_light()
 {
-	casting_result result = NO_CAST;
-
 	if (get_level_s(GLOBELIGHT, 50) >= 3)
 	{
-		result = cplus(result, lite_area(10, 4));
+		lite_area(10, 4);
 	}
 	else
 	{
 		lite_room(p_ptr->py, p_ptr->px);
-		result = CAST_OBVIOUS;
 	}
 
 	if (get_level_s(GLOBELIGHT, 50) >= 15)
 	{
-		result = cplus(result,
-			       fire_ball(GF_LITE,
-					 0,
-					 10 + get_level_s(GLOBELIGHT, 100),
-					 5 + get_level_s(GLOBELIGHT, 6)));
+		fire_ball(
+			GF_LITE,
+			0,
+			10 + get_level_s(GLOBELIGHT, 100),
+			5 + get_level_s(GLOBELIGHT, 6));
 		p_ptr->update |= PU_VIEW;
 	}
 
-	return result;
+	return CAST;
 }
 
-const char *fire_globe_of_light_info()
+std::string fire_globe_of_light_info()
 {
-	static char buf[128];
-
 	if (get_level_s(GLOBELIGHT, 50) >= 15)
 	{
-		sprintf(buf, "dam " FMTs32b " rad " FMTs32b,
+		return fmt::format(
+			"dam {} rad {}",
 			(10 + get_level_s(GLOBELIGHT, 100)),
 			(5 + get_level_s(GLOBELIGHT, 6)));
 	}
 	else
 	{
-		buf[0] = '\0';
+		return "";
 	}
-
-	return buf;
 }
 
 casting_result fire_fireflash()
@@ -1286,19 +1145,20 @@ casting_result fire_fireflash()
 		return NO_CAST;
 	}
 
-	return cast(fire_ball(type, dir,
-			      20 + get_level_s(FIREFLASH, 500),
-			      2 + get_level_s(FIREFLASH, 5)));
+	fire_ball(
+		type,
+		dir,
+		20 + get_level_s(FIREFLASH, 500),
+		2 + get_level_s(FIREFLASH, 5));
+	return CAST;
 }
 
-const char *fire_fireflash_info()
+std::string fire_fireflash_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam " FMTs32b " rad " FMTs32b,
-		(20 + get_level_s(FIREFLASH, 500)),
-		(2 + get_level_s(FIREFLASH, 5)));
-	return buf;
+	return fmt::format(
+		"dam {} rad {}",
+		20 + get_level_s(FIREFLASH, 500),
+		2 + get_level_s(FIREFLASH, 5));
 }
 
 casting_result fire_fiery_shield()
@@ -1309,22 +1169,22 @@ casting_result fire_fiery_shield()
 		type = SHIELD_GREAT_FIRE;
 	}
 
-	return cast(set_shield(randint(20) + 10 + get_level_s(FIERYAURA, 70),
-			       10,
-			       type,
-			       5 + get_level_s(FIERYAURA, 10),
-			       5 + get_level_s(FIERYAURA, 7)));
+	set_shield(
+		randint(20) + 10 + get_level_s(FIERYAURA, 70),
+		10,
+		type,
+		5 + get_level_s(FIERYAURA, 10),
+		5 + get_level_s(FIERYAURA, 7));
+	return CAST;
 }
 
-const char *fire_fiery_shield_info()
+std::string fire_fiery_shield_info()
 {
-	static char buf[128];
-  	sprintf(buf,
-		"dam " FMTs32b "d" FMTs32b " dur " FMTs32b "+d20",
-		(5 + get_level_s(FIERYAURA, 15)),
-		(5 + get_level_s(FIERYAURA, 7)),
-		(10 + get_level_s(FIERYAURA, 70)));
-	return buf;
+	return fmt::format(
+		"dam {}d{} dur {}+d20",
+		5 + get_level_s(FIERYAURA, 15),
+		5 + get_level_s(FIERYAURA, 7),
+		10 + get_level_s(FIERYAURA, 70));
 }
 
 casting_result fire_firewall()
@@ -1344,17 +1204,15 @@ casting_result fire_firewall()
 	fire_wall(type, dir,
 		  40 + get_level_s(FIREWALL, 150),
 		  10 + get_level_s(FIREWALL, 14));
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *fire_firewall_info()
+std::string fire_firewall_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam " FMTs32b " dur " FMTs32b,
-		(40 + get_level_s(FIREWALL, 150)),
-		(10 + get_level_s(FIREWALL, 14)));
-	return buf;
+	return fmt::format(
+		"dam {} dur {}",
+		40 + get_level_s(FIREWALL, 150),
+		10 + get_level_s(FIREWALL, 14));
 }
 
 object_filter_t const &item_tester_hook_fire_golem()
@@ -1396,9 +1254,9 @@ casting_result fire_golem()
 
 	/* Summon it */
 	int r_idx = get_fire_golem();
-	m_allow_special[r_idx] = TRUE;
-	int m_idx = place_monster_one(y, x, r_idx, 0, FALSE, MSTATUS_FRIEND);
-	m_allow_special[r_idx] = FALSE;
+	m_allow_special[r_idx] = true;
+	int m_idx = place_monster_one(y, x, r_idx, 0, false, MSTATUS_FRIEND);
+	m_allow_special[r_idx] = false;
 
 	/* level it */
 	if (m_idx != 0)
@@ -1408,16 +1266,14 @@ casting_result fire_golem()
 		m_list[m_idx].mflag |= MFLAG_CONTROL;
 	}
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *fire_golem_info()
+std::string fire_golem_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"golem level " FMTs32b,
-		(7 + get_level_s(FIREGOLEM, 70)));
-	return buf;
+	return fmt::format(
+		"golem level {}",
+		7 + get_level_s(FIREGOLEM, 70));
 }
 
 casting_result geomancy_call_the_elements()
@@ -1437,22 +1293,20 @@ casting_result geomancy_call_the_elements()
 		  1,
 		  1 + get_level(CALL_THE_ELEMENTS, 5));
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *geomancy_call_the_elements_info()
+std::string geomancy_call_the_elements_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"rad " FMTs32b,
-		(1 + get_level(CALL_THE_ELEMENTS, 5)));
-	return buf;
+	return fmt::format(
+		"rad {}",
+		1 + get_level(CALL_THE_ELEMENTS, 5));
 }
 
 casting_result geomancy_channel_elements()
 {
 	channel_the_elements(p_ptr->py, p_ptr->px, get_level_s(CHANNEL_ELEMENTS, 50));
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 typedef struct eff_type eff_type;
@@ -1494,7 +1348,7 @@ static u32b dir_to_eff_flags(int dir)
 	case 8: return EFF_DIR8;
 	case 9: return EFF_DIR9;
 	default:
-		assert(FALSE);
+		assert(false);
 	}
 	/* Default */
 	return 0;
@@ -1556,7 +1410,7 @@ casting_result geomancy_elemental_wave()
 			  6 + get_level_s(ELEMENTAL_WAVE, 20),
 			  EFF_WAVE + EFF_LAST + dir_flag);
 
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 }
 
@@ -1602,21 +1456,19 @@ casting_result geomancy_vaporize()
 			   1 + get_level_s(VAPORIZE, 4),
 			   10 + get_level_s(VAPORIZE, 20));
 
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 }
 
-const char *geomancy_vaporize_info()
+std::string geomancy_vaporize_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"rad " FMTs32b " dur " FMTs32b,
-		(1 + get_level_s(VAPORIZE, 4)),
-		(10 + get_level_s(VAPORIZE, 20)));
-	return buf;
+	return fmt::format(
+		"rad {} dur {}",
+		1 + get_level_s(VAPORIZE, 4),
+		10 + get_level_s(VAPORIZE, 20));
 }
 
-bool_ geomancy_vaporize_depends()
+bool geomancy_vaporize_depends()
 {
 	return get_skill(SKILL_AIR) >= 4;
 }
@@ -1633,19 +1485,17 @@ casting_result geomancy_geolysis()
 	msg_print("Elements recombine before you, laying down an open path.");
 	geomancy_dig(p_ptr->py, p_ptr->px, dir, 5 + get_level_s(GEOLYSIS, 12));
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *geomancy_geolysis_info()
+std::string geomancy_geolysis_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"length " FMTs32b,
-		(5 + get_level_s(GEOLYSIS, 12)));
-	return buf;
+	return fmt::format(
+		"length {}",
+		5 + get_level_s(GEOLYSIS, 12));
 }
 
-bool_ geomancy_geolysis_depends()
+bool geomancy_geolysis_depends()
 {
 	return get_skill(SKILL_EARTH) >= 7;
 }
@@ -1663,19 +1513,17 @@ casting_result geomancy_dripping_tread()
 		msg_print("You stop dripping raw elemental energies.");
 	}
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *geomancy_dripping_tread_info()
+std::string geomancy_dripping_tread_info()
 {
-	static char buf[128];
-	sprintf(buf, 
-		"dur " FMTs32b "+d15 movs",
-		(10 + get_level_s(DRIPPING_TREAD, 50)));
-	return buf;
+	return fmt::format(
+		"dur {}+d15 movs",
+		10 + get_level_s(DRIPPING_TREAD, 50));
 }
 
-bool_ geomancy_dripping_tread_depends()
+bool geomancy_dripping_tread_depends()
 {
 	return get_skill(SKILL_WATER) >= 10;
 }
@@ -1693,10 +1541,10 @@ casting_result geomancy_grow_barrier()
 	}
 
 	fire_ball(GF_ELEMENTAL_WALL, dir, 1, 1);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-bool_ geomancy_grow_barrier_depends()
+bool geomancy_grow_barrier_depends()
 {
 	return get_skill(SKILL_EARTH) >= 12;
 }
@@ -1705,7 +1553,7 @@ typedef struct geo_summon geo_summon;
 struct geo_summon {
 	s16b feat;
 	s16b skill_idx;
-	cptr *summon_names;
+	const char **summon_names;
 };
 
 geo_summon *geomancy_find_summon(geo_summon summons[], int feat)
@@ -1722,7 +1570,7 @@ geo_summon *geomancy_find_summon(geo_summon summons[], int feat)
 	return NULL;
 }
 
-int geomancy_count_elements(cptr *elements)
+int geomancy_count_elements(const char **elements)
 {
 	int i;
 	for (i = 0; elements[i] != NULL; i++)
@@ -1736,25 +1584,25 @@ casting_result geomancy_elemental_minion()
 	int dir = 0;
 	int x = 0, y = 0;
 	geo_summon *summon_ptr = NULL;
-	cptr earth_summons[] = {
+	const char *earth_summons[] = {
 		"Earth elemental",
 		"Xorn",
 		"Xaren",
 		NULL
 	};
-	cptr air_summons[] = {
+	const char *air_summons[] = {
 		"Air elemental",
 		"Ancient blue dragon",
 		"Great Storm Wyrm",
 		"Sky Drake",
 		NULL
 	};
-	cptr fire_summons[] = {
+	const char *fire_summons[] = {
 		"Fire elemental",
 		"Ancient red dragon",
 		NULL
 	};
-	cptr water_summons[] = {
+	const char *water_summons[] = {
 		"Water elemental",
 		"Water troll",
 		"Water demon",
@@ -1804,7 +1652,7 @@ casting_result geomancy_elemental_minion()
 	}
 	else
 	{
-		cptr *names = summon_ptr->summon_names;
+		const char **names = summon_ptr->summon_names;
 		int max = get_skill_scale(summon_ptr->skill_idx,
 					  geomancy_count_elements(names));
 		int r_idx = test_monster_name(names[rand_int(max)]);
@@ -1812,7 +1660,7 @@ casting_result geomancy_elemental_minion()
 
 		/* Summon it */
 		find_position(y, x, &my, &mx);
-		m_idx = place_monster_one(my, mx, r_idx, 0, FALSE, MSTATUS_FRIEND);
+		m_idx = place_monster_one(my, mx, r_idx, 0, false, MSTATUS_FRIEND);
 
 		/* Level it */
 		if (m_idx)
@@ -1822,17 +1670,15 @@ casting_result geomancy_elemental_minion()
 
 		cave_set_feat(y, x, FEAT_FLOOR);
 
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 }
 
-const char *geomancy_elemental_minion_info()
+std::string geomancy_elemental_minion_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"min level " FMTs32b,
-		(10 + get_level_s(ELEMENTAL_MINION, 120)));
-	return buf;
+	return fmt::format(
+		"min level {}",
+		10 + get_level_s(ELEMENTAL_MINION, 120));
 }
 
 static void get_manathrust_dam(s16b *num, s16b *sides)
@@ -1853,42 +1699,31 @@ casting_result mana_manathrust()
 	}
 
 	get_manathrust_dam(&num, &sides);
-	return cast(fire_bolt(GF_MANA, dir, damroll(num, sides)));
+	fire_bolt(GF_MANA, dir, damroll(num, sides));
+	return CAST;
 }
 
-const char *mana_manathrust_info()
+std::string mana_manathrust_info()
 {
 	s16b num = 0;
 	s16b sides = 0;
-	static char buf[128];
 
 	get_manathrust_dam(&num, &sides);
-	sprintf(buf,
-		"dam " FMTs16b "d" FMTs16b,
-		num,
-		sides);
-	return buf;
+	return fmt::format("dam {}d{}", num, sides);
 }
 
 casting_result mana_remove_curses()
 {
-	casting_result result = NO_CAST;
+	auto fn = (get_level_s(DELCURSES, 50) >= 20)
+		? remove_all_curse
+		: remove_curse;
 
-	if (get_level_s(DELCURSES, 50) >= 20)
-	{
-		result = cplus(result, remove_all_curse());
-	}
-	else
-	{
-		result = cplus(result, remove_curse());
-	}
-
-	if (result == CAST_OBVIOUS)
+	if (fn())
 	{
 		msg_print("The curse is broken!");
 	}
 
-	return result;
+	return CAST;
 }
 
 casting_result mana_elemental_shield()
@@ -1897,34 +1732,36 @@ casting_result mana_elemental_shield()
 
 	if (p_ptr->oppose_fire == 0)
 	{
-		res = cplus(res, set_oppose_fire(randint(10) + 15 + get_level_s(RESISTS, 50)));
+		set_oppose_fire(randint(10) + 15 + get_level_s(RESISTS, 50));
+		res = CAST;
 	}
 
 	if (p_ptr->oppose_cold == 0)
 	{
-		res = cplus(res, set_oppose_cold(randint(10) + 15 + get_level_s(RESISTS, 50)));
+		set_oppose_cold(randint(10) + 15 + get_level_s(RESISTS, 50));
+		res = CAST;
 	}
 
 	if (p_ptr->oppose_elec == 0)
 	{
-		res = cplus(res, set_oppose_elec(randint(10) + 15 + get_level_s(RESISTS, 50)));
+		set_oppose_elec(randint(10) + 15 + get_level_s(RESISTS, 50));
+		res = CAST;
 	}
 
 	if (p_ptr->oppose_acid == 0)
 	{
-		res = cplus(res, set_oppose_acid(randint(10) + 15 + get_level_s(RESISTS, 50)));
+		set_oppose_acid(randint(10) + 15 + get_level_s(RESISTS, 50));
+		res = CAST;
 	}
 
 	return res;
 }
 
-const char *mana_elemental_shield_info()
+std::string mana_elemental_shield_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d10",
-		(15 + get_level_s(RESISTS, 50)));
-	return buf;
+	return fmt::format(
+		"dur {}+d10",
+		15 + get_level_s(RESISTS, 50));
 }
 
 casting_result mana_disruption_shield()
@@ -1933,32 +1770,31 @@ casting_result mana_disruption_shield()
 	{
 		if (p_ptr->invuln == 0)
 		{
-			return cast(set_invuln(randint(5) + 3 + get_level_s(MANASHIELD, 10)));
+			set_invuln(randint(5) + 3 + get_level_s(MANASHIELD, 10));
+			return CAST;
 		}
 	}
 	else if (p_ptr->disrupt_shield == 0)
 	{
-		return cast(set_disrupt_shield(randint(5) + 3 + get_level_s(MANASHIELD, 10)));
+		set_disrupt_shield(randint(5) + 3 + get_level_s(MANASHIELD, 10));
+		return CAST;
 	}
 
 	return NO_CAST;
 }
 
-const char *mana_disruption_shield_info()
+std::string mana_disruption_shield_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d5",
-		(3 + get_level_s(MANASHIELD, 10)));
-	return buf;
+	return fmt::format(
+		"dur {}+d5",
+		3 + get_level_s(MANASHIELD, 10));
 }
 
 casting_result manwe_wind_shield()
 {
-	casting_result res = NO_CAST;
 	s32b dur = get_level_s(MANWE_SHIELD, 50) + 10 + randint(20);
 
-	res = cplus(res, set_protevil(dur));
+	set_protevil(dur);
 
 	if (get_level_s(MANWE_SHIELD, 50) >= 10)
 	{
@@ -1968,39 +1804,35 @@ casting_result manwe_wind_shield()
 			type = SHIELD_COUNTER;
 		}
 
-		res = cplus(res,
-			    set_shield(dur,
-				       get_level_s(MANWE_SHIELD, 30),
-				       type,
-				       1 + get_level_s(MANWE_SHIELD, 2),
-				       1 + get_level_s(MANWE_SHIELD, 6)));
+		set_shield(
+			dur,
+			get_level_s(MANWE_SHIELD, 30),
+			type,
+			1 + get_level_s(MANWE_SHIELD, 2),
+			1 + get_level_s(MANWE_SHIELD, 6));
 	}
 
-	return res;
+	return CAST;
 }
 
-const char *manwe_wind_shield_info()
+std::string manwe_wind_shield_info()
 {
-	static char buf[128];
-
-	sprintf(buf,
-		"dur " FMTs32b "+d20",
-		(get_level_s(MANWE_SHIELD, 50) + 10));
+	auto buf = fmt::format(
+		"dur {}+d20",
+		get_level_s(MANWE_SHIELD, 50) + 10);
 
 	if (get_level_s(MANWE_SHIELD, 50) >= 10)
 	{
-		char tmp[128];
-		sprintf(tmp, " AC " FMTs32b, get_level_s(MANWE_SHIELD, 30));
-		strcat(buf, tmp);
+		buf += fmt::format(
+			" AC {}", get_level_s(MANWE_SHIELD, 30));
 	}
 
 	if (get_level_s(MANWE_SHIELD, 50) >= 20)
 	{
-		char tmp[128];
-		sprintf(tmp, " dam " FMTs32b "d" FMTs32b,
-			(1 + get_level_s(MANWE_SHIELD, 2)),
-			(1 + get_level_s(MANWE_SHIELD, 6)));
-		strcat(buf, tmp);
+		buf += fmt::format(
+			" dam {}d{}",
+			1 + get_level_s(MANWE_SHIELD, 2),
+			1 + get_level_s(MANWE_SHIELD, 6));
 	}
 
 	return buf;
@@ -2011,52 +1843,49 @@ casting_result manwe_avatar()
 	s16b mimic_idx = resolve_mimic_name("Maia");
 	assert(mimic_idx >= 0);
 
-	return cast(set_mimic(get_level_s(MANWE_AVATAR, 20) + randint(10),
-			      mimic_idx,
-			      p_ptr->lev));
+	set_mimic(
+		get_level_s(MANWE_AVATAR, 20) + randint(10),
+		mimic_idx,
+		p_ptr->lev);
+	return CAST;
 }
 
-const char *manwe_avatar_info()
+std::string manwe_avatar_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d10",
+	return fmt::format(
+		"dur {}+d10",
 		get_level_s(MANWE_AVATAR, 20));
-	return buf;
 }
 
 casting_result manwe_blessing()
 {
-	casting_result res = NO_CAST;
 	s32b dur = get_level_s(MANWE_BLESS, 70) + 30 + randint(40);
 
-	res = cplus(res, set_blessed(dur));
-	res = cplus(res, set_afraid(0));
-	res = cplus(res, set_lite(0));
+	set_blessed(dur);
+	set_afraid(0);
+	set_lite(0);
 
 	if (get_level_s(MANWE_BLESS, 50) >= 10)
 	{
-		res = cplus(res, set_hero(dur));
+		set_hero(dur);
 	}
 	if (get_level_s(MANWE_BLESS, 50) >= 20)
 	{
-		res = cplus(res, set_shero(dur));
+		set_shero(dur);
 	}
 	if (get_level_s(MANWE_BLESS, 50) >= 30)
 	{
-		res = cplus(res, set_holy(dur));
+		set_holy(dur);
 	}
 
-	return res;
+	return CAST;
 }
 
-const char *manwe_blessing_info()
+std::string manwe_blessing_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d40",
+	return fmt::format(
+		"dur {}+d40",
 		get_level_s(MANWE_BLESS, 70) + 30);
-	return buf;
 }
 
 casting_result manwe_call()
@@ -2068,24 +1897,24 @@ casting_result manwe_call()
 	r_idx = test_monster_name("Great eagle");
 	assert(r_idx >= 1);
 
-	m_idx = place_monster_one(y, x, r_idx, 0, FALSE, MSTATUS_FRIEND);
+	m_idx = place_monster_one(y, x, r_idx, 0, false, MSTATUS_FRIEND);
 
 	if (m_idx > 0)
 	{
 		monster_set_level(m_idx, 20 + get_level(MANWE_CALL, 70));
-		return CAST_OBVIOUS;
+		return CAST;
 	}
-
-	return NO_CAST;
+	else
+	{
+		return NO_CAST;
+	}
 }
 
-const char *manwe_call_info()
+std::string manwe_call_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"level " FMTs32b,
+	return fmt::format(
+		"level {}",
 		get_level_s(MANWE_CALL, 70) + 20);
-	return buf;
 }
 
 void do_melkor_curse(int m_idx)
@@ -2194,25 +2023,25 @@ casting_result melkor_curse()
 	else
 	{
 		do_melkor_curse(target_who);
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 }
 
 casting_result melkor_corpse_explosion()
 {
-	return cast(fire_ball(GF_CORPSE_EXPL,
-			      0,
-			      20 + get_level_s(MELKOR_CORPSE_EXPLOSION, 70),
-			      2 + get_level_s(MELKOR_CORPSE_EXPLOSION, 5)));
+	fire_ball(
+		GF_CORPSE_EXPL,
+		0,
+		20 + get_level_s(MELKOR_CORPSE_EXPLOSION, 70),
+		2 + get_level_s(MELKOR_CORPSE_EXPLOSION, 5));
+	return CAST;
 }
 
-const char *melkor_corpse_explosion_info()
+std::string melkor_corpse_explosion_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam " FMTs32b "%%",
+	return fmt::format(
+		"dam {}%",
 		20 + get_level_s(MELKOR_CORPSE_EXPLOSION, 70));
-	return buf;
 }
 
 casting_result melkor_mind_steal()
@@ -2252,31 +2081,28 @@ casting_result melkor_mind_steal()
 		}
 
 		msg_print(buf);
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 }
 
-const char *melkor_mind_steal_info()
+std::string melkor_mind_steal_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"chance 1d(mlvl)<" FMTs32b,
+	return fmt::format(
+		"chance 1d(mlvl)<{}",
 		get_level_s(MELKOR_MIND_STEAL, 50));
-	return buf;
 }
 
 casting_result meta_recharge()
 {
-	return cast(recharge(60 + get_level_s(RECHARGE, 140)));
+	recharge(60 + get_level_s(RECHARGE, 140));
+	return CAST;
 }
 
-const char *meta_recharge_info()
+std::string meta_recharge_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"power " FMTs32b,
+	return fmt::format(
+		"power {}",
 		60 + get_level_s(RECHARGE, 140));
-	return buf;
 }
 
 static int get_spellbinder_max()
@@ -2297,7 +2123,7 @@ casting_result meta_spellbinder()
 	{
 		struct trigger {
 			int idx;
-			cptr desc;
+			const char *desc;
 		};
 		struct trigger triggers[] = {
 			{ SPELLBINDER_HP75, "75% HP", },
@@ -2362,14 +2188,16 @@ casting_result meta_spellbinder()
 			{
 				spellbinder->trigger = 0;
 				spellbinder->spell_idxs.clear();
-				return CAST_OBVIOUS;
+				return CAST;
 			}
 			else
 			{
 				if (spell_type_skill_level(spell_at(s)) > 7 + get_level_s(SPELLBINDER, 35))
 				{
-					msg_format("You are only allowed spells with a base level of " FMTs32b ".", (7 + get_level_s(SPELLBINDER, 35)));
-					return CAST_OBVIOUS;
+					msg_print(fmt::format(
+						"You are only allowed spells with a base level of {}.",
+						7 + get_level_s(SPELLBINDER, 35)));
+					return CAST;
 				}
 			}
 
@@ -2379,53 +2207,49 @@ casting_result meta_spellbinder()
 		
 		p_ptr->energy = p_ptr->energy - 3100;
 		msg_print("Spellbinder ready.");
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 }
 
-const char *meta_spellbinder_info()
+std::string meta_spellbinder_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"number %d max level " FMTs32b,
+	return fmt::format(
+		"number {} max level {}",
 		get_spellbinder_max(),
-		(7 + get_level_s(SPELLBINDER, 35)));
-	return buf;
+		7 + get_level_s(SPELLBINDER, 35));
 }
 
 casting_result meta_disperse_magic()
 {
-	casting_result res = NO_CAST;
-
-	res = cplus(res, set_blind(0));
-	res = cplus(res, set_lite(0));
+	set_blind(0);
+	set_lite(0);
 	if (get_level_s(DISPERSEMAGIC, 50) >= 5)
 	{
-		res = cplus(res, set_confused(0));
-		res = cplus(res, set_image(0));
+		set_confused(0);
+		set_image(0);
 	}
 	if (get_level_s(DISPERSEMAGIC, 50) >= 10)
 	{
-		res = cplus(res, set_slow(0));
-		res = cplus(res, set_fast(0, 0));
-		res = cplus(res, set_light_speed(0));
+		set_slow(0);
+		set_fast(0, 0);
+		set_light_speed(0);
 	}
 	if (get_level_s(DISPERSEMAGIC, 50) >= 15)
 	{
-		res = cplus(res, set_stun(0));
-		res = cplus(res, set_cut(0));
+		set_stun(0);
+		set_cut(0);
 	}
 	if (get_level_s(DISPERSEMAGIC, 50) >= 20)
 	{
-		res = cplus(res, set_hero(0));
-		res = cplus(res, set_shero(0));
-		res = cplus(res, set_blessed(0));
-		res = cplus(res, set_shield(0, 0, 0, 0, 0));
-		res = cplus(res, set_afraid(0));
-		res = cplus(res, set_parasite(0, 0));
-		res = cplus(res, set_mimic(0, 0, 0));
+		set_hero(0);
+		set_shero(0);
+		set_blessed(0);
+		set_shield(0, 0, 0, 0, 0);
+		set_afraid(0);
+		set_parasite(0, 0);
+		set_mimic(0, 0, 0);
 	}
-	return res;
+	return CAST;
 }
 
 casting_result meta_tracker()
@@ -2439,7 +2263,7 @@ casting_result meta_tracker()
 	{
 		teleport_player_to(last_teleportation_y, last_teleportation_x);
 	}
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 static void stop_inertia_controlled_spell()
@@ -2486,7 +2310,9 @@ casting_result meta_inertia_control()
 
 	if (difficulty > get_level_s(INERTIA_CONTROL, 10))
 	{
-		msg_format("This spell inertia flow(" FMTs32b ") is too strong to be controlled by your current spell.", difficulty);
+		msg_print(fmt::format(
+			"This spell inertia flow({}) is too strong to be controlled by your current spell.",
+			difficulty));
 		stop_inertia_controlled_spell();
 		return NO_CAST;
 	}
@@ -2496,16 +2322,14 @@ casting_result meta_inertia_control()
 	TIMER_INERTIA_CONTROL->enable();
 	p_ptr->update |= PU_MANA;
 	msg_format("Inertia flow controlling spell %s.", spell_type_name(spell_at(s)));
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *meta_inertia_control_info()
+std::string meta_inertia_control_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"level " FMTs32b,
+	return fmt::format(
+		"level {}",
 		get_level_s(INERTIA_CONTROL, 10));
-	return buf;
 }
 
 void meta_inertia_control_timer_callback()
@@ -2522,7 +2346,7 @@ void meta_inertia_control_timer_callback()
 	else if ((p_ptr->inertia_controlled_spell != -1) &&
 		 (!p_ptr->wild_mode))
 	{
-		lua_cast_school_spell(p_ptr->inertia_controlled_spell, TRUE);
+		lua_cast_school_spell(p_ptr->inertia_controlled_spell, true);
 	}
 }
 
@@ -2550,7 +2374,7 @@ casting_result mind_charm()
 
 	if (level >= 35)
 	{
-		return cast(project_hack(GF_CHARM, pwr));
+		project_hack(GF_CHARM, pwr);
 	}
 	else
 	{
@@ -2562,22 +2386,23 @@ casting_result mind_charm()
 
 		if (level >= 15)
 		{
-			return cast(fire_ball(GF_CHARM, dir, pwr, 3));
+			fire_ball(GF_CHARM, dir, pwr, 3);
 		}
 		else
 		{
-			return cast(fire_bolt(GF_CHARM, dir, pwr));
+			fire_bolt(GF_CHARM, dir, pwr);
 		}
+
 	}
+
+	return CAST;
 }
 
-const char *mind_charm_info()
+std::string mind_charm_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"power %d",
+	return fmt::format(
+		"power {}",
 		mind_charm_power());
-	return buf;
 }
 
 static int mind_confuse_power()
@@ -2592,7 +2417,7 @@ casting_result mind_confuse()
 
 	if (level >= 35)
 	{
-		return cast(project_hack(GF_OLD_CONF, pwr));
+		project_hack(GF_OLD_CONF, pwr);
 	}
 	else
 	{
@@ -2604,22 +2429,22 @@ casting_result mind_confuse()
 		
 		if (level >= 15)
 		{
-			return cast(fire_ball(GF_OLD_CONF, dir, pwr, 3));
+			fire_ball(GF_OLD_CONF, dir, pwr, 3);
 		}
 		else
 		{
-			return cast(fire_bolt(GF_OLD_CONF, dir, pwr));
+			fire_bolt(GF_OLD_CONF, dir, pwr);
 		}
 	}
+
+	return CAST;
 }
 
-const char *mind_confuse_info()
+std::string mind_confuse_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"power %d",
+	return fmt::format(
+		"power {}",
 		mind_confuse_power());
-	return buf;
 }
 
 static int mind_armor_of_fear_base_duration()
@@ -2639,22 +2464,22 @@ static int mind_armor_of_fear_power_dice()
 
 casting_result mind_armor_of_fear()
 {
-	return cast(set_shield(randint(10) + mind_armor_of_fear_base_duration(),
-			       10,
-			       SHIELD_FEAR,
-			       mind_armor_of_fear_power_sides(),
-			       mind_armor_of_fear_power_dice()));
+	set_shield(
+		randint(10) + mind_armor_of_fear_base_duration(),
+		10,
+		SHIELD_FEAR,
+		mind_armor_of_fear_power_sides(),
+		mind_armor_of_fear_power_dice());
+	return CAST;
 }
 
-const char *mind_armor_of_fear_info()
+std::string mind_armor_of_fear_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur %d+d10 power %dd%d",
+	return fmt::format(
+		"dur {}+d10 power {}d{}",
 		mind_armor_of_fear_base_duration(),
 		mind_armor_of_fear_power_sides(),
 		mind_armor_of_fear_power_dice());
-	return buf;
 }
 
 static int mind_stun_power()
@@ -2673,21 +2498,20 @@ casting_result mind_stun()
 
 	if (get_level_s(STUN, 50) >= 20)
 	{
-		return cast(fire_ball(GF_STUN, dir, mind_stun_power(), 3));
+		fire_ball(GF_STUN, dir, mind_stun_power(), 3);
 	}
 	else
 	{
-		return cast(fire_bolt(GF_STUN, dir, mind_stun_power()));
+		fire_bolt(GF_STUN, dir, mind_stun_power());
 	}
+	return CAST;
 }
 
-const char *mind_stun_info()
+std::string mind_stun_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"power %d",
+	return fmt::format(
+		"power {}",
 		mind_stun_power());
-	return buf;
 }
 
 casting_result tempo_magelock()
@@ -2721,15 +2545,15 @@ casting_result tempo_magelock()
 			x = p_ptr->px;
 		}
 		cave_set_feat(y, x, 3);
-		return CAST_OBVIOUS;
 	} else {
 		int dir;
 		if (!get_aim_dir(&dir))
 		{
 			return NO_CAST;
 		}
-		return cast(wizard_lock(dir));
+		wizard_lock(dir);
 	}
+	return CAST;
 }
 
 static s32b tempo_slow_monster_power()
@@ -2750,28 +2574,27 @@ casting_result tempo_slow_monster()
 	pwr = tempo_slow_monster_power();
 	if (get_level_s(SLOWMONSTER, 50) >= 20)
 	{
-		return cast(fire_ball(GF_OLD_SLOW, dir, pwr, 1));
+		fire_ball(GF_OLD_SLOW, dir, pwr, 1);
 	}
 	else
 	{
-		return cast(fire_bolt(GF_OLD_SLOW, dir, pwr));
+		fire_bolt(GF_OLD_SLOW, dir, pwr);
 	}
+	return CAST;
 }
 
-const char *tempo_slow_monster_info()
+std::string tempo_slow_monster_info()
 {
-	static char buf[128];
 	s32b pwr = tempo_slow_monster_power();
 
 	if (get_level_s(SLOWMONSTER, 50) >= 20)
 	{
-		sprintf(buf, "power " FMTs32b " rad 1", pwr);
+		return fmt::format("power {} rad 1", pwr);
 	}
 	else
 	{
-		sprintf(buf, "power " FMTs32b, pwr);
+		return fmt::format("power {}", pwr);
 	}
-	return buf;
 }
 
 static s32b tempo_essence_of_speed_base_duration()
@@ -2788,20 +2611,20 @@ casting_result tempo_essence_of_speed()
 {
 	if (p_ptr->fast == 0)
 	{
-		return cast(set_fast(randint(10) + tempo_essence_of_speed_base_duration(),
-				     tempo_essence_of_speed_bonus()));
+		set_fast(
+			randint(10) + tempo_essence_of_speed_base_duration(),
+			tempo_essence_of_speed_bonus());
+		return CAST;
 	}
 	return NO_CAST;
 }
 
-const char *tempo_essence_of_speed_info()
+std::string tempo_essence_of_speed_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d10 speed " FMTs32b,
+	return fmt::format(
+		"dur {}+d10 speed {}",
 		tempo_essence_of_speed_base_duration(),
 		tempo_essence_of_speed_bonus());
-	return buf;
 }
 
 static s32b tempo_banishment_power()
@@ -2811,50 +2634,43 @@ static s32b tempo_banishment_power()
 
 casting_result tempo_banishment()
 {
-	casting_result result = NO_CAST;
 	s32b pwr = tempo_banishment_power();
 
-	result = cplus(result, project_hack(GF_AWAY_ALL, pwr));
+	project_hack(GF_AWAY_ALL, pwr);
 
 	if (get_level_s(BANISHMENT, 50) >= 15)
 	{
-		result = cplus(result,
-			       project_hack(GF_STASIS, 20 + get_level_s(BANISHMENT, 120)));
+		project_hack(GF_STASIS, 20 + get_level_s(BANISHMENT, 120));
 	}
 	
-	return result;
+	return CAST;
 }
 
-const char *tempo_banishment_info()
+std::string tempo_banishment_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"power " FMTs32b,
+	return fmt::format(
+		"power {}",
 		tempo_banishment_power());
-	return buf;
 }
 
 casting_result tulkas_divine_aim()
 {
-	casting_result result = NO_CAST;
 	s32b dur = get_level_s(TULKAS_AIM, 50) + randint(10);
 
-	result = cplus(result, set_strike(dur));
+	set_strike(dur);
 	if (get_level_s(TULKAS_AIM, 50) >= 20)
 	{
-		result = cplus(result, set_tim_deadly(dur));
+		set_tim_deadly(dur);
 	}
 
-	return result;
+	return CAST;
 }
 
-const char *tulkas_divine_aim_info()
+std::string tulkas_divine_aim_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur " FMTs32b "+d10",
+	return fmt::format(
+		"dur {}+d10",
 		get_level_s(TULKAS_AIM, 50));
-	return buf;
 }
 
 casting_result tulkas_wave_of_power()
@@ -2866,21 +2682,21 @@ casting_result tulkas_wave_of_power()
 		return NO_CAST;
 	}
 
-	return cast(fire_bolt(GF_ATTACK, dir, get_level_s(TULKAS_WAVE, p_ptr->num_blow)));
+	fire_bolt(GF_ATTACK, dir, get_level_s(TULKAS_WAVE, p_ptr->num_blow));
+	return CAST;
 }
 
-const char *tulkas_wave_of_power_info()
+std::string tulkas_wave_of_power_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"blows " FMTs32b,
+	return fmt::format(
+		"blows {}",
 		get_level_s(TULKAS_WAVE, p_ptr->num_blow));
-	return buf;
 }
 
 casting_result tulkas_whirlwind()
 {
-	return cast(fire_ball(GF_ATTACK, 0, 1, 1));
+	fire_ball(GF_ATTACK, 0, 1, 1);
+	return CAST;
 }
 
 /* Return the number of Udun/Melkor spells in a given book */
@@ -2940,8 +2756,6 @@ static object_filter_t const &udun_object_is_drainable()
 
 casting_result udun_drain()
 {
-	auto const &k_info = game->edit_data.k_info;
-
 	/* Ask for an item */
 	int item;
 	if (!get_item(&item,
@@ -2961,10 +2775,8 @@ casting_result udun_drain()
 	case TV_STAFF:
 	case TV_WAND:
 	{
-		auto k_ptr = &k_info[o_ptr->k_idx];
-
 		/* Generate mana */
-		increase_mana(o_ptr->pval * k_ptr->level * o_ptr->number);
+		increase_mana(o_ptr->pval * o_ptr->k_ptr->level * o_ptr->number);
 
 		/* Destroy it */
 		inc_stack_size(item, -99);
@@ -2987,31 +2799,31 @@ casting_result udun_drain()
 	}
 
 	default:
-		assert(FALSE);
+		assert(false);
 	}
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 casting_result udun_genocide()
 {
 	if (get_level_s(GENOCIDE, 50) < 10)
 	{
-		genocide(TRUE);
+		genocide();
 	}
 	else
 	{
 		if (get_check("Genocide all monsters near you? "))
 		{
-			mass_genocide(TRUE);
+			mass_genocide();
 		}
 		else
 		{
-			genocide(TRUE);
+			genocide();
 		}
 	}
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 static int udun_wraithform_base_duration()
@@ -3021,16 +2833,15 @@ static int udun_wraithform_base_duration()
 
 casting_result udun_wraithform()
 {
-	return cast(set_shadow(randint(30) + udun_wraithform_base_duration()));
+	set_shadow(randint(30) + udun_wraithform_base_duration());
+	return CAST;
 }
 
-const char *udun_wraithform_info()
+std::string udun_wraithform_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur %d+d30",
+	return fmt::format(
+		"dur {}+d30",
 		udun_wraithform_base_duration());
-	return buf;
 }
 
 static int udun_flame_of_udun_base_duration()
@@ -3040,18 +2851,18 @@ static int udun_flame_of_udun_base_duration()
 
 casting_result udun_flame_of_udun()
 {
-	return cast(set_mimic(randint(15) + udun_flame_of_udun_base_duration(),
-			      resolve_mimic_name("Balrog"),
-			      get_level_s(FLAMEOFUDUN, 50)));
+	set_mimic(
+		randint(15) + udun_flame_of_udun_base_duration(),
+		resolve_mimic_name("Balrog"),
+		get_level_s(FLAMEOFUDUN, 50));
+	return CAST;
 }
 
-const char *udun_flame_of_udun_info()
+std::string udun_flame_of_udun_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur %d+d15",
+	return fmt::format(
+		"dur {}+d15",
 		udun_flame_of_udun_base_duration());
-	return buf;
 }
 
 static int tidal_wave_damage()
@@ -3072,17 +2883,15 @@ casting_result water_tidal_wave()
 		  0,
 		  tidal_wave_duration(),
 		  EFF_WAVE);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *water_tidal_wave_info()
+std::string water_tidal_wave_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam %d dur %d",
+	return fmt::format(
+		"dam {} dur {}",
 		tidal_wave_damage(),
 		tidal_wave_duration());
-	return buf;
 }
 
 static int water_ice_storm_damage()
@@ -3116,18 +2925,16 @@ casting_result water_ice_storm()
 		  water_ice_storm_duration(),
 		  EFF_STORM);
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *water_ice_storm_info()
+std::string water_ice_storm_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam %d rad %d dur %d",
+	return fmt::format(
+		"dam {} rad {} dur {}",
 		water_ice_storm_damage(),
 		water_ice_storm_radius(),
 		water_ice_storm_duration());
-	return buf;
 }
 
 static int water_ent_potion_base_duration()
@@ -3149,18 +2956,16 @@ casting_result water_ent_potion()
 		set_hero(p_ptr->hero + randint(25) + water_ent_potion_base_duration());
 	}
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *water_ent_potion_info()
+std::string water_ent_potion_info()
 {
 	if (get_level_s(ENTPOTION, 50) >= 12)
 	{
-		static char buf[128];
-		sprintf(buf,
-			"dur %d+d25",
+		return fmt::format(
+			"dur {}+d25",
 			water_ent_potion_base_duration());
-		return buf;
 	}
 	else
 	{
@@ -3190,18 +2995,16 @@ casting_result water_vapor()
 		   water_vapor_damage(),
 		   water_vapor_radius(),
 		   water_vapor_duration());
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *water_vapor_info()
+std::string water_vapor_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam %d rad %d dur %d",
+	return fmt::format(
+		"dam {} rad {} dur {}",
 		water_vapor_damage(),
 		water_vapor_radius(),
 		water_vapor_duration());
-	return buf;
 }
 
 static void get_geyser_damage(int *dice, int *sides)
@@ -3223,24 +3026,23 @@ casting_result water_geyser()
 	}
 
 	get_geyser_damage(&dice, &sides);
-	return cast(fire_bolt_or_beam(2 * get_level_s(GEYSER, 85),
-				      GF_WATER,
-				      dir,
-				      damroll(dice, sides)));
+	fire_bolt_or_beam(
+		2 * get_level_s(GEYSER, 85),
+		GF_WATER,
+		dir,
+		damroll(dice, sides));
+	return CAST;
 }
 
-const char *water_geyser_info()
+std::string water_geyser_info()
 {
-	static char buf[128];
 	int dice, sides;
-
 	get_geyser_damage(&dice, &sides);
 
-	sprintf(buf,
-		"dam %dd%d",
+	return fmt::format(
+		"dam {}d{}",
 		dice,
 		sides);
-	return buf;
 }
 
 static int charm_animal_power()
@@ -3262,20 +3064,20 @@ casting_result yavanna_charm_animal()
 		return NO_CAST;
 	}
 
-	return cast(fire_ball(GF_CONTROL_ANIMAL,
-			      dir,
-			      charm_animal_power(),
-			      charm_animal_radius()));
-}
-
-const char *yavanna_charm_animal_info()
-{
-	static char buf[128];
-	sprintf(buf,
-		"power %d rad %d",
+	fire_ball(
+		GF_CONTROL_ANIMAL,
+		dir,
 		charm_animal_power(),
 		charm_animal_radius());
-	return buf;
+	return CAST;
+}
+
+std::string yavanna_charm_animal_info()
+{
+	return fmt::format(
+		"power {} rad {}",
+		charm_animal_power(),
+		charm_animal_radius());
 }
 
 static int yavanna_grow_grass_radius()
@@ -3286,16 +3088,14 @@ static int yavanna_grow_grass_radius()
 casting_result yavanna_grow_grass()
 {
 	grow_grass(yavanna_grow_grass_radius());
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *yavanna_grow_grass_info()
+std::string yavanna_grow_grass_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"rad %d",
+	return fmt::format(
+		"rad {}",
 		yavanna_grow_grass_radius());
-	return buf;
 }
 
 static int tree_roots_duration()
@@ -3315,20 +3115,20 @@ static int tree_roots_damage()
 
 casting_result yavanna_tree_roots()
 {
-	return cast(set_roots(tree_roots_duration(),
-			      tree_roots_ac(),
-			      tree_roots_damage()));
-}
-
-const char *yavanna_tree_roots_info()
-{
-	static char buf[128];
-	sprintf(buf,
-		"dur %d AC %d dam %d",
+	set_roots(
 		tree_roots_duration(),
 		tree_roots_ac(),
 		tree_roots_damage());
-	return buf;
+	return CAST;
+}
+
+std::string yavanna_tree_roots_info()
+{
+	return fmt::format(
+		"dur {} AC {} dam {}",
+		tree_roots_duration(),
+		tree_roots_ac(),
+		tree_roots_damage());
 }
 
 static int water_bite_base_duration()
@@ -3350,21 +3150,21 @@ casting_result yavanna_water_bite()
 		rad = 1;
 	}
 
-	return cast(set_project(randint(30) + water_bite_base_duration(),
-				GF_WATER,
-				water_bite_damage(),
-				rad,
-				PROJECT_STOP | PROJECT_KILL));
+	set_project(
+		randint(30) + water_bite_base_duration(),
+		GF_WATER,
+		water_bite_damage(),
+		rad,
+		PROJECT_STOP | PROJECT_KILL);
+	return CAST;
 }
 
-const char *yavanna_water_bite_info()
+std::string yavanna_water_bite_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur %d+d30 dam %d/blow",
+	return fmt::format(
+		"dur {}+d30 dam {}/blow",
 		water_bite_base_duration(),
 		water_bite_damage());
-	return buf;
 }
 
 static int uproot_mlevel()
@@ -3398,7 +3198,7 @@ casting_result yavanna_uproot()
 
 		/* Summon it */
 		find_position(y, x, &y, &x);
-		m_idx = place_monster_one(y, x, test_monster_name("Ent"), 0, FALSE, MSTATUS_FRIEND);
+		m_idx = place_monster_one(y, x, test_monster_name("Ent"), 0, false, MSTATUS_FRIEND);
 
 		/* level it */
 		if (m_idx != 0)
@@ -3407,7 +3207,7 @@ casting_result yavanna_uproot()
 		}
 
 		msg_print("The tree awakes!");
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 	else
 	{
@@ -3416,13 +3216,11 @@ casting_result yavanna_uproot()
 	}
 }
 
-const char *yavanna_uproot_info()
+std::string yavanna_uproot_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"lev %d",
+	return fmt::format(
+		"lev {}",
 		uproot_mlevel());
-	return buf;
 }
 
 static int nature_grow_trees_radius()
@@ -3433,16 +3231,14 @@ static int nature_grow_trees_radius()
 casting_result nature_grow_trees()
 {
 	grow_trees(nature_grow_trees_radius());
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *nature_grow_trees_info()
+std::string nature_grow_trees_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"rad %d",
+	return fmt::format(
+		"rad {}",
 		nature_grow_trees_radius());
-	return buf;
 }
 
 static int nature_healing_percentage()
@@ -3457,44 +3253,44 @@ static int nature_healing_hp()
 
 casting_result nature_healing()
 {
-	return cast(hp_player(nature_healing_hp()));
+	hp_player(nature_healing_hp());
+	return CAST;
 }
 
-const char *nature_healing_info()
+std::string nature_healing_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"heal %d%% = %dhp",
+	return fmt::format(
+		"heal {}% = {}hp",
 		nature_healing_percentage(),
 		nature_healing_hp());
-	return buf;
 }
 
 casting_result nature_recovery()
 {
-	casting_result result = NO_CAST;
+	set_poisoned(p_ptr->poisoned / 2);
 
-	result = cplus(result, set_poisoned(p_ptr->poisoned / 2));
 	if (get_level_s(RECOVERY, 50) >= 5)
 	{
-		result = cplus(result, set_poisoned(0));
-		result = cplus(result, set_cut(0));
-	}
-	if (get_level_s(RECOVERY, 50) >= 10)
-	{
-		result = cplus(result, do_res_stat(A_STR, TRUE));
-		result = cplus(result, do_res_stat(A_CON, TRUE));
-		result = cplus(result, do_res_stat(A_DEX, TRUE));
-		result = cplus(result, do_res_stat(A_WIS, TRUE));
-		result = cplus(result, do_res_stat(A_INT, TRUE));
-		result = cplus(result, do_res_stat(A_CHR, TRUE));
-	}
-	if (get_level_s(RECOVERY, 50) >= 15)
-	{
-		result = cplus(result, restore_level());
+		set_poisoned(0);
+		set_cut(0);
 	}
 
-	return result;
+	if (get_level_s(RECOVERY, 50) >= 10)
+	{
+		do_res_stat(A_STR, true);
+		do_res_stat(A_CON, true);
+		do_res_stat(A_DEX, true);
+		do_res_stat(A_WIS, true);
+		do_res_stat(A_INT, true);
+		do_res_stat(A_CHR, true);
+	}
+
+	if (get_level_s(RECOVERY, 50) >= 15)
+	{
+		restore_level();
+	}
+
+	return CAST;
 }
 
 static int regeneration_base_duration()
@@ -3511,20 +3307,20 @@ casting_result nature_regeneration()
 {
 	if (p_ptr->tim_regen == 0)
 	{
-		return cast(set_tim_regen(randint(10) + regeneration_base_duration(),
-					  regeneration_power()));
+		set_tim_regen(
+			randint(10) + regeneration_base_duration(),
+			regeneration_power());
+		return CAST;
 	}
 	return NO_CAST;
 }
 
-const char *nature_regeneration_info()
+std::string nature_regeneration_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur %d+d10 power %d",
+	return fmt::format(
+		"dur {}+d10 power {}",
 		regeneration_base_duration(),
 		regeneration_power());
-	return buf;
 }
 
 static int summon_animal_level()
@@ -3535,20 +3331,20 @@ static int summon_animal_level()
 casting_result nature_summon_animal()
 {
 	summon_specific_level = summon_animal_level();
-	return cast(summon_specific_friendly(p_ptr->py,
-					     p_ptr->px,
-					     dun_level,
-					     SUMMON_ANIMAL,
-					     TRUE));
+	summon_specific_friendly(
+		p_ptr->py,
+		p_ptr->px,
+		dun_level,
+		SUMMON_ANIMAL,
+		true);
+	return CAST;
 }
 
-const char *nature_summon_animal_info()
+std::string nature_summon_animal_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"level %d",
+	return fmt::format(
+		"level {}",
 		summon_animal_level());
-	return buf;
 }
 
 casting_result nature_grow_athelas()
@@ -3556,11 +3352,10 @@ casting_result nature_grow_athelas()
         if (p_ptr->black_breath)
 	{
 		msg_print("The hold of the Black Breath on you is broken!");
-		p_ptr->black_breath = FALSE;
-		return CAST_OBVIOUS;
+		p_ptr->black_breath = false;
 	}
 
-	return CAST_HIDDEN;
+	return CAST;
 }
 
 static int device_heal_monster_hp()
@@ -3577,16 +3372,15 @@ casting_result device_heal_monster()
 		return NO_CAST;
 	}
 
-	return cast(fire_ball(GF_OLD_HEAL, dir, device_heal_monster_hp(), 0));
+	fire_ball(GF_OLD_HEAL, dir, device_heal_monster_hp(), 0);
+	return CAST;
 }
 
-const char *device_heal_monster_info()
+std::string device_heal_monster_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"heal %d",
+	return fmt::format(
+		"heal {}",
 		device_heal_monster_hp());
-	return buf;
 }
 
 casting_result device_haste_monster()
@@ -3598,31 +3392,31 @@ casting_result device_haste_monster()
 		return NO_CAST;
 	}
 
-	return cast(fire_ball(GF_OLD_SPEED, dir, 1, 0));
+	fire_ball(GF_OLD_SPEED, dir, 1, 0);
+	return CAST;
 }
 
-const char *device_haste_monster_info()
+std::string device_haste_monster_info()
 {
 	return "speed +10";
 }
 
 casting_result device_wish()
 {
-	make_wish();
-	return CAST_OBVIOUS;
+	if (make_wish()) {
+		return CAST;
+	}
+	return NO_CAST;
 }
 
 casting_result device_summon_monster()
 {
-	casting_result result = NO_CAST;
-	int i;
-
-	for (i = 0; i < 4 + get_level_s(DEVICE_SUMMON, 30); i++)
+	for (int i = 0; i < 4 + get_level_s(DEVICE_SUMMON, 30); i++)
 	{
-		result = cplus(result, summon_specific(p_ptr->py, p_ptr->px, dun_level, 0));
+		summon_specific(p_ptr->py, p_ptr->px, dun_level, 0);
 	}
 
-	return result;
+	return CAST;
 }
 
 static int device_mana_pct()
@@ -3633,21 +3427,19 @@ static int device_mana_pct()
 casting_result device_mana()
 {
 	increase_mana((p_ptr->msp * device_mana_pct()) / 100);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *device_mana_info()
+std::string device_mana_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"restore %d%%",
+	return fmt::format(
+		"restore {}%",
 		device_mana_pct());
-	return buf;
 }
 
 casting_result device_nothing()
 {
-	return CAST_HIDDEN;
+	return CAST;
 }
 
 static int holy_fire_damage()
@@ -3657,16 +3449,15 @@ static int holy_fire_damage()
 
 casting_result device_holy_fire()
 {
-	return cast(project_hack(GF_HOLY_FIRE, holy_fire_damage()));
+	project_hack(GF_HOLY_FIRE, holy_fire_damage());
+	return CAST;
 }
 
-const char *device_holy_fire_info()
+std::string device_holy_fire_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam %d",
+	return fmt::format(
+		"dam {}",
 		holy_fire_damage());
-	return buf;
 }
 
 casting_result device_thunderlords()
@@ -3684,7 +3475,7 @@ casting_result device_thunderlords()
 			{
 				msg_print("You cannot use it there.");
 			}
-			return CAST_OBVIOUS;
+			return CAST;
 		}
 
 	case MODULE_THEME:
@@ -3698,11 +3489,11 @@ casting_result device_thunderlords()
 			{
 				msg_print("You cannot use it there.");
 			}
-			return CAST_OBVIOUS;
+			return CAST;
 		}
 
 	default:
-		assert(FALSE);
+		assert(false);
 		return NO_CAST;
 	}
 }
@@ -3715,7 +3506,7 @@ void static start_lasting_spell(int spl)
 casting_result music_stop_singing_spell()
 {
 	start_lasting_spell(0);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 static int holding_pattern_power()
@@ -3732,16 +3523,14 @@ int music_holding_pattern_lasting()
 casting_result music_holding_pattern_spell()
 {
 	start_lasting_spell(MUSIC_HOLD);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *music_holding_pattern_info()
+std::string music_holding_pattern_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"power %d",
+	return fmt::format(
+		"power {}",
 		holding_pattern_power());
-	return buf;
 }
 
 static int illusion_pattern_power()
@@ -3758,16 +3547,14 @@ int music_illusion_pattern_lasting()
 casting_result music_illusion_pattern_spell()
 {
 	start_lasting_spell(MUSIC_CONF);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *music_illusion_pattern_info()
+std::string music_illusion_pattern_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"power %d",
+	return fmt::format(
+		"power {}",
 		illusion_pattern_power());
-	return buf;
 }
 
 static int stun_pattern_power()
@@ -3784,16 +3571,14 @@ int music_stun_pattern_lasting()
 casting_result music_stun_pattern_spell()
 {
 	start_lasting_spell(MUSIC_STUN);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *music_stun_pattern_info()
+std::string music_stun_pattern_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"power %d",
+	return fmt::format(
+		"power {}",
 		stun_pattern_power());
-	return buf;
 }
 
 int music_song_of_the_sun_lasting()
@@ -3805,7 +3590,7 @@ int music_song_of_the_sun_lasting()
 casting_result music_song_of_the_sun_spell()
 {
 	start_lasting_spell(MUSIC_LITE);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 int flow_of_life_hp()
@@ -3822,16 +3607,14 @@ int music_flow_of_life_lasting()
 casting_result music_flow_of_life_spell()
 {
 	start_lasting_spell(MUSIC_HEAL);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *music_flow_of_life_info()
+std::string music_flow_of_life_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"heal %d/turn",
+	return fmt::format(
+		"heal {}/turn",
 		flow_of_life_hp());
-	return buf;
 }
 
 int music_heroic_ballad_lasting()
@@ -3855,7 +3638,7 @@ int music_heroic_ballad_lasting()
 casting_result music_heroic_ballad_spell()
 {
 	start_lasting_spell(MUSIC_HERO);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 int music_hobbit_melodies_lasting()
@@ -3871,24 +3654,24 @@ int music_hobbit_melodies_lasting()
 casting_result music_hobbit_melodies_spell()
 {
 	start_lasting_spell(MUSIC_TIME);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *music_hobbit_melodies_info()
+std::string music_hobbit_melodies_info()
 {
-	static char buf[128];
 	if (get_level_s(MUSIC_TIME, 50) >= 15)
 	{
-		sprintf(buf, "AC " FMTs32b " speed " FMTs32b,
+		return fmt::format(
+			"AC {} speed {}",
 			10 + get_level_s(MUSIC_TIME, 50),
 			7 + get_level_s(MUSIC_TIME, 10));
 	}
 	else
 	{
-		sprintf(buf, "AC " FMTs32b,
+		return fmt::format(
+			"AC {}",
 			10 + get_level_s(MUSIC_TIME, 50));
 	}
-	return buf;
 }
 
 int music_clairaudience_lasting()
@@ -3900,18 +3683,16 @@ int music_clairaudience_lasting()
 casting_result music_clairaudience_spell()
 {
 	start_lasting_spell(MUSIC_MIND);
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *music_clairaudience_info()
+std::string music_clairaudience_info()
 {
-	static char buf[128];
-
 	if (get_level_s(MUSIC_MIND, 50) >= 10)
 	{
-		sprintf(buf, "rad " FMTs32b,
+		return fmt::format(
+			"rad {}",
 			1 + get_level(MUSIC_MIND, 3));
-		return buf;
 	}
 	else
 	{
@@ -3925,18 +3706,16 @@ casting_result music_blow_spell()
 		  0,
 		  damroll(2 + get_level(MUSIC_BLOW, 10), 4 + get_level(MUSIC_BLOW, 40)),
 		  1 + get_level(MUSIC_BLOW, 12));
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *music_blow_info()
+std::string music_blow_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam " FMTs32b "d" FMTs32b " rad " FMTs32b,
+	return fmt::format(
+		"dam {}d{} rad {}",
 		2 + get_level(MUSIC_BLOW, 10),
 		4 + get_level(MUSIC_BLOW, 40),
 		1 + get_level(MUSIC_BLOW, 12));
-	return buf;
 }
 
 casting_result music_gush_of_wind_spell()
@@ -3945,38 +3724,34 @@ casting_result music_gush_of_wind_spell()
 		  0,
 		  10 + get_level(MUSIC_BLOW, 40),
 		  1 + get_level(MUSIC_BLOW, 12));
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *music_gush_of_wind_info()
+std::string music_gush_of_wind_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dist " FMTs32b " rad " FMTs32b,
+	return fmt::format(
+		"dist {} rad {}",
 		10 + get_level(MUSIC_BLOW, 40),
 		1 + get_level(MUSIC_BLOW, 12));
-	return buf;
 }
 
 casting_result music_horns_of_ylmir_spell()
 {
 	earthquake(p_ptr->py, p_ptr->px, 2 + get_level_s(MUSIC_YLMIR, 10));
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *music_horns_of_ylmir_info()
+std::string music_horns_of_ylmir_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"rad " FMTs32b,
+	return fmt::format(
+		"rad {}",
 		2 + get_level_s(MUSIC_YLMIR, 10));
-	return buf;
 }
 
 casting_result music_ambarkanta_spell()
 {
 	alter_reality();
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 casting_result aule_firebrand_spell()
@@ -3995,23 +3770,22 @@ casting_result aule_firebrand_spell()
 		rad = 1;
 	}
 
-	return cast(set_project(level + randint(20),
-				type,
-				4 + level,
-				rad,
-				PROJECT_STOP | PROJECT_KILL));
+	set_project(
+		level + randint(20),
+		type,
+		4 + level,
+		rad,
+		PROJECT_STOP | PROJECT_KILL);
+	return CAST;
 }
 
-const char *aule_firebrand_info()
+std::string aule_firebrand_info()
 {
 	s32b level = get_level_s(AULE_FIREBRAND, 50);
-	static char buf[128];
 
-	sprintf(buf,
-		"dur " FMTs32b "+d20 dam " FMTs32b "/blow",
+	return fmt::format("dur {}+d20 dam {}/blow",
 		level,
 		4 + level);
-	return buf;
 }
 
 static object_filter_t const &aule_enchant_weapon_item_tester()
@@ -4065,16 +3839,14 @@ casting_result aule_enchant_weapon_spell()
 	o_ptr->to_d = o_ptr->to_d + num_d;
 	o_ptr->pval = o_ptr->pval + num_p;
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *aule_enchant_weapon_info()
+std::string aule_enchant_weapon_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"tries " FMTs32b,
+	return fmt::format(
+		"tries {}",
 		1 + get_level_s(AULE_ENCHANT_WEAPON, 50)/12);
-	return buf;
 }
 
 static object_filter_t const &aule_enchant_armor_item_tester()
@@ -4134,16 +3906,14 @@ casting_result aule_enchant_armour_spell()
 	o_ptr->pval = o_ptr->pval + num_p;
 	o_ptr->to_a = o_ptr->to_a + num_a;
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *aule_enchant_armour_info()
+std::string aule_enchant_armour_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"tries " FMTs32b,
+	return fmt::format(
+		"tries {}",
 		1 + get_level_s(AULE_ENCHANT_ARMOUR, 50)/10);
-	return buf;
 }
 
 casting_result aule_child_spell()
@@ -4153,12 +3923,12 @@ casting_result aule_child_spell()
 
 	find_position(p_ptr->py, p_ptr->px, &y, &x);
 	m_idx = place_monster_one(y, x, test_monster_name("Dwarven warrior"),
-				  0, FALSE, MSTATUS_FRIEND);
+				  0, false, MSTATUS_FRIEND);
  
 	if (m_idx)
 	{
 		monster_set_level(m_idx, 20 + get_level(AULE_CHILD, 70));
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 	else
 	{
@@ -4166,13 +3936,11 @@ casting_result aule_child_spell()
 	}
 }
 
-const char *aule_child_info()
+std::string aule_child_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"level " FMTs32b,
+	return fmt::format(
+		"level {}",
 		20 + get_level_s(AULE_CHILD, 70));
-	return buf;
 }
 
 static int tears_of_luthien_hp()
@@ -4182,56 +3950,49 @@ static int tears_of_luthien_hp()
 
 casting_result mandos_tears_of_luthien_spell()
 {
-	casting_result result = NO_CAST;
+	hp_player(tears_of_luthien_hp());
+	set_stun(0);
+	set_cut(0);
+	set_afraid(0);
 
-	result = cplus(result, hp_player(tears_of_luthien_hp()));
-	result = cplus(result, set_stun(0));
-	result = cplus(result, set_cut(0));
-	result = cplus(result, set_afraid(0));
-
-	return result;
+	return CAST;
 }
 
-const char *mandos_tears_of_luthien_info()
+std::string mandos_tears_of_luthien_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"heals %d",
+	return fmt::format(
+		"heals {}",
 		tears_of_luthien_hp());
-	return buf;
 }
 
 casting_result mandos_spirit_of_the_feanturi_spell()
 {
-	casting_result result = NO_CAST;
 	s32b level = get_level_s(MANDOS_SPIRIT_FEANTURI, 50);
 
-	result = cplus(result, set_afraid(0));
-	result = cplus(result, set_confused(0));
+	set_afraid(0);
+	set_confused(0);
 
 	if (level >= 20)
 	{
-                result = cplus(result, do_res_stat(A_WIS, TRUE));
-                result = cplus(result, do_res_stat(A_INT, TRUE));
+		do_res_stat(A_WIS, true);
+		do_res_stat(A_INT, true);
 	}
             
 	if (level >= 30)
 	{
-                result = cplus(result, set_image(0));
-                result = cplus(result, heal_insanity(p_ptr->msane * level / 100)); 
+		set_image(0);
+		heal_insanity(p_ptr->msane * level / 100);
 	}
             
-	return result;
+	return CAST;
 }
 
-const char *mandos_spirit_of_the_feanturi_info()
+std::string mandos_spirit_of_the_feanturi_info()
 {
-	static char buf[128];
 	s32b level = get_level_s(MANDOS_SPIRIT_FEANTURI, 50) ;
 	if (level >= 20)
 	{
-		sprintf(buf, "heals " FMTs32b "%%", level);
-		return buf;
+		return fmt::format("heals {}%", level);
 	}
 	else
 	{
@@ -4246,16 +4007,15 @@ static int tale_of_doom_duration()
 
 casting_result mandos_tale_of_doom_spell()
 {
-	return cast(set_tim_precognition(tale_of_doom_duration()));
+	set_tim_precognition(tale_of_doom_duration());
+	return CAST;
 }
 
-const char *mandos_tale_of_doom_info()
+std::string mandos_tale_of_doom_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dur %d",
+	return fmt::format(
+		"dur {}",
 		tale_of_doom_duration());
-	return buf;
 }
 
 int call_to_the_halls_mlev()
@@ -4276,22 +4036,20 @@ casting_result mandos_call_to_the_halls_spell()
 	assert(r_idx >= 0);
 
 	find_position(p_ptr->py, p_ptr->px, &y, &x);
-	m_idx = place_monster_one(y, x, r_idx, 0, FALSE, MSTATUS_FRIEND);
+	m_idx = place_monster_one(y, x, r_idx, 0, false, MSTATUS_FRIEND);
 	if (m_idx)
 	{
 		monster_set_level(m_idx, call_to_the_halls_mlev());
-		return CAST_OBVIOUS;
+		return CAST;
 	}
 	return NO_CAST;
 }
 
-const char *mandos_call_to_the_halls_info()
+std::string mandos_call_to_the_halls_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"level %d",
+	return fmt::format(
+		"level {}",
 		call_to_the_halls_mlev());
-	return buf;
 }
 
 static void get_belegaer_damage(int *dice, int *sides)
@@ -4310,23 +4068,23 @@ casting_result ulmo_song_of_belegaer_spell()
 	}
 
 	get_belegaer_damage(&dice, &sides);
-	return cast(fire_bolt_or_beam(2 * get_level_s(ULMO_BELEGAER, 85),
-				      GF_WATER,
-				      dir,
-				      damroll(dice, sides)));
+	fire_bolt_or_beam(
+		2 * get_level_s(ULMO_BELEGAER, 85),
+		GF_WATER,
+		dir,
+		damroll(dice, sides));
+	return CAST;
 }
 
-const char *ulmo_song_of_belegaer_info()
+std::string ulmo_song_of_belegaer_info()
 {
-	static char buf[128];
 	int dice, sides;
-
 	get_belegaer_damage(&dice, &sides);
-	sprintf(buf,
-		"dam %dd%d",
+
+	return fmt::format(
+		"dam {}d{}",
 		dice,
 		sides);
-	return buf;
 }
 
 int draught_of_ulmonan_hp()
@@ -4336,39 +4094,36 @@ int draught_of_ulmonan_hp()
 
 casting_result ulmo_draught_of_ulmonan_spell()
 {
-	casting_result result = NO_CAST;
 	s32b level = get_level_s(ULMO_DRAUGHT_ULMONAN, 50);
-		
-	result = cplus(result, hp_player(draught_of_ulmonan_hp()));
 
-	result = cplus(result, set_poisoned(0));
-	result = cplus(result, set_cut(0));
-	result = cplus(result, set_stun(0));
-	result = cplus(result, set_blind(0));
+	hp_player(draught_of_ulmonan_hp());
+
+	set_poisoned(0);
+	set_cut(0);
+	set_stun(0);
+	set_blind(0);
 
 	if (level >= 10)
 	{
-		result = cplus(result, do_res_stat(A_STR, TRUE));
-		result = cplus(result, do_res_stat(A_CON, TRUE));
-		result = cplus(result, do_res_stat(A_DEX, TRUE));
+		do_res_stat(A_STR, true);
+		do_res_stat(A_CON, true);
+		do_res_stat(A_DEX, true);
 	}
 
 	if (level >= 20)
 	{
-		result = cplus(result, set_parasite(0, 0));
-		result = cplus(result, set_mimic(0, 0, 0));
+		set_parasite(0, 0);
+		set_mimic(0, 0, 0);
 	}
 
-	return result;
+	return CAST;
 }
 
-const char *ulmo_draught_of_ulmonan_info()
+std::string ulmo_draught_of_ulmonan_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"cure %d",
+	return fmt::format(
+		"cure {}",
 		draught_of_ulmonan_hp());
-	return buf;
 }
 
 static int call_of_the_ulumuri_mlev()
@@ -4390,23 +4145,23 @@ casting_result ulmo_call_of_the_ulumuri_spell()
 
 	find_position(p_ptr->py, p_ptr->px, &y, &x);
 
-	m_idx = place_monster_one(y, x, r_idx, 0, FALSE, MSTATUS_FRIEND);
+	m_idx = place_monster_one(y, x, r_idx, 0, false, MSTATUS_FRIEND);
 	if (m_idx)
 	{
 		monster_set_level(m_idx, call_of_the_ulumuri_mlev());
-		return CAST_OBVIOUS;
+		return CAST;
 	}
-
-	return NO_CAST;
+	else
+	{
+		return NO_CAST;
+	}
 }
 
-const char *ulmo_call_of_the_ulumuri_info()
+std::string ulmo_call_of_the_ulumuri_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"level %d",
+	return fmt::format(
+		"level {}",
 		call_of_the_ulumuri_mlev());
-	return buf;
 }
 
 static int wrath_of_ulmo_damage()
@@ -4437,17 +4192,15 @@ casting_result ulmo_wrath_of_ulmo_spell()
 		  dir,
 		  wrath_of_ulmo_damage(),
 		  wrath_of_ulmo_duration());
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *ulmo_wrath_of_ulmo_info()
+std::string ulmo_wrath_of_ulmo_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam %d dur %d",
+	return fmt::format(
+		"dam {} dur {}",
 		wrath_of_ulmo_damage(),
 		wrath_of_ulmo_duration());
-	return buf;
 }
 
 static int light_of_valinor_damage()
@@ -4462,40 +4215,35 @@ static int light_of_valinor_radius()
 
 casting_result varda_light_of_valinor_spell()
 {
-	casting_result result = NO_CAST;
-
 	if (get_level_s(VARDA_LIGHT_VALINOR, 50) >= 3)
 	{
-		result = cplus(result, lite_area(10, 4));
+		lite_area(10, 4);
 	}
 	else
 	{
 		lite_room(p_ptr->py, p_ptr->px);
-		result = CAST_OBVIOUS;
 	}
 
 	if (get_level_s(VARDA_LIGHT_VALINOR, 50) >= 15)
 	{
-		result = cplus(result,
-			       fire_ball(GF_LITE,
-					 0,
-					 light_of_valinor_damage(),
-					 light_of_valinor_radius()));
-	}
-
-	return result;
-}
-
-const char *varda_light_of_valinor_info()
-{
-	static char buf[128];
-	if (get_level_s(VARDA_LIGHT_VALINOR, 50) >= 15)
-	{
-		sprintf(buf,
-			"dam %d rad %d",
+		fire_ball(
+			GF_LITE,
+			0,
 			light_of_valinor_damage(),
 			light_of_valinor_radius());
-		return buf;
+	}
+
+	return CAST;
+}
+
+std::string varda_light_of_valinor_info()
+{
+	if (get_level_s(VARDA_LIGHT_VALINOR, 50) >= 15)
+	{
+		return fmt::format(
+			"dam {} rad {}",
+			light_of_valinor_damage(),
+			light_of_valinor_radius());
 	}
 	else
 	{
@@ -4514,7 +4262,7 @@ casting_result varda_call_of_almaren_spell()
 	{
 		banish_evil(power);
 	}
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 casting_result varda_evenstar_spell()
@@ -4525,7 +4273,7 @@ casting_result varda_evenstar_spell()
 		identify_pack();
 	}
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
 static int star_kindler_bursts()
@@ -4555,16 +4303,13 @@ casting_result varda_star_kindler_spell()
 			  10);
 	}
 
-	return CAST_OBVIOUS;
+	return CAST;
 }
 
-const char *varda_star_kindler_info()
+std::string varda_star_kindler_info()
 {
-	static char buf[128];
-	sprintf(buf,
-		"dam %d bursts %d rad 10",
+	return fmt::format(
+		"dam {} bursts {} rad 10",
 		star_kindler_damage(),
 		star_kindler_bursts());
-	return buf;
 }
-

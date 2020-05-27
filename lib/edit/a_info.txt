@@ -57,7 +57,6 @@ F:LITE3
 F:SEE_INVIS
 F:SPEED
 a:MAP_LIGHT
-Z:detect curses
 D:The shining Star of the West, a famed heirloom of Elendil's house.
 
 
@@ -379,25 +378,6 @@ F:LITE1
 D:A powerful stone that provides a strong light for any who 
 D:wields it. It is rumoured that it may even protect the wearer from 
 D:the passing of time.
-
-
-# This artifact has a low artifact level to prevent it being worthless for
-# chars with poor magic skills.
-
-# The Stone of Lore
-
-N:15:of Lore
-I:39:106:0
-W:15:12:15:20000
-P:0:1d1:0:0:0
-F:ACTIVATE
-F:EASY_USE
-F:INSTA_ART
-F:LITE1
-F:SPECIAL_GENE
-a:STONE_LORE
-D:A great emerald that fills your mind with images of knowledge and dreadful 
-D:understanding as you stare into its depths.
 
 
 # The Multi-Hued Dragon Scale Mail 'Razorback'
@@ -2815,7 +2795,7 @@ F:SLAY_EVIL
 F:SPELL_CONTAIN
 F:WIELD_CAST
 F:WIS
-a:ID_PLAIN
+a:DETECT_ALL
 D:The radiant golden staff of an Istari of legend, this wizard's companion 
 D:grants keen sight and the knowledge of many hidden things.
 
@@ -3671,23 +3651,6 @@ F:SUST_DEX
 D:Crafted of purest ice and held solid by powerful spells, this icy axe 
 D:delivers a chill of death to its victims.
 
-
-# The Iron Helm of Knowledge
-
-N:160:of Knowledge
-I:32:5:-6
-W:20:5:75:100000
-P:6:1d3:0:0:20
-F:ACTIVATE
-F:AUTO_ID
-F:HIDE_TYPE
-F:LITE1
-F:LUCK
-F:SPECIAL_GENE
-a:KNOWLEDGE
-D:This helm, designed by Petty-Dwarves ages ago to act as the brain of a 
-D:long lost project, is made of finest glass.  Its light banishes all secrets, 
-D:and makes audible whispers from the deceased.
 
 # The Broken Sword 'Narsil'
 

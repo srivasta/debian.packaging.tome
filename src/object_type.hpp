@@ -1,8 +1,10 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 #include "object_flag_set.hpp"
+#include "object_kind_fwd.hpp"
 
+#include <memory>
 #include <string>
 
 /**
@@ -34,7 +36,7 @@
  */
 struct object_type
 {
-	s16b k_idx = 0;                          /* Kind index (zero if "dead") */
+	std::shared_ptr<object_kind> k_ptr;
 
 	byte iy = 0;                             /* Y-position on map, or zero */
 	byte ix = 0;                             /* X-position on map, or zero */
@@ -73,7 +75,7 @@ struct object_type
 
 	s16b timeout = 0;                        /* Timeout Counter */
 
-	byte ident = 0;                          /* Special flags  */
+	bool identified = false;                 /* Has the object been identified? */
 
 	byte marked = 0;                         /* Object is marked */
 
@@ -85,8 +87,6 @@ struct object_type
 	object_flag_set art_oflags;              /* Obvious flags */
 
 	s16b held_m_idx = 0;                     /* Monster holding the object; if any */
-
-	byte sense = 0;                          /* Pseudo-id status */
 
 	byte found = 0;                          /* How did we find it */
 	s16b found_aux1 = 0;                     /* Stores info for found */

@@ -7,7 +7,6 @@
  */
 
 #include "tables.hpp"
-#include "tables.h"
 
 #include "modules.hpp"
 #include "monster_race_flag.hpp"
@@ -43,6 +42,7 @@
 #include "q_rand.hpp"
 #include "stats.hpp"
 #include "variable.hpp"
+#include "z-term.hpp"
 
 
 
@@ -1057,7 +1057,7 @@ s32b player_exp[PY_MAX_LEVEL] =
 /*
  * Hack -- the "basic" color names (see "TERM_xxx")
  */
-cptr color_names[16] =
+const char *color_names[16] =
 {
 	"Dark",
 	"White",
@@ -1081,7 +1081,7 @@ cptr color_names[16] =
 /*
  * Abbreviations of healthy stats
  */
-cptr stat_names[6] =
+const char *stat_names[6] =
 {
 	"STR", "INT", "WIS", "DEX", "CON", "CHR"
 };
@@ -1089,7 +1089,7 @@ cptr stat_names[6] =
 /*
  * Abbreviations of damaged stats
  */
-cptr stat_names_reduced[6] =
+const char *stat_names_reduced[6] =
 {
 	"Str", "Int", "Wis", "Dex", "Con", "Chr"
 };
@@ -1109,7 +1109,7 @@ cptr stat_names_reduced[6] =
  * The "ctrl-g" command (or pseudo-command) should perhaps grab a snapshot
  * of the main screen into any interested windows.
  */
-cptr window_flag_desc[32] =
+const char *window_flag_desc[32] =
 {
 	"Display inven/equip",
 	"Display equip/inven",
@@ -1147,7 +1147,7 @@ cptr window_flag_desc[32] =
 
 
 /* Names used for random artifact name generation */
-cptr artifact_names_list =
+const char *artifact_names_list =
 	"adanedhel\n"
 	"adurant\n"
 	"aeglos\n"
@@ -1773,15 +1773,6 @@ martial_arts ma_blows[MAX_MA] =
 	{ "You hit %s with a Crushing Blow.", 48, 35, 20, 12, MA_STUN, 18 },
 };
 
-/*
- *   cptr    desc;      A verbose attack description
- *   int     min_level; Minimum level to use
- *   int     chance;    Chance of 'success
- *   int     dd;        Damage dice
- *   int     ds;        Damage sides
- *   s16b    effect;    Special effects
- *   s16b    power;     Special effects power
- */
 martial_arts bear_blows[MAX_BEAR] =
 {
 	{ "You claw %s.", 1, 0, 3, 4, MA_STUN, 4 },
@@ -1838,11 +1829,6 @@ magic_power mindcraft_powers[MAX_MINDCRAFT_POWERS] =
 		13, 12, 50,
 		"Character Armour",
 		"Sets up physical/elemental shield."
-	},
-	{
-		15, 12, 60,
-		"Psychometry",
-		"Identifies objects."
 	},
 	{
 		/* Ball -> LOS */
@@ -2304,24 +2290,6 @@ inscription_info_type inscription_info[MAX_INSCRIPTIONS] =
 };
 
 /*
- * Inscriptions for pseudo-id
- */
-cptr sense_desc[] =
-{
-	"whoops",
-	"cursed",
-	"average",
-	"good",
-	"good",
-	"excellent",
-	"worthless",
-	"terrible",
-	"special",
-	"broken",
-	""
-};
-
-/*
  * Flag groups used for art creation, level gaining weapons, ...
  * -----
  * Name,
@@ -2431,475 +2399,13 @@ std::vector<flags_group> const &flags_groups()
 	return *instance;
 };
 
-/* Powers */
-power_type powers_type[POWER_MAX] =
-{
-	{
-		"spit acid",
-		"You can spit acid.",
-		"You gain the ability to spit acid.",
-		"You lose the ability to spit acid.",
-		9, 9, A_DEX, 15,
-	},
-	{
-		"fire breath",
-		"You can breath fire.",
-		"You gain the ability to breathe fire.",
-		"You lose the ability to breathe fire.",
-		20, 10, A_CON, 18,
-	},
-	{
-		"hypnotic gaze",
-		"Your gaze is hypnotic.",
-		"Your eyes look mesmerising...",
-		"Your eyes look uninteresting.",
-		12, 12, A_CHR, 18,
-	},
-	{
-		"telekinesis",
-		"You are telekinetic.",
-		"You gain the ability to move objects telekinetically.",
-		"You lose the ability to move objects telekinetically.",
-		9, 9, A_WIS, 14,
-	},
-	{
-		"teleport",
-		"You can teleport at will.",
-		"You gain the power of teleportation at will.",
-		"You lose the power of teleportation at will.",
-		7, 7, A_WIS, 15,
-	},
-	{
-		"mind blast",
-		"You can mind blast your enemies.",
-		"You gain the power of Mind Blast.",
-		"You lose the power of Mind Blast.",
-		5, 3, A_WIS, 15,
-	},
-	{
-		"emit radiation",
-		"You can emit hard radiation at will.",
-		"You start emitting hard radiation.",
-		"You stop emitting hard radiation.",
-		15, 15, A_CON, 14,
-	},
-	{
-		"vampiric drain",
-		"You can drain life from a foe.",
-		"You become vampiric.",
-		"You are no longer vampiric.",
-		4, 5, A_CON, 9,
-	},
-	{
-		"smell metal",
-		"You can smell nearby precious metal.",
-		"You smell a metallic odour.",
-		"You no longer smell a metallic odour.",
-		3, 2, A_INT, 12,
-	},
-	{
-		"smell monsters",
-		"You can smell nearby monsters.",
-		"You smell filthy monsters.",
-		"You no longer smell filthy monsters.",
-		5, 4, A_INT, 15,
-	},
-	{
-		"blink",
-		"You can teleport yourself short distances.",
-		"You gain the power of minor teleportation.",
-		"You lose the power of minor teleportation.",
-		3, 3, A_WIS, 12,
-	},
-	{
-		"eat rock",
-		"You can consume solid rock.",
-		"The walls look delicious.",
-		"The walls look unappetising.",
-		8, 12, A_CON, 18,
-	},
-	{
-		"swap position",
-		"You can switch locations with another being.",
-		"You feel like walking a mile in someone else's shoes.",
-		"You feel like staying in your own shoes.",
-		15, 12, A_DEX, 16,
-	},
-	{
-		"shriek",
-		"You can emit a horrible shriek.",
-		"Your vocal cords get much tougher.",
-		"Your vocal cords get much weaker.",
-		4, 4, A_CON, 6,
-	},
-	{
-		"illuminate",
-		"You can emit bright light.",
-		"You can light up rooms with your presence.",
-		"You can no longer light up rooms with your presence.",
-		3, 2, A_INT, 10,
-	},
-	{
-		"detect curses",
-		"You can feel the danger of evil magic.",
-		"You can feel evil magic.",
-		"You can no longer feel evil magic.",
-		7, 14, A_WIS, 14,
-	},
-	{
-		"berserk",
-		"You can drive yourself into a berserk frenzy.",
-		"You feel a controlled rage.",
-		"You no longer feel a controlled rage.",
-		8, 8, A_STR, 14,
-	},
-	{
-		"polymorph",
-		"You can polymorph yourself at will.",
-		"Your body seems mutable.",
-		"Your body seems stable.",
-		18, 20, A_CON, 18,
-	},
-	{
-		"Midas touch",
-		"You can turn ordinary items to gold.",
-		"You gain the Midas touch.",
-		"You lose the Midas touch.",
-		10, 5, A_INT, 12,
-	},
-	{
-		"grow mold",
-		"You can cause mold to grow near you.",
-		"You feel a sudden affinity for mold.",
-		"You feel a sudden dislike for mold.",
-		1, 6, A_CON, 14,
-	},
-	{
-		"resist elements",
-		"You can harden yourself to the ravages of the elements.",
-		"You feel like you can protect yourself.",
-		"You feel like you might be vulnerable.",
-		10, 12, A_CON, 12,
-	},
-	{
-		"earthquake",
-		"You can bring down the dungeon around your ears.",
-		"You gain the ability to wreck the dungeon.",
-		"You lose the ability to wreck the dungeon.",
-		12, 12, A_STR, 16,
-	},
-	{
-		"eat magic",
-		"You can consume magic energy for your own use.",
-		"Your magic items look delicious.",
-		"Your magic items no longer look delicious.",
-		17, 1, A_WIS, 15,
-	},
-	{
-		"weigh magic",
-		"You can feel the strength of the magics affecting you.",
-		"You feel you can better understand the magic around you.",
-		"You no longer sense magic.",
-		6, 6, A_INT, 10,
-	},
-	{
-		"sterilise",
-		"You can cause mass impotence.",
-		"You can give everything around you a headache.",
-		"You hear a massed sigh of relief.",
-		20, 40, A_CHR, 18,
-	},
-	{
-		"panic hit",
-		"You can run for your life after hitting something.",
-		"You suddenly understand how thieves feel.",
-		"You no longer feel jumpy.",
-		10, 12, A_DEX, 14,
-	},
-	{
-		"dazzle",
-		"You can emit confusing, blinding radiation.",
-		"You gain the ability to emit dazzling lights.",
-		"You lose the ability to emit dazzling lights.",
-		7, 15, A_CHR, 8,
-	},
-	{
-		"spear of darkness",
-		"You can create a spear of darkness.",
-		"An illusory spear of darkness appears in your hand.",
-		"The spear of darkness disappear.",
-		7, 10, A_WIS, 9,
-	},
-	{
-		"recall",
-		"You can travel between towns and the depths.",
-		"You feel briefly homesick, but it passes.",
-		"You feel briefly homesick.",
-		17, 50, A_INT, 16,
-	},
-	{
-		"banish evil",
-		"You can send evil creatures directly to the Nether Realm.",
-		"You feel a holy wrath fill you.",
-		"You no longer feel a holy wrath.",
-		25, 25, A_WIS, 18,
-	},
-	{
-		"cold touch",
-		"You can freeze things with a touch.",
-		"Your hands get very cold.",
-		"Your hands warm up.",
-		2, 2, A_CON, 11,
-	},
-	{
-		"throw object",
-		"You can hurl objects with great force.",
-		"Your throwing arm feels much stronger.",
-		"Your throwing arm feels much weaker.",
-		1, 10, A_STR, 6,
-	},
-	{
-		"find secret passages",
-		"You can use secret passages.",
-		"You suddenly notice lots of hidden ways.",
-		"You no longer can use hidden ways.",
-		15, 15, A_DEX, 12,
-	},
-	{
-		"detect doors and traps",
-		"You can detect hidden doors and traps.",
-		"You develop an affinity for traps.",
-		"You no longer can detect hidden doors and traps.",
-		5, 3, A_WIS, 10,
-	},
-	{
-		"create food",
-		"You can create food.",
-		"Your cooking skills greatly improve.",
-		"Your cooking skills return to a normal level.",
-		15, 10, A_INT, 10,
-	},
-	{
-		"remove fear",
-		"You can embolden yourself.",
-		"You feel your fears lessening.",
-		"You feel your fears growing again.",
-		3, 5, A_WIS, 8,
-	},
-	{
-		"set explosive rune",
-		"You can set explosive runes.",
-		"You suddenly understand how explosive runes work.",
-		"You suddenly forget how explosive runes work.",
-		25, 35, A_INT, 15,
-	},
-	{
-		"stone to mud",
-		"You can destroy walls.",
-		"You can destroy walls.",
-		"You cannot destroy walls anymore.",
-		20, 10, A_STR, 12,
-	},
-	{
-		"poison dart",
-		"You can throw poisoned darts.",
-		"You get an infinite supply of poisoned darts.",
-		"You lose your infinite supply of poisoned darts.",
-		12, 8, A_DEX, 14,
-	},
-	{
-		"magic missile",
-		"You can cast magic missiles.",
-		"You suddenly understand the basics of magic.",
-		"You forget the basics of magic.",
-		2, 2, A_INT, 9,
-	},
-	{
-		"grow trees",
-		"You can grow trees.",
-		"You feel an affinity for trees.",
-		"You no longer feel an affinity for trees.",
-		2, 6, A_CHR, 3,
-	},
-	{
-		"cold breath",
-		"You can breath cold.",
-		"You gain the ability to breathe cold.",
-		"You lose the ability to breathe cold.",
-		20, 10, A_CON, 18,
-	},
-	{
-		"chaos breath",
-		"You can breath chaos.",
-		"You gain the ability to breathe chaos.",
-		"You lose the ability to breathe chaos.",
-		20, 10, A_CON, 18,
-	},
-	{
-		"elemental breath",
-		"You can breath the elements.",
-		"You gain the ability to breathe the elements.",
-		"You lose the ability to breathe the elements.",
-		20, 10, A_CON, 18,
-	},
-	{
-		"change the world",
-		"You can wreck the world around you.",
-		"You gain the ability to wreck the world.",
-		"You lose the ability to wreck the world.",
-		1, 30, A_CHR, 6,
-	},
-	{
-		"scare monster",
-		"You can scare monsters.",
-		"You gain the ability to scare monsters.",
-		"You lose the ability to scare monsters.",
-		4, 3, A_INT, 3,
-	},
-	{
-		"restore life",
-		"You can restore lost life forces.",
-		"You gain the ability to restore your life force.",
-		"You lose the ability to restore your life force.",
-		30, 30, A_WIS, 18,
-	},
-	{
-		"summon monsters",
-		"You can call upon monsters.",
-		"You gain the ability to call upon monsters.",
-		"You lose the ability to call upon monsters.",
-		0, 0, 0, 0,
-	},
-	{
-		"necromantic powers",
-		"You can use the foul necromantic magic.",
-		"You gain the ability to use the foul necromantic magic.",
-		"You lose the ability to use the foul necromantic magic.",
-		0, 0, 0, 0,
-	},
-	{
-		"Rohan Knight's Powers",
-		"You can use rohir powers.",
-		"You gain the ability to use rohir powers.",
-		"You lose the ability to use rohir powers.",
-		0, 0, 0, 0,
-	},
-	{
-		"Thunderlord's Powers",
-		"You can use thunderlords powers.",
-		"You gain the ability to use thunderlords powers.",
-		"You lose the ability to use thunderlords powers.",
-		0, 0, 0, 0,
-	},
-	{
-		"Death Mold's Powers",
-		"You can use the foul deathmold magic.",
-		"You gain the ability to use the foul deathmold magic.",
-		"You lose the ability to use the foul deathmold magic.",
-		0, 0, 0, 0,
-	},
-	{
-		"Hypnotise Pet",
-		"You can mystify pets.",
-		"You gain the ability to mystify pets.",
-		"You lose the ability to mystify pets.",
-		0, 0, 0, 0,
-	},
-	{
-		"Awaken Hypnotised Pet",
-		"You can wake up a pet.",
-		"You gain the ability to wake up a pet.",
-		"You lose the ability to wake up a pet.",
-		0, 0, 0, 0,
-	},
-	{
-		"Incarnate",
-		"You can incarnate into a body.",
-		"You feel the need to get a body.",
-		"You no longer feel the need for a new body.",
-		0, 0, 0, 0,
-	},
-	{
-		"magic map",
-		"You can sense what is beyond walls.",
-		"You feel you can sense what is beyond walls.",
-		"You no longer can sense what is beyond walls.",
-		7, 10, A_WIS, 15,
-	},
-	{
-		"lay trap",
-		"You can lay monster traps.",
-		"You suddenly understand how rogues work.",
-		"You no longer understand how rogues work.",
-		1, 1, A_DEX, 1,
-	},
-	{
-		"notused", /* Merchant abilities; no longer used, but want to
-			    * avoid having to move all potential places where
-			    * we're indexing into this table. */
-		"notused",
-		"notused",
-		"notused",
-		0, 0, 0, 0,
-	},
-	{
-		"turn pet into companion",
-		"You can turn a pet into a companion.",
-		"You suddenly gain authority over your pets.",
-		"You can no longer convert pets into companions.",
-		2, 10, A_CHR, 10,
-	},
-	{
-		"turn into a bear",
-		"You can turn into a bear.",
-		"You suddenly gain beorning powers.",
-		"You can no longer shapeshift into a bear.",
-		2, 5, A_CON, 5,
-	},
-	{
-		"sense dodge success",
-		"You can sense your dodging success chance.",
-		"You suddenly can sense your dodging success chance.",
-		"You can no longer sense your dodging success chance.",
-		0, 0, 0, 0,
-	},
-	{
-		"turn into a Balrog",
-		"You can turn into a Balrog at will.",
-		"You feel the fire of Udun burning in you.",
-		"You no longer feel the fire of Udun in you.",
-		35, 80, A_WIS, 25,
-	},
-	{
-		"invisibility",
-		"You are able melt into the shadows to become invisible.",
-		"You suddenly become able to melt into the shadows.",
-		"You lose your shadow-melting ability.",
-		30, 10, A_DEX, 20,
-	},
-	{
-		"web",
-		"You are able throw a thick and very resistant spider web.",
-		"You suddenly become able to weave webs.",
-		"You lose your web-weaving capability.",
-		25, 30, A_DEX, 20,
-	},
-	{
-		"control space/time continuum",
-		"You are able to control the space/time continuum.",
-		"You become able to control the space/time continuum.",
-		"You are no more able to control the space/time continuum.",
-		1, 10, A_WIS, 10,
-	},
-};
-
 /*
  * The Quests
  */
 quest_type quest[MAX_Q_IDX] =
 {
 	{
-		FALSE,
+		false,
 		"",
 		{
 			"",
@@ -2922,7 +2428,7 @@ quest_type quest[MAX_Q_IDX] =
 		NULL,
 	},
 	{
-		FALSE,
+		false,
 		"Dol Guldur",
 		{
 			"The forest of Mirkwood is a very dangerous place to go, mainly due to",
@@ -2945,7 +2451,7 @@ quest_type quest[MAX_Q_IDX] =
 		NULL,
 	},
 	{
-		FALSE,
+		false,
 		"Sauron",
 		{
 			"It is time to take the battle to Morgoth. But, before you can",
@@ -2968,7 +2474,7 @@ quest_type quest[MAX_Q_IDX] =
 		NULL,
 	},
 	{
-		FALSE,
+		false,
 		"Morgoth",
 		{
 			"Your final quest is the ultimate quest that has always been",
@@ -2993,7 +2499,7 @@ quest_type quest[MAX_Q_IDX] =
 	
 	/* Bree plot */
 	{
-		FALSE,
+		false,
 		"Thieves!",
 		{
 			"There are thieves robbing my people! They live in a small",
@@ -3017,7 +2523,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	
 	{
-		FALSE,
+		false,
 		"Random Quest",
 		{
 			"",
@@ -3041,7 +2547,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	
 	{
-		FALSE,
+		false,
 		"Lost Hobbit",
 		{
 			"Merton Proudfoot, a young hobbit, seems to have disappeared.",
@@ -3065,7 +2571,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	
 	{
-		FALSE,
+		false,
 		"The Dark Horseman",
 		{
 			"A dark-cloaked horseman has been spotted several times in town.",
@@ -3089,7 +2595,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	
 	{
-		FALSE,
+		false,
 		"The Trolls Glade",
 		{
 			"A group of Forest Trolls settled in an abandoned forest in the",
@@ -3108,12 +2614,12 @@ quest_type quest[MAX_Q_IDX] =
 	
 		&plots[PLOT_BREE],
 		quest_troll_init_hook,
-		{FALSE, 0},
+		{false, 0},
 		NULL,
 	},
 	
 	{
-		FALSE,
+		false,
 		"The Wight Grave",
 		{
 			"The Barrow-Downs hides many mysteries and dangers.",
@@ -3132,13 +2638,13 @@ quest_type quest[MAX_Q_IDX] =
 	
 		&plots[PLOT_BREE],
 		quest_wight_init_hook,
-		{FALSE, 0},
+		{false, 0},
 		NULL,
 	},
 	
 	/* Lorien plot */
 	{
-		FALSE,
+		false,
 		"Spiders of Mirkwood",
 		{
 			"Powers lurk deep within Mirkwood. Spiders have blocked the",
@@ -3161,7 +2667,7 @@ quest_type quest[MAX_Q_IDX] =
 		NULL,
 	},
 	{
-		FALSE,
+		false,
 		"Poisoned Water",
 		{
 			"A curse has beset Lothlorien. All trees along the shorelines of Nimrodel",
@@ -3185,7 +2691,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* Other quests */
 	{
-		FALSE,
+		false,
 		"The Broken Sword",
 		{
 			"You have found Narsil, a broken sword. It is said that the sword that",
@@ -3209,7 +2715,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* Gondolin plot */
 	{
-		FALSE,
+		false,
 		"Eol the Dark Elf",
 		{
 			"We have disturbing tidings. Eol the Dark Elf has come seeking his kin in",
@@ -3232,7 +2738,7 @@ quest_type quest[MAX_Q_IDX] =
 		NULL,
 	},
 	{
-		FALSE,
+		false,
 		"Nirnaeth Arnoediad",
 		{
 			"The fortunes of war in the north turn against us.",
@@ -3255,7 +2761,7 @@ quest_type quest[MAX_Q_IDX] =
 		NULL,
 	},
 	{
-		FALSE,
+		false,
 		"Invasion of Gondolin",
 		{
 			"Morgoth is upon us! Dragons and Balrogs have poured over secret",
@@ -3279,7 +2785,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* Minas Anor Plot*/
 	{
-		FALSE,
+		false,
 		"The Last Alliance",
 		{
 			"The armies of Morgoth are closing in on the last remaining strongholds",
@@ -3302,7 +2808,7 @@ quest_type quest[MAX_Q_IDX] =
 		NULL,
 	},
 	{
-		FALSE,
+		false,
 		"The One Ring",
 		{
 			"Find the One Ring, then bring it to Mount Doom, in Mordor, to drop",
@@ -3326,7 +2832,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	
 	{
-		FALSE,
+		false,
 		"Mushroom supplies",
 		{
 			"Farmer Maggot asked you to bring him back his mushrooms.",
@@ -3350,7 +2856,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	
 	{
-		FALSE,
+		false,
 		"The prisoner of Dol Guldur",
 		{
 			"You keep hearing distress cries in the dark tower of",
@@ -3375,7 +2881,7 @@ quest_type quest[MAX_Q_IDX] =
 	
 	/* The 2 ultra endings go here */
 	{
-		FALSE,
+		false,
 		"Falling Toward Apotheosis",
 		{
 			"You must enter the Void where Melkor spirit lurks to destroy",
@@ -3398,7 +2904,7 @@ quest_type quest[MAX_Q_IDX] =
 		NULL,
 	},
 	{
-		FALSE,
+		false,
 		"Falling Toward Apotheosis",
 		{
 			"You must now launch an onslaught on Valinor itself to eliminate",
@@ -3422,7 +2928,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* More Lorien */
 	{
-		FALSE,
+		false,
 		"Wolves!",
 		{
 			"There are wolves pestering my people! They gather in a hut",
@@ -3446,7 +2952,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* More Gondolin */
 	{
-		FALSE,
+		false,
 		"Dragons!",
 		{
 			"There are dragons pestering my people! They gather in a",
@@ -3470,7 +2976,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* More Minas Anor */
 	{
-		FALSE,
+		false,
 		"Haunted House!",
 		{
 			"There are undead pestering my people! They gather in a hut",
@@ -3494,7 +3000,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* Khazad-Dum Plot*/
 	{
-		FALSE,
+		false,
 		"Evil!",
 		{
 			"We have burrowed too deep, and let out some creatures of",
@@ -3518,7 +3024,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* Bounty */
 	{
-		FALSE,
+		false,
 		"Bounty quest",
 		{
 			"", /* dynamic desc */
@@ -3532,7 +3038,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* Fireproofing */
 	{
-		FALSE,
+		false,
 		"Old Mages quest",
 		{
 			"", /* dynamic desc */
@@ -3546,7 +3052,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* Library */
 	{
-		FALSE,
+		false,
 		"Library quest",
 		{
 			"", /* dynamic desc */
@@ -3560,7 +3066,7 @@ quest_type quest[MAX_Q_IDX] =
 	},
 	/* God quest */
 	{
-		FALSE,
+		false,
 		"God quest",
 		{
 			"", /* dynamic desc */
@@ -3575,7 +3081,7 @@ quest_type quest[MAX_Q_IDX] =
 		  4 /* dun_maxdepth */,
 		  0 /* dun_minplev */,
 		  0 /* relic_gen_tries */,
-		  FALSE /* relic_generated */,
+		  false /* relic_generated */,
 		  1 /* dung_x */,
 		  1 /* dung_y */,
 		},
@@ -3587,94 +3093,94 @@ quest_type quest[MAX_Q_IDX] =
 /* List of powers for Symbiants/Powers */
 monster_power monster_powers[] =
 	{
-		{ SF_SHRIEK_IDX, "Aggravate Monster", 1, FALSE },
-		{ SF_MULTIPLY_IDX, "Multiply", 10, FALSE },
-		{ SF_S_ANIMAL_IDX, "Summon Animal", 30, FALSE },
-		{ SF_ROCKET_IDX, "Fire a Rocket", 40, TRUE },
-		{ SF_ARROW_1_IDX, "Light Arrow", 1, FALSE },
-		{ SF_ARROW_2_IDX, "Minor Arrow", 3, FALSE },
-		{ SF_ARROW_3_IDX, "Major Arrow", 7, TRUE },
-		{ SF_ARROW_4_IDX, "Great Arrow", 9, TRUE },
-		{ SF_BR_ACID_IDX, "Breathe Acid", 10, FALSE },
-		{ SF_BR_ELEC_IDX, "Breathe Lightning", 10, FALSE },
-		{ SF_BR_FIRE_IDX, "Breathe Fire", 10, FALSE },
-		{ SF_BR_COLD_IDX, "Breathe Cold", 10, FALSE },
-		{ SF_BR_POIS_IDX, "Breathe Poison", 15, TRUE },
-		{ SF_BR_NETH_IDX, "Breathe Nether", 30, TRUE },
-		{ SF_BR_LITE_IDX, "Breathe Light", 20, TRUE },
-		{ SF_BR_DARK_IDX, "Breathe Dark", 20, TRUE },
-		{ SF_BR_CONF_IDX, "Breathe Confusion", 15, TRUE },
-		{ SF_BR_SOUN_IDX, "Breathe Sound", 30, TRUE },
-		{ SF_BR_CHAO_IDX, "Breathe Chaos", 30, TRUE },
-		{ SF_BR_DISE_IDX, "Breathe Disenchantment", 30, TRUE },
-		{ SF_BR_NEXU_IDX, "Breathe Nexus", 30, TRUE },
-		{ SF_BR_TIME_IDX, "Breathe Time", 30, TRUE },
-		{ SF_BR_INER_IDX, "Breathe Inertia", 30, TRUE },
-		{ SF_BR_GRAV_IDX, "Breathe Gravity", 30, TRUE },
-		{ SF_BR_SHAR_IDX, "Breathe Shards", 30, TRUE },
-		{ SF_BR_PLAS_IDX, "Breathe Plasma", 30, TRUE },
-		{ SF_BR_WALL_IDX, "Breathe Force", 30, TRUE },
-		{ SF_BR_MANA_IDX, "Breathe Mana", 40, TRUE },
-		{ SF_BA_NUKE_IDX, "Nuke Ball", 30, TRUE },
-		{ SF_BR_NUKE_IDX, "Breathe Nuke", 40, TRUE },
-		{ SF_BA_CHAO_IDX, "Chaos Ball", 30, TRUE },
-		{ SF_BR_DISI_IDX, "Breathe Disintegration", 40, TRUE },
-		{ SF_BA_ACID_IDX, "Acid Ball", 8, FALSE },
-		{ SF_BA_ELEC_IDX, "Lightning Ball", 8, FALSE },
-		{ SF_BA_FIRE_IDX, "Fire Ball", 8, FALSE },
-		{ SF_BA_COLD_IDX, "Cold Ball", 8, FALSE },
-		{ SF_BA_POIS_IDX, "Poison Ball", 20, TRUE },
-		{ SF_BA_NETH_IDX, "Nether Ball", 20, TRUE },
-		{ SF_BA_WATE_IDX, "Water Ball", 20, TRUE },
-		{ SF_BA_MANA_IDX, "Mana Ball", 50, TRUE },
-		{ SF_BA_DARK_IDX, "Darkness Ball", 20, TRUE },
-		{ SF_CAUSE_1_IDX, "Cause Light Wounds", 20, FALSE },
-		{ SF_CAUSE_2_IDX, "Cause Medium Wounds", 30, FALSE },
-		{ SF_CAUSE_3_IDX, "Cause Critical Wounds", 35, TRUE },
-		{ SF_CAUSE_4_IDX, "Cause Mortal Wounds", 45, TRUE },
-		{ SF_BO_ACID_IDX, "Acid Bolt", 5, FALSE },
-		{ SF_BO_ELEC_IDX, "Lightning Bolt", 5, FALSE },
-		{ SF_BO_FIRE_IDX, "Fire Bolt", 5, FALSE },
-		{ SF_BO_COLD_IDX, "Cold Bolt", 5, FALSE },
-		{ SF_BO_POIS_IDX, "Poison Bolt", 10, TRUE },
-		{ SF_BO_NETH_IDX, "Nether Bolt", 15, TRUE },
-		{ SF_BO_WATE_IDX, "Water Bolt", 20, TRUE },
-		{ SF_BO_MANA_IDX, "Mana Bolt", 25, TRUE },
-		{ SF_BO_PLAS_IDX, "Plasma Bolt", 20, TRUE },
-		{ SF_BO_ICEE_IDX, "Ice Bolt", 20, TRUE },
-		{ SF_MISSILE_IDX, "Magic Missile", 1, FALSE },
-		{ SF_SCARE_IDX, "Scare", 4, FALSE },
-		{ SF_BLIND_IDX, "Blindness", 6, FALSE },
-		{ SF_CONF_IDX, "Confusion", 7, FALSE },
-		{ SF_SLOW_IDX, "Slowness", 10, FALSE },
-		{ SF_HOLD_IDX, "Paralyse", 10, FALSE },
-		{ SF_HASTE_IDX, "Haste Self", 50, FALSE },
-		{ SF_HAND_DOOM_IDX, "Hand of Doom", 30, TRUE },
-		{ SF_HEAL_IDX, "Healing", 60, FALSE },
-		{ SF_S_ANIMALS_IDX, "Summon Animals", 60, TRUE },
-		{ SF_BLINK_IDX, "Phase Door", 2, FALSE },
-		{ SF_TPORT_IDX, "Teleport", 10, FALSE },
-		{ SF_TELE_TO_IDX, "Teleport To", 20, TRUE },
-		{ SF_TELE_AWAY_IDX, "Teleport Away", 20, FALSE },
-		{ SF_TELE_LEVEL_IDX, "Teleport Level", 20, TRUE },
-		{ SF_DARKNESS_IDX, "Darkness", 3, FALSE },
-		{ SF_RAISE_DEAD_IDX, "Raise the Dead", 400, TRUE },
-		{ SF_S_THUNDERLORD_IDX, "Summon Thunderlords", 90, TRUE },
-		{ SF_S_KIN_IDX, "Summon Kin", 80, FALSE },
-		{ SF_S_HI_DEMON_IDX, "Summon Greater Demons", 90, TRUE },
-		{ SF_S_MONSTER_IDX, "Summon Monster", 50, FALSE },
-		{ SF_S_MONSTERS_IDX, "Summon Monsters", 60, TRUE },
-		{ SF_S_ANT_IDX, "Summon Ants", 30, FALSE },
-		{ SF_S_SPIDER_IDX, "Summon Spider", 30, FALSE },
-		{ SF_S_HOUND_IDX, "Summon Hound", 50, TRUE },
-		{ SF_S_HYDRA_IDX, "Summon Hydra", 40, TRUE },
-		{ SF_S_ANGEL_IDX, "Summon Angel", 60, TRUE },
-		{ SF_S_DEMON_IDX, "Summon Demon", 60, TRUE },
-		{ SF_S_UNDEAD_IDX, "Summon Undead", 70, TRUE },
-		{ SF_S_DRAGON_IDX, "Summon Dragon", 70, TRUE },
-		{ SF_S_HI_UNDEAD_IDX, "Summon High Undead", 90, TRUE },
-		{ SF_S_HI_DRAGON_IDX, "Summon High Dragon", 90, TRUE },
-		{ SF_S_WRAITH_IDX, "Summon Wraith", 90, TRUE },
+		{ SF_SHRIEK_IDX, "Aggravate Monster", 1, false },
+		{ SF_MULTIPLY_IDX, "Multiply", 10, false },
+		{ SF_S_ANIMAL_IDX, "Summon Animal", 30, false },
+		{ SF_ROCKET_IDX, "Fire a Rocket", 40, true },
+		{ SF_ARROW_1_IDX, "Light Arrow", 1, false },
+		{ SF_ARROW_2_IDX, "Minor Arrow", 3, false },
+		{ SF_ARROW_3_IDX, "Major Arrow", 7, true },
+		{ SF_ARROW_4_IDX, "Great Arrow", 9, true },
+		{ SF_BR_ACID_IDX, "Breathe Acid", 10, false },
+		{ SF_BR_ELEC_IDX, "Breathe Lightning", 10, false },
+		{ SF_BR_FIRE_IDX, "Breathe Fire", 10, false },
+		{ SF_BR_COLD_IDX, "Breathe Cold", 10, false },
+		{ SF_BR_POIS_IDX, "Breathe Poison", 15, true },
+		{ SF_BR_NETH_IDX, "Breathe Nether", 30, true },
+		{ SF_BR_LITE_IDX, "Breathe Light", 20, true },
+		{ SF_BR_DARK_IDX, "Breathe Dark", 20, true },
+		{ SF_BR_CONF_IDX, "Breathe Confusion", 15, true },
+		{ SF_BR_SOUN_IDX, "Breathe Sound", 30, true },
+		{ SF_BR_CHAO_IDX, "Breathe Chaos", 30, true },
+		{ SF_BR_DISE_IDX, "Breathe Disenchantment", 30, true },
+		{ SF_BR_NEXU_IDX, "Breathe Nexus", 30, true },
+		{ SF_BR_TIME_IDX, "Breathe Time", 30, true },
+		{ SF_BR_INER_IDX, "Breathe Inertia", 30, true },
+		{ SF_BR_GRAV_IDX, "Breathe Gravity", 30, true },
+		{ SF_BR_SHAR_IDX, "Breathe Shards", 30, true },
+		{ SF_BR_PLAS_IDX, "Breathe Plasma", 30, true },
+		{ SF_BR_WALL_IDX, "Breathe Force", 30, true },
+		{ SF_BR_MANA_IDX, "Breathe Mana", 40, true },
+		{ SF_BA_NUKE_IDX, "Nuke Ball", 30, true },
+		{ SF_BR_NUKE_IDX, "Breathe Nuke", 40, true },
+		{ SF_BA_CHAO_IDX, "Chaos Ball", 30, true },
+		{ SF_BR_DISI_IDX, "Breathe Disintegration", 40, true },
+		{ SF_BA_ACID_IDX, "Acid Ball", 8, false },
+		{ SF_BA_ELEC_IDX, "Lightning Ball", 8, false },
+		{ SF_BA_FIRE_IDX, "Fire Ball", 8, false },
+		{ SF_BA_COLD_IDX, "Cold Ball", 8, false },
+		{ SF_BA_POIS_IDX, "Poison Ball", 20, true },
+		{ SF_BA_NETH_IDX, "Nether Ball", 20, true },
+		{ SF_BA_WATE_IDX, "Water Ball", 20, true },
+		{ SF_BA_MANA_IDX, "Mana Ball", 50, true },
+		{ SF_BA_DARK_IDX, "Darkness Ball", 20, true },
+		{ SF_CAUSE_1_IDX, "Cause Light Wounds", 20, false },
+		{ SF_CAUSE_2_IDX, "Cause Medium Wounds", 30, false },
+		{ SF_CAUSE_3_IDX, "Cause Critical Wounds", 35, true },
+		{ SF_CAUSE_4_IDX, "Cause Mortal Wounds", 45, true },
+		{ SF_BO_ACID_IDX, "Acid Bolt", 5, false },
+		{ SF_BO_ELEC_IDX, "Lightning Bolt", 5, false },
+		{ SF_BO_FIRE_IDX, "Fire Bolt", 5, false },
+		{ SF_BO_COLD_IDX, "Cold Bolt", 5, false },
+		{ SF_BO_POIS_IDX, "Poison Bolt", 10, true },
+		{ SF_BO_NETH_IDX, "Nether Bolt", 15, true },
+		{ SF_BO_WATE_IDX, "Water Bolt", 20, true },
+		{ SF_BO_MANA_IDX, "Mana Bolt", 25, true },
+		{ SF_BO_PLAS_IDX, "Plasma Bolt", 20, true },
+		{ SF_BO_ICEE_IDX, "Ice Bolt", 20, true },
+		{ SF_MISSILE_IDX, "Magic Missile", 1, false },
+		{ SF_SCARE_IDX, "Scare", 4, false },
+		{ SF_BLIND_IDX, "Blindness", 6, false },
+		{ SF_CONF_IDX, "Confusion", 7, false },
+		{ SF_SLOW_IDX, "Slowness", 10, false },
+		{ SF_HOLD_IDX, "Paralyse", 10, false },
+		{ SF_HASTE_IDX, "Haste Self", 50, false },
+		{ SF_HAND_DOOM_IDX, "Hand of Doom", 30, true },
+		{ SF_HEAL_IDX, "Healing", 60, false },
+		{ SF_S_ANIMALS_IDX, "Summon Animals", 60, true },
+		{ SF_BLINK_IDX, "Phase Door", 2, false },
+		{ SF_TPORT_IDX, "Teleport", 10, false },
+		{ SF_TELE_TO_IDX, "Teleport To", 20, true },
+		{ SF_TELE_AWAY_IDX, "Teleport Away", 20, false },
+		{ SF_TELE_LEVEL_IDX, "Teleport Level", 20, true },
+		{ SF_DARKNESS_IDX, "Darkness", 3, false },
+		{ SF_RAISE_DEAD_IDX, "Raise the Dead", 400, true },
+		{ SF_S_THUNDERLORD_IDX, "Summon Thunderlords", 90, true },
+		{ SF_S_KIN_IDX, "Summon Kin", 80, false },
+		{ SF_S_HI_DEMON_IDX, "Summon Greater Demons", 90, true },
+		{ SF_S_MONSTER_IDX, "Summon Monster", 50, false },
+		{ SF_S_MONSTERS_IDX, "Summon Monsters", 60, true },
+		{ SF_S_ANT_IDX, "Summon Ants", 30, false },
+		{ SF_S_SPIDER_IDX, "Summon Spider", 30, false },
+		{ SF_S_HOUND_IDX, "Summon Hound", 50, true },
+		{ SF_S_HYDRA_IDX, "Summon Hydra", 40, true },
+		{ SF_S_ANGEL_IDX, "Summon Angel", 60, true },
+		{ SF_S_DEMON_IDX, "Summon Demon", 60, true },
+		{ SF_S_UNDEAD_IDX, "Summon Undead", 70, true },
+		{ SF_S_DRAGON_IDX, "Summon Dragon", 70, true },
+		{ SF_S_HI_UNDEAD_IDX, "Summon High Undead", 90, true },
+		{ SF_S_HI_DRAGON_IDX, "Summon High Dragon", 90, true },
+		{ SF_S_WRAITH_IDX, "Summon Wraith", 90, true },
 	};
 
 
@@ -3718,7 +3224,6 @@ tval_desc tvals[] =
         { TV_DAEMON_BOOK, "Daemon Book" },
         { TV_SPIKE, "Spikes" },
         { TV_DIGGING, "Digger" },
-        { TV_CHEST, "Chest" },
         { TV_FOOD, "Food" },
         { TV_FLASK, "Flask" },
         { TV_MSTAFF, "Mage Staff" },
@@ -3965,7 +3470,7 @@ tval_desc tval_descs[] =
 /*
  * List of the between exits
  *       s16b corresp;           Corresponding between gate
- *       bool_ dungeon;           Do we exit in a dungeon or in the wild ?
+ *       bool dungeon;           Do we exit in a dungeon or in the wild ?
  *
  *       s16b wild_x, wild_y;    Wilderness spot to land onto
  *       s16b p_ptr->px, p_ptr->py;            Location of the map
@@ -3977,14 +3482,12 @@ between_exit between_exits[MAX_BETWEEN_EXITS] =
 {
 	{
 		1,
-		FALSE,
 		49, 11,
 		119, 25,
 		0, 0
 	},
 	{
 		0,
-		FALSE,
 		60, 56,
 		10, 35,
 		0, 0
@@ -3992,7 +3495,6 @@ between_exit between_exits[MAX_BETWEEN_EXITS] =
 	/* Theme: Minas Tirith -> Gondolin link */
 	{
 		0,
-		FALSE,
 		3, 11,
 		119, 25,
 		0, 0
@@ -4090,7 +3592,6 @@ gf_name_type gf_names[] =
 	{ GF_DOMINATION, "domination" },
 	{ GF_DISP_GOOD, "dispel good" },
 	{ GF_RAISE, "raise dead" },
-	{ GF_STAR_IDENTIFY, "*identification*" },
 	{ GF_DESTRUCTION, "destruction" },
 	{ GF_STUN_CONF, "stunning and confusion" },
 	{ GF_STUN_DAM, "stunning and damage" },
@@ -4116,7 +3617,7 @@ module_type modules[MAX_MODULES] =
 {
 	{ 
 		{ "ToME",
-		  { 2, 4, 0 },
+		  { 2, 4, 1 },
 		  { "DarkGod", "darkgod@t-o-m-e.net" },
 		  "The Tales of Middle-earth, the standard and official game.\n"
 		  "You are set on a quest to investigate the old tower of Dol Guldur.\n"

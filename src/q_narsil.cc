@@ -11,6 +11,7 @@
 #include "tables.hpp"
 #include "util.hpp"
 #include "variable.hpp"
+#include "z-term.hpp"
 
 #define cquest (quest[QUEST_NARSIL])
 
@@ -37,11 +38,17 @@ static bool quest_narsil_move_hook(void *, void *in_, void *)
 	/* Look out for Narsil */
 	for (i = 0; i < INVEN_TOTAL; i++)
 	{
-		o_ptr = get_object(i);
+		o_ptr = &p_ptr->inventory[i];
 
-		if (!o_ptr->k_idx) continue;
+		if (!o_ptr->k_ptr)
+		{
+			continue;
+		}
 
-		if (o_ptr->name1 == ART_NARSIL) break;
+		if (o_ptr->name1 == ART_NARSIL)
+		{
+			break;
+		}
 	}
 
 	if (i == INVEN_TOTAL)
@@ -59,7 +66,7 @@ static bool quest_narsil_move_hook(void *, void *in_, void *)
 
 	object_prep(o_ptr, lookup_kind(TV_SWORD, SV_LONG_SWORD));
 	o_ptr->name1 = ART_ANDURIL;
-	apply_magic(o_ptr, -1, TRUE, TRUE, TRUE);
+	apply_magic(o_ptr, -1, true, true, true);
 	object_aware(o_ptr);
 	object_known(o_ptr);
 	inven_item_describe(i);
@@ -72,7 +79,7 @@ static bool quest_narsil_move_hook(void *, void *in_, void *)
 	cquest.status = QUEST_STATUS_FINISHED;
 
 	del_hook_new(HOOK_MOVE, quest_narsil_move_hook);
-	process_hooks_restart = TRUE;
+	process_hooks_restart = true;
 
 	return true;
 }
@@ -109,7 +116,7 @@ static bool quest_narsil_identify_hook(void *, void *in_, void *)
 
 			add_hook_new(HOOK_MOVE, quest_narsil_move_hook, "narsil_move", NULL);
 			del_hook_new(HOOK_IDENTIFY, quest_narsil_identify_hook);
-			process_hooks_restart = TRUE;
+			process_hooks_restart = true;
 		}
 	}
 

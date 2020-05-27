@@ -1,6 +1,9 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
+
+#include <array>
+#include <string>
 
 /**
  * Store/building actions.

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 #include "seed_fwd.hpp"
 
+#include <cassert>
 #include <string>
 
 /**** Available constants ****/
@@ -91,7 +92,8 @@ s32b rand_spread(s32b a, s32b d);
  **/
 template <class C> typename C::const_iterator uniform_element(C const &c)
 {
-	return c.cbegin() + rand_int(c.size());
+	assert(!c.empty());
+	return std::next(std::cbegin(c), rand_int(c.size()));
 }
 
 /**
@@ -101,5 +103,24 @@ template <class C> typename C::const_iterator uniform_element(C const &c)
  **/
 template <class C> typename C::iterator uniform_element(C &c)
 {
-	return c.begin() + rand_int(c.size());
+	assert(!c.empty());
+	return std::next(std::begin(c), rand_int(c.size()));
+}
+
+/**
+ * Shuffle contents of given random-access container.
+ */
+template <class C> void shuffle(C &c)
+{
+	if (c.empty())
+	{
+		return;
+	}
+
+	auto n = c.size();
+
+	for (auto i = n - 1; i > 0; i--)
+	{
+		std::swap(c[i], c[rand_int(i + 1)]);
+	}
 }

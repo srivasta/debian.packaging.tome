@@ -40,18 +40,21 @@
 #include "tables.hpp"
 #include "town_type.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "variable.h"
 #include "variable.hpp"
 #include "wilderness_type_info.hpp"
+#include "z-form.hpp"
 #include "z-rand.hpp"
+#include "z-util.hpp"
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
+#include <boost/optional.hpp>
 
+using boost::algorithm::equals;
 using boost::algorithm::iequals;
 using boost::algorithm::ends_with;
+using boost::algorithm::starts_with;
 
 
 /**
@@ -91,7 +94,7 @@ template <class T> typename std::vector<T>::reference expand_to_fit_index(std::v
 /*
  * Monster Blow Methods
  */
-static cptr r_info_blow_method[] =
+static const char *r_info_blow_method[] =
 {
 	"*",
 	"HIT",
@@ -125,7 +128,7 @@ static cptr r_info_blow_method[] =
 /*
  * Monster Blow Effects
  */
-static cptr r_info_blow_effect[] =
+static const char *r_info_blow_effect[] =
 {
 	"*",
 	"HURT",
@@ -182,16 +185,16 @@ namespace detail {
 template <size_t N> struct flag_tie_impl {
 private:
 	u32b *m_mask;
-	cptr (&m_flags)[N];
+	const char *(&m_flags)[N];
 public:
-	flag_tie_impl(u32b *mask, cptr (&flags)[N]): m_mask(mask), m_flags(flags) {
+	flag_tie_impl(u32b *mask, const char *(&flags)[N]): m_mask(mask), m_flags(flags) {
 		// Empty
 	}
 
-	bool match(cptr flag) {
+	bool match(const char *flag) {
 		for (unsigned int i = 0; i < N; i++)
 		{
-			if (streq(flag, m_flags[i]))
+			if (equals(flag, m_flags[i]))
 			{
 				*m_mask |= (1L << i);
 				return true;
@@ -207,7 +210,7 @@ public:
  * Tie a flags value pointer and its corresponding array
  * of text strings.
  */
-template<size_t N> detail::flag_tie_impl<N> flag_tie(u32b *mask, cptr (&flags)[N]) {
+template<size_t N> detail::flag_tie_impl<N> flag_tie(u32b *mask, const char *(&flags)[N]) {
 	static_assert(N <= 32, "Array too large to represent result");
 	return detail::flag_tie_impl<N>(mask, flags);
 }
@@ -215,7 +218,7 @@ template<size_t N> detail::flag_tie_impl<N> flag_tie(u32b *mask, cptr (&flags)[N
 /**
  * Look up flag in array of flags.
  */
-template<size_t N> bool lookup_flags(cptr)
+template<size_t N> bool lookup_flags(const char *)
 {
 	// Base case: No match
 	return false;
@@ -224,7 +227,7 @@ template<size_t N> bool lookup_flags(cptr)
 /**
  * Look up flag in array of flags.
  */
-template<size_t N, typename... Pairs> bool lookup_flags(cptr flag, detail::flag_tie_impl<N> tie, Pairs&&...rest) {
+template<size_t N, typename... Pairs> bool lookup_flags(const char *flag, detail::flag_tie_impl<N> tie, Pairs&&...rest) {
 	// Inductive case: Check against current "tie"
 	if (tie.match(flag)) {
 		// Match
@@ -244,7 +247,7 @@ template<size_t N, typename... Pairs> bool lookup_flags(cptr flag, detail::flag_
  */
 static struct
 {
-cptr name;
+const char *name;
 int feat;
 }
 d_info_dtypes[] =
@@ -322,7 +325,7 @@ static const char *activation_names[] =
 	"EOL",                  /*  31*/
 	"UMBAR",                /*  32*/
 	"NUMENOR",              /*  33*/
-	"KNOWLEDGE",            /*  34*/
+	"XXX34",
 	"UNDEATH",              /*  35*/
 	"THRAIN",               /*  36*/
 	"BARAHIR",              /*  37*/
@@ -331,7 +334,7 @@ static const char *activation_names[] =
 	"NENYA",                /*  40*/
 	"VILYA",                /*  41*/
 	"POWER",                /*  42*/
-	"STONE_LORE",           /*  43*/
+	"XXX43",
 	"RAZORBACK",            /*  44*/
 	"BLADETURNER",          /*  45*/
 	"MEDIATOR",             /*  46*/
@@ -403,8 +406,8 @@ static const char *activation_names[] =
 	"MAP_LIGHT",            /*  112*/
 	"DETECT_ALL",           /*  113*/
 	"DETECT_XTRA",          /*  114*/
-	"ID_FULL",              /*  115*/
-	"ID_PLAIN",             /*  116*/
+	"XXX115",               /*  115*/
+	"XXX116",               /*  116*/
 	"RUNE_EXPLO",           /*  117*/
 	"RUNE_PROT",            /*  118*/
 	"SATIATE",              /*  119*/
@@ -636,8 +639,8 @@ static void strappend(char **s, const char *t)
 /*
  * Grab one race flag from a textual string
  */
-static bool_ unknown_shut_up = FALSE;
-static errr grab_one_class_flag(u32b *choice, cptr what)
+static bool unknown_shut_up = false;
+static errr grab_one_class_flag(std::array<u32b, 2> &choice, const char *what)
 {
 	auto const &class_info = game->edit_data.class_info;
 
@@ -658,7 +661,7 @@ static errr grab_one_class_flag(u32b *choice, cptr what)
 	return (1);
 }
 
-static errr grab_one_race_allow_flag(u32b *choice, cptr what)
+static errr grab_one_race_allow_flag(std::array<u32b, 2> &choice, const char *what)
 {
 	auto const &race_info = game->edit_data.race_info;
 
@@ -682,10 +685,10 @@ static errr grab_one_race_allow_flag(u32b *choice, cptr what)
 /*
  * Grab one flag from a textual string
  */
-static errr grab_one_skill_flag(skill_flag_set *flags, cptr what)
+static errr grab_one_skill_flag(skill_flag_set *flags, const char *what)
 {
 #define SKF(tier, index, name) \
-	if (streq(what, #name)) \
+	if (equals(what, #name)) \
 	{ \
 	        *flags |= BOOST_PP_CAT(SKF_,name); \
 	        return 0; \
@@ -702,10 +705,10 @@ static errr grab_one_skill_flag(skill_flag_set *flags, cptr what)
 /*
  * Grab one flag from a textual string
  */
-static errr grab_one_player_race_flag(player_race_flag_set *flags, cptr what)
+static errr grab_one_player_race_flag(player_race_flag_set *flags, const char *what)
 {
 #define PR(tier, index, name) \
-	if (streq(what, #name)) \
+	if (equals(what, #name)) \
 	{ \
 	        *flags |= BOOST_PP_CAT(PR_,name); \
 	        return 0; \
@@ -739,11 +742,11 @@ static int get_activation(char *activation)
 /*
  * Convert string to object_flag_set value
  */
-static object_flag_set object_flag_set_from_string(cptr what)
+static object_flag_set object_flag_set_from_string(const char *what)
 {
 	for (auto const flag_meta: object_flags_meta())
 	{
-		if (streq(what, flag_meta->e_name))
+		if (equals(what, flag_meta->e_name))
 		{
 			return flag_meta->flag_set;
 		};
@@ -755,7 +758,7 @@ static object_flag_set object_flag_set_from_string(cptr what)
 /*
  * Grab one flag in an object_kind from a textual string
  */
-static errr grab_object_flag(object_flag_set *flags, cptr what)
+static errr grab_object_flag(object_flag_set *flags, const char *what)
 {
 	if (object_flag_set f = object_flag_set_from_string(what))
 	{
@@ -773,7 +776,7 @@ static errr grab_object_flag(object_flag_set *flags, cptr what)
 /*
  * Read skill values
  */
-static int read_skill_modifiers(skill_modifiers *skill_modifiers, cptr buf)
+static int read_skill_modifiers(skill_modifiers *skill_modifiers, const char *buf)
 {
 	long val, mod;
 	char v, m;
@@ -804,7 +807,7 @@ static int read_skill_modifiers(skill_modifiers *skill_modifiers, cptr buf)
 /*
  * Read prototype objects
  */
-static int read_proto_object(std::vector<object_proto> *protos, cptr buf)
+static int read_proto_object(std::vector<object_proto> *protos, const char *buf)
 {
 	int s0, s1, s2, s3, s4;
 
@@ -868,6 +871,25 @@ static int read_ability(std::vector<player_race_ability_type> *abilities, char *
 	abilities->emplace_back(ability);
 
 	return 0;
+}
+
+
+/**
+ * Find a power by its name
+ */
+static boost::optional<int> find_power_idx(const char *name)
+{
+	for (auto const &entry: game->powers)
+	{
+		auto power_ptr = entry.second;
+
+		if (iequals(power_ptr->name, name))
+		{
+			return entry.first;
+		}
+	}
+
+	return boost::none;
 }
 
 
@@ -1041,15 +1063,14 @@ errr init_player_info_txt(FILE *fp)
 			char const *s = buf + 4;
 
 			/* Find it in the list */
-			int i;
-			for (i = 0; i < POWER_MAX; i++)
+			if (auto power_idx = find_power_idx(s))
 			{
-				if (iequals(s, powers_type[i].name)) break;
+				rp_ptr->ps.powers.push_back(*power_idx);
 			}
-
-			if (i == POWER_MAX) return (6);
-
-			rp_ptr->ps.powers.push_back(i);
+			else
+			{
+				return 6;
+			}
 
 			/* Next... */
 			continue;
@@ -1189,14 +1210,7 @@ errr init_player_info_txt(FILE *fp)
 			char const *s = buf + 6;
 
 			/* Place */
-			if (buf[4] == 'A')
-			{
-				rmp_ptr->place = TRUE;
-			}
-			else
-			{
-				rmp_ptr->place = FALSE;
-			}
+			rmp_ptr->place = (buf[4] == 'A');
 
 			/* Description */
 			if (!rmp_ptr->description.empty())
@@ -1268,15 +1282,14 @@ errr init_player_info_txt(FILE *fp)
 			char const *s = buf + 4;
 
 			/* Find it in the list */
-			int i;
-			for (i = 0; i < POWER_MAX; i++)
+			if (auto power_idx = find_power_idx(s))
 			{
-				if (iequals(s, powers_type[i].name)) break;
+				rmp_ptr->ps.powers.push_back(*power_idx);
 			}
-
-			if (i == POWER_MAX) return (6);
-
-			rmp_ptr->ps.powers.push_back(i);
+			else
+			{
+				return 6;
+			}
 
 			/* Next... */
 			continue;
@@ -1373,7 +1386,7 @@ errr init_player_info_txt(FILE *fp)
 		/* Process 'C' for "Class choice flags" (multiple lines) */
 		if ((buf[0] == 'S') && (buf[2] == 'C'))
 		{
-			u32b choice[2] = {0, 0};
+			std::array<u32b, 2> choice { };
 			if (0 != grab_one_class_flag(choice, buf + 6))
 			{
 				return (5);
@@ -1459,8 +1472,8 @@ errr init_player_info_txt(FILE *fp)
 
 			case '1': /* Class title */
 				/* Copy */
-				assert(!c_ptr->titles[tit_idx]);
-				c_ptr->titles[tit_idx] = my_strdup(s);
+				assert(c_ptr->titles[tit_idx].empty());
+				c_ptr->titles[tit_idx] = s;
 
 				/* Go to next title in array */
 				tit_idx++;
@@ -1569,7 +1582,7 @@ errr init_player_info_txt(FILE *fp)
 		{
 			int i;
 
-			if (streq(buf + 4, "All Gods"))
+			if (equals(buf + 4, "All Gods"))
 				c_ptr->gods = 0xFFFFFFFF;
 			else
 			{
@@ -1588,15 +1601,14 @@ errr init_player_info_txt(FILE *fp)
 			char const *s = buf + 4;
 
 			/* Find it in the list */
-			int i;
-			for (i = 0; i < POWER_MAX; i++)
+			if (auto power_idx = find_power_idx(s))
 			{
-				if (iequals(s, powers_type[i].name)) break;
+				c_ptr->ps.powers.push_back(*power_idx);
 			}
-
-			if (i == POWER_MAX) return (6);
-
-			c_ptr->ps.powers.push_back(i);
+			else
+			{
+				return 6;
+			}
 
 			/* Next... */
 			continue;
@@ -1738,7 +1750,7 @@ errr init_player_info_txt(FILE *fp)
 			{
 				int i;
 
-				if (streq(buf + 6, "All Gods"))
+				if (equals(buf + 6, "All Gods"))
 					s_ptr->gods = 0xFFFFFFFF;
 				else
 				{
@@ -1885,7 +1897,7 @@ errr init_v_info_txt(FILE *fp)
 		if (buf[0] == 'D')
 		{
 			/* Acquire the text */
-			cptr s = buf + 2;
+			const char *s = buf + 2;
 
 			/* Append data */
 			v_ptr->data += s;
@@ -1963,10 +1975,10 @@ errr init_v_info_txt(FILE *fp)
 /*
  * Grab one flag in an feature_type from a textual string
  */
-static int grab_one_feature_flag(cptr what, feature_flag_set *flags)
+static int grab_one_feature_flag(const char *what, feature_flag_set *flags)
 {
 #define FF(tier, index, name) \
-	if (streq(what, #name)) \
+	if (equals(what, #name)) \
 	{ \
 	        *flags |= BOOST_PP_CAT(FF_,name); \
 	        return 0; \
@@ -2040,8 +2052,8 @@ errr init_f_info_txt(FILE *fp)
 			f_ptr = &expand_to_fit_index(f_info, i);
 
 			/* Copy name */
-			assert(!f_ptr->name);
-			f_ptr->name = my_strdup(s);
+			assert(f_ptr->name.empty());
+			f_ptr->name = s;
 
 			/* Initialize */
 			f_ptr->mimic = i;
@@ -2153,7 +2165,7 @@ errr init_f_info_txt(FILE *fp)
 		if (buf[0] == 'E')
 		{
 			int side, dice, freq, type;
-			cptr tmp;
+			const char *tmp;
 			int i;
 
 			/* Find the next empty blow slot (if any) */
@@ -2183,12 +2195,17 @@ errr init_f_info_txt(FILE *fp)
 				j = 0;
 
 				while (d_info_dtypes[j].name != NULL)
-					if (strcmp(d_info_dtypes[j].name, tmp) == 0)
+				{
+					if (equals(d_info_dtypes[j].name, tmp))
 					{
 						f_ptr->d_type[i] = d_info_dtypes[j].feat;
 						break;
 					}
-					else j++;
+					else
+					{
+						j++;
+					}
+				}
 
 				if (d_info_dtypes[j].name == NULL) return (1);
 			}
@@ -2238,8 +2255,7 @@ errr init_k_info_txt(FILE *fp)
 	char *s, *t;
 
 	/* Current entry */
-	object_kind *k_ptr = NULL;
-
+	std::shared_ptr<object_kind> k_ptr;
 
 	/* Just before the first record */
 	error_idx = -1;
@@ -2285,18 +2301,10 @@ errr init_k_info_txt(FILE *fp)
 			/* Save the index */
 			error_idx = i;
 
-			/* Point at the "info" */
-			k_ptr = &expand_to_fit_index(k_info, i);
-
-			/* Advance and Save the name index */
-			assert(!k_ptr->name);
-			k_ptr->name = my_strdup(s);
-
-			/* Ensure empty description */
-			k_ptr->text = my_strdup("");
-
-			/* Needed hack */
-			k_ptr->power = -1;
+			/* Point at the "info"; automatically creates an entry */
+			k_info.emplace(std::make_pair(i, std::make_shared<object_kind>(i)));
+			k_ptr = k_info[i];
+			k_ptr->name = s;
 
 			/* Next... */
 			continue;
@@ -2311,14 +2319,12 @@ errr init_k_info_txt(FILE *fp)
 			/* Acquire the text */
 			s = buf + 2;
 
-			if (!k_ptr->text)
+			if (!k_ptr->text.empty())
 			{
-				k_ptr->text = my_strdup(s);
+				k_ptr->text += '\n';
 			}
-			else
-			{
-				strappend(&k_ptr->text, format("\n%s", s));
-			}
+
+			k_ptr->text += s;
 
 			/* Next... */
 			continue;
@@ -2374,7 +2380,15 @@ errr init_k_info_txt(FILE *fp)
 				{
 					char *spl = strchr(buf + 2, '=') + 1;
 
-					pval2 = find_spell(spl);
+					if (auto spell_idx = find_spell(spl))
+					{
+						pval2 = *spell_idx;
+					}
+					else
+					{
+						msg_format("No spell '%s'.", spl);
+						return 1;
+					}
 				}
 			}
 
@@ -2427,20 +2441,18 @@ errr init_k_info_txt(FILE *fp)
 		/* Process 'Z' for "Granted power" */
 		if (buf[0] == 'Z')
 		{
-			int i;
-
 			/* Acquire the text */
 			s = buf + 2;
 
 			/* Find it in the list */
-			for (i = 0; i < POWER_MAX; i++)
+			if (auto power_idx = find_power_idx(s))
 			{
-				if (iequals(s, powers_type[i].name)) break;
+				k_ptr->power = *power_idx;
 			}
-
-			if (i == POWER_MAX) return (6);
-
-			k_ptr->power = i;
+			else
+			{
+				return 6;
+			}
 
 			/* Next... */
 			continue;
@@ -2627,9 +2639,6 @@ errr init_a_info_txt(FILE *fp)
 					TR_IGNORE_FIRE |
 					TR_IGNORE_COLD;
 
-			/* Needed hack */
-			a_ptr->power = -1;
-
 			/*Require activating artifacts to have a activation type */
 			if (a_ptr && (a_ptr->flags & TR_ACTIVATE) && !a_ptr->activate)
 			{
@@ -2729,20 +2738,18 @@ errr init_a_info_txt(FILE *fp)
 		/* Process 'Z' for "Granted power" */
 		if (buf[0] == 'Z')
 		{
-			int i;
-
 			/* Acquire the text */
 			s = buf + 2;
 
 			/* Find it in the list */
-			for (i = 0; i < POWER_MAX; i++)
+			if (auto power_idx = find_power_idx(s))
 			{
-				if (iequals(s, powers_type[i].name)) break;
+				a_ptr->power = *power_idx;
 			}
-
-			if (i == POWER_MAX) return (6);
-
-			a_ptr->power = i;
+			else
+			{
+				return 6;
+			}
 
 			/* Next... */
 			continue;
@@ -3085,7 +3092,7 @@ errr init_s_info_txt(FILE *fp)
 			expand_to_fit_index(s_info, i);
 
 			/* Copy name */
-			s_ptr->name = my_strdup(s);
+			s_ptr->name = s;
 
 			/* Next... */
 			continue;
@@ -3355,7 +3362,7 @@ errr init_ab_info_txt(FILE *fp)
 
 			for (stat = 0; stat < 6; stat++)
 			{
-				if (!strcmp(stat_names[stat], sec))
+				if (equals(stat_names[stat], sec))
 					break;
 			}
 
@@ -3382,7 +3389,7 @@ errr init_ab_info_txt(FILE *fp)
 static ego_flag_set lookup_ego_flag(const char *what)
 {
 #define ETR(tier, index, name) \
-	if (streq(what, #name)) \
+	if (equals(what, #name)) \
 	{ \
 	        return BOOST_PP_CAT(ETR_,name); \
         };
@@ -3397,13 +3404,13 @@ static ego_flag_set lookup_ego_flag(const char *what)
  *
  * We explicitly allow nullptr for the "ego" parameter.
  */
-static bool_ grab_one_ego_item_flag(object_flag_set *flags, ego_flag_set *ego, cptr what)
+static bool grab_one_ego_item_flag(object_flag_set *flags, ego_flag_set *ego, const char *what)
 {
 	/* Lookup as an object_flag */
 	if (auto f = object_flag_set_from_string(what))
 	{
 		*flags |= f;
-		return 0;
+		return false;
 	}
 
 	/* Lookup as ego flag */
@@ -3412,7 +3419,7 @@ static bool_ grab_one_ego_item_flag(object_flag_set *flags, ego_flag_set *ego, c
 		if (auto f = lookup_ego_flag(what))
 		{
 			*ego |= f;
-			return (0);
+			return (false);
 		}
 	}
 
@@ -3420,7 +3427,7 @@ static bool_ grab_one_ego_item_flag(object_flag_set *flags, ego_flag_set *ego, c
 	msg_format("Unknown ego-item flag '%s'.", what);
 
 	/* Error */
-	return (1);
+	return (true);
 }
 
 
@@ -3489,10 +3496,7 @@ errr init_e_info_txt(FILE *fp)
 
 			/* Point at the "info" */
 			e_ptr = &expand_to_fit_index(e_info, i);
-
-			/* Copy name */
-			assert(!e_ptr->name);
-			e_ptr->name = my_strdup(s);
+			e_ptr->name = s;
 
 			/* Next... */
 			continue;
@@ -3559,7 +3563,7 @@ errr init_e_info_txt(FILE *fp)
 			/* Save the values */
 			/* e_ptr->slot = slot; */
 			e_ptr->rating = rating;
-			e_ptr->before = (pos == 'B') ? TRUE : FALSE;
+			e_ptr->before = (pos == 'B');
 
 			/* Next... */
 			continue;
@@ -3606,20 +3610,18 @@ errr init_e_info_txt(FILE *fp)
 		/* Process 'Z' for "Granted power" */
 		if (buf[0] == 'Z')
 		{
-			int i;
-
 			/* Acquire the text */
 			s = buf + 2;
 
 			/* Find it in the list */
-			for (i = 0; i < POWER_MAX; i++)
+			if (auto power_idx = find_power_idx(s))
 			{
-				if (iequals(s, powers_type[i].name)) break;
+				e_ptr->power = *power_idx;
 			}
-
-			if (i == POWER_MAX) return (6);
-
-			e_ptr->power = i;
+			else
+			{
+				return 6;
+			}
 
 			/* Next... */
 			continue;
@@ -3920,19 +3922,14 @@ errr init_ra_info_txt(FILE *fp)
 			char const *s = buf + 2;
 
 			/* Find it in the list */
-			std::size_t i;
-			for (i = 0; i < POWER_MAX; i++)
+			if (auto power_idx = find_power_idx(s))
 			{
-				if (iequals(s, powers_type[i].name)) break;
+				ra_ptr->power = *power_idx;
 			}
-
-			/* Not present? Fail */
-			if (i == POWER_MAX)
+			else
 			{
-				return (6);
+				return 6;
 			}
-
-			ra_ptr->power = i;
 
 			/* Next... */
 			continue;
@@ -3977,10 +3974,10 @@ errr init_ra_info_txt(FILE *fp)
 }
 
 
-static errr grab_monster_race_flag(monster_race_flag_set *flags, cptr what)
+static errr grab_monster_race_flag(monster_race_flag_set *flags, const char *what)
 {
 #define RF(tier, index, name) \
-	if (streq(what, #name)) \
+	if (equals(what, #name)) \
 	{ \
 		*flags |= BOOST_PP_CAT(RF_,name); \
 		return 0; \
@@ -3999,11 +3996,11 @@ static errr grab_monster_race_flag(monster_race_flag_set *flags, cptr what)
 /*
  * Grab one (spell) flag in a monster_race from a textual string
  */
-static errr grab_one_monster_spell_flag(monster_spell_flag_set *flags, cptr what)
+static errr grab_one_monster_spell_flag(monster_spell_flag_set *flags, const char *what)
 {
 	for (auto const &monster_spell: monster_spells())
 	{
-		if (streq(what, monster_spell->name))
+		if (equals(what, monster_spell->name))
 		{
 			*flags |= monster_spell->flag_set;
 			return 0;
@@ -4263,7 +4260,7 @@ errr init_r_info_txt(FILE *fp)
 			/* Analyze the method */
 			for (n1 = 0; r_info_blow_method[n1]; n1++)
 			{
-				if (streq(s, r_info_blow_method[n1])) break;
+				if (equals(s, r_info_blow_method[n1])) break;
 			}
 
 			/* Invalid method */
@@ -4278,7 +4275,7 @@ errr init_r_info_txt(FILE *fp)
 			/* Analyze effect */
 			for (n2 = 0; r_info_blow_effect[n2]; n2++)
 			{
-				if (streq(s, r_info_blow_effect[n2])) break;
+				if (equals(s, r_info_blow_effect[n2])) break;
 			}
 
 			/* Invalid effect */
@@ -4506,7 +4503,7 @@ errr init_re_info_txt(FILE *fp)
 			re_ptr->rarity = rar;
 			re_ptr->weight = (wt << 2) + monster_ego_modify(mwt);
 			re_ptr->mexp = (exp << 2) + monster_ego_modify(mexp);
-			re_ptr->before = (pos == 'B') ? TRUE : FALSE;
+			re_ptr->before = (pos == 'B') ? true : false;
 
 			/* Next... */
 			continue;
@@ -4532,7 +4529,7 @@ errr init_re_info_txt(FILE *fp)
 			/* Analyze the method */
 			for (n1 = 0; r_info_blow_method[n1]; n1++)
 			{
-				if (streq(s, r_info_blow_method[n1])) break;
+				if (equals(s, r_info_blow_method[n1])) break;
 			}
 
 			/* Invalid method */
@@ -4547,7 +4544,7 @@ errr init_re_info_txt(FILE *fp)
 			/* Analyze effect */
 			for (n2 = 0; r_info_blow_effect[n2]; n2++)
 			{
-				if (streq(s, r_info_blow_effect[n2])) break;
+				if (equals(s, r_info_blow_effect[n2])) break;
 			}
 
 			/* Invalid effect */
@@ -4651,7 +4648,7 @@ errr init_re_info_txt(FILE *fp)
 			char const *s = buf + 2;
 
 			/* XXX XXX XXX Hack -- Read no flags */
-			if (!strcmp(s, "MF_ALL"))
+			if (equals(s, "MF_ALL"))
 			{
 				re_ptr->nflags = ~monster_race_flag_set();
 			}
@@ -4712,7 +4709,7 @@ errr init_re_info_txt(FILE *fp)
 				}
 
 				/* XXX XXX XXX Hack -- Read no flags */
-				if (!strcmp(s, "MF_ALL"))
+				if (equals(s, "MF_ALL"))
 				{
 					/* No flags */
 					re_ptr->nspells = ~monster_spell_flag_set();
@@ -4750,7 +4747,7 @@ errr init_re_info_txt(FILE *fp)
 errr grab_one_dungeon_flag(dungeon_flag_set *flags, const char *str)
 {
 #define DF(tier, index, name) \
-	if (streq(str, #name)) { *flags |= DF_##name; return 0; }
+	if (equals(str, #name)) { *flags |= DF_##name; return 0; }
 #include "dungeon_flag_list.hpp"
 #undef DF
 
@@ -4761,6 +4758,44 @@ errr grab_one_dungeon_flag(dungeon_flag_set *flags, const char *str)
 	return (1);
 }
 
+
+/*
+ * Post-process "d_info" array.
+ */
+static void post_d_info()
+{
+	auto &d_info = game->edit_data.d_info;
+
+	for (std::size_t parent_d_idx = 0; parent_d_idx < d_info.size(); parent_d_idx++)
+	{
+		auto parent_d_ptr = &d_info[parent_d_idx];
+
+		if (parent_d_ptr->name.empty())
+		{
+			continue;
+		}
+
+		// Go through all the references to side dungeons
+		// and fill in back-references to "parent" dungeons.
+		for (auto &parent_depth_and_level_data: parent_d_ptr->level_data_by_depth)
+		{
+			auto parent_depth = std::get<0>(parent_depth_and_level_data);
+			auto &parent_level_data = std::get<1>(parent_depth_and_level_data);
+
+			// Do we have a branch-off point at this level?
+			if (parent_level_data.branch > 0)
+			{
+				// Look up target dungeon.
+				auto child_d_ptr = &d_info[parent_level_data.branch];
+				auto &child_level_data = child_d_ptr->level_data_by_depth[child_d_ptr->mindepth];
+
+				// Set up back-reference.
+				child_level_data.fbranch = parent_d_idx;
+				child_level_data.flevel = parent_depth - parent_d_ptr->mindepth;
+			}
+		}
+	}
+}
 
 /*
  * Initialize the "d_info" array, by parsing an ascii "template" file
@@ -5011,7 +5046,7 @@ errr init_d_info_txt(FILE *fp)
 		if (buf[0] == 'E')
 		{
 			int side, dice, freq, type;
-			cptr tmp;
+			const char *tmp;
 
 			/* Find the next empty blow slot (if any) */
 			std::size_t i;
@@ -5047,7 +5082,7 @@ errr init_d_info_txt(FILE *fp)
 				j = 0;
 
 				while (d_info_dtypes[j].name != NULL)
-					if (strcmp(d_info_dtypes[j].name, tmp) == 0)
+					if (equals(d_info_dtypes[j].name, tmp))
 					{
 						d_ptr->d_type[i] = d_info_dtypes[j].feat;
 						break;
@@ -5211,9 +5246,63 @@ errr init_d_info_txt(FILE *fp)
 			continue;
 		}
 
+		/* Process '@' for level-dependent information */
+		if (buf[0] == '@')
+		{
+			/* Split into fields */
+			std::string buf_s(buf + 2);
+			std::vector<std::string> fields;
+			boost::algorithm::split(fields, buf_s, boost::is_any_of(":"));
+
+			// Get the depth; depths are relative to the first floor
+			// of the dungeon. This is consistent with the handling of
+			// the 'A' flag.
+			int const depth = std::stoi(fields[0]);
+			auto &level_data = d_ptr->level_data_by_depth[depth + d_ptr->mindepth];
+
+			// Parse into appropriate field.
+			if (fields[1] == "B")
+			{
+				level_data.branch = std::stoi(fields[2]);
+			}
+			else if (fields[1] == "F")
+			{
+				if (0 != grab_one_dungeon_flag(&level_data.flags, fields[2].c_str()))
+				{
+					return 5;
+				}
+			}
+			else if (fields[1] == "S")
+			{
+				level_data.save_extension = fields[2];
+			}
+			else if (fields[1] == "U")
+			{
+				level_data.map_name = fields[2];
+			}
+			else if (fields[1] == "N")
+			{
+				level_data.name = fields[2];
+			}
+			else if (fields[1] == "D")
+			{
+				level_data.description = fields[2];
+			}
+			else
+			{
+				return 1;
+			}
+
+			/* Next... */
+			continue;
+		}
+
 		/* Oops */
 		return (6);
 	}
+
+	/* Post-process */
+	post_d_info();
 
 	/* Success */
 	return (0);
@@ -5222,25 +5311,25 @@ errr init_d_info_txt(FILE *fp)
 /*
  * Grab one race flag from a textual string
  */
-static errr grab_one_race_flag(owner_type *ow_ptr, int state, cptr what)
+static errr grab_one_race_flag(owner_type *ow_ptr, int state, const char *what)
 {
 	/* Scan race flags */
-	unknown_shut_up = TRUE;
+	unknown_shut_up = true;
 	if (!grab_one_race_allow_flag(ow_ptr->races[state], what))
 	{
-		unknown_shut_up = FALSE;
+		unknown_shut_up = false;
 		return (0);
 	}
 
 	/* Scan classes flags */
 	if (!grab_one_class_flag(ow_ptr->classes[state], what))
 	{
-		unknown_shut_up = FALSE;
+		unknown_shut_up = false;
 		return (0);
 	}
 
 	/* Oops */
-	unknown_shut_up = FALSE;
+	unknown_shut_up = false;
 	msg_format("Unknown race/class flag '%s'.", what);
 
 	/* Failure */
@@ -5250,10 +5339,10 @@ static errr grab_one_race_flag(owner_type *ow_ptr, int state, cptr what)
 /*
  * Grab one store flag from a textual string
  */
-static errr grab_one_store_flag(store_flag_set *flags, cptr what)
+static errr grab_one_store_flag(store_flag_set *flags, const char *what)
 {
 #define STF(tier, index, name) \
-	if (streq(what, #name)) { \
+	if (equals(what, #name)) { \
 	        *flags |= BOOST_PP_CAT(STF_,name); \
 	        return 0; \
         }
@@ -5352,10 +5441,17 @@ errr init_st_info_txt(FILE *fp)
 			if (!*s) return (1);
 
 			/* Add to items array */
-			store_item item;
-			item.chance = atoi(buf + 2);
-			item.kind = test_item_name(s);
-			st_ptr->items.emplace_back(item);
+			auto chance = atoi(buf + 2);
+			int k_idx = test_item_name(s);
+
+			if (k_idx < 0)
+			{
+				msg_format("Unknown k_info entry: [%s].", s);
+				return 1;
+			}
+
+			st_ptr->items.emplace_back(
+				store_item::k_idx(k_idx, chance));
 
 			/* Next... */
 			continue;
@@ -5371,11 +5467,10 @@ errr init_st_info_txt(FILE *fp)
 			                &rar1, &tv1, &sv1)) return (1);
 
 			/* Add to the items array */
-			store_item item;
-			item.chance = rar1;
-			item.kind = (sv1 < 256)
-			        ? lookup_kind(tv1, sv1)
-			        : tv1 + 10000;    /* An SVAL of 256 means all possible items. */
+			store_item item = (sv1 < 256)
+				? store_item::k_idx(lookup_kind(tv1, sv1), rar1)
+				: store_item::tval(tv1, rar1);    /* An SVAL of 256 means all possible items. */
+
 			st_ptr->items.emplace_back(item);
 
 			/* Next... */
@@ -5912,21 +6007,23 @@ struct dungeon_grid
 	int bx, by;                  /* For between gates */
 	int mimic;                   /* Mimiced features */
 	s32b mflag;			/* monster's mflag */
-	bool_ ok;
-	bool_ defined;
+	bool ok;
+	bool defined;
 };
-static bool_ meta_sleep = TRUE;
+static bool meta_sleep = true;
 
 static dungeon_grid letter[255];
 
 /*
  * Parse a sub-file of the "extra info"
  */
-static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalstart, int ymax, int xmax, bool_ full)
+static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalstart, int ymax, int xmax, bool full)
 {
 	auto &wilderness = game->wilderness;
 	auto &wf_info = game->edit_data.wf_info;
 	auto &a_info = game->edit_data.a_info;
+	auto &k_info = game->edit_data.k_info;
+	auto &dungeon_flags = game->dungeon_flags;
 
 	int i;
 
@@ -5950,7 +6047,7 @@ static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalst
 	if (buf[0] == '%')
 	{
 		/* Attempt to Process the given file */
-		return (process_dungeon_file(buf + 2, yval, xval, ymax, xmax, FALSE, full));
+		return (process_dungeon_file(buf + 2, yval, xval, ymax, xmax, false, full));
 	}
 
 	/* Process "N:<sleep>" */
@@ -5986,8 +6083,8 @@ static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalst
 			letter[index].random = 0;
 			letter[index].mimic = 0;
 			letter[index].mflag = 0;
-			letter[index].ok = TRUE;
-			letter[index].defined = TRUE;
+			letter[index].ok = true;
+			letter[index].defined = true;
 
 			if (num > 1)
 			{
@@ -6096,7 +6193,7 @@ static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalst
 					letter[index].special = 0;
 					for (i = 0; i < MAX_Q_IDX; i++)
 					{
-						if (!strcmp(&field[1], quest[i].name))
+						if (equals(&field[1], quest[i].name))
 						{
 							letter[index].special = i;
 							break;
@@ -6200,16 +6297,16 @@ static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalst
 
 				monster_level = quest[p_ptr->inside_quest].level + monster_index;
 
-				m_idx = place_monster(y, x, meta_sleep, FALSE);
+				m_idx = place_monster(y, x, meta_sleep, false);
 
 				monster_level = level;
 			}
 			else if (monster_index)
 			{
 				/* Place it */
-				m_allow_special[monster_index] = TRUE;
-				m_idx = place_monster_aux(y, x, monster_index, meta_sleep, FALSE, MSTATUS_ENEMY);
-				m_allow_special[monster_index] = FALSE;
+				m_allow_special[monster_index] = true;
+				m_idx = place_monster_aux(y, x, monster_index, meta_sleep, false, MSTATUS_ENEMY);
+				m_allow_special[monster_index] = false;
 			}
 
 			/* Set the mflag of the monster */
@@ -6225,25 +6322,25 @@ static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalst
 
 					object_level = quest[p_ptr->inside_quest].level + object_index;
 					if (rand_int(100) < 75)
-						place_object(y, x, FALSE, FALSE, OBJ_FOUND_SPECIAL);
+						place_object(y, x, false, false, OBJ_FOUND_SPECIAL);
 					else if (rand_int(100) < 80)
-						place_object(y, x, TRUE, FALSE, OBJ_FOUND_SPECIAL);
+						place_object(y, x, true, false, OBJ_FOUND_SPECIAL);
 					else
-						place_object(y, x, TRUE, TRUE, OBJ_FOUND_SPECIAL);
+						place_object(y, x, true, true, OBJ_FOUND_SPECIAL);
 
 					object_level = level;
 				}
 				else if (rand_int(100) < 75)
 				{
-					place_object(y, x, FALSE, FALSE, OBJ_FOUND_SPECIAL);
+					place_object(y, x, false, false, OBJ_FOUND_SPECIAL);
 				}
 				else if (rand_int(100) < 80)
 				{
-					place_object(y, x, TRUE, FALSE, OBJ_FOUND_SPECIAL);
+					place_object(y, x, true, false, OBJ_FOUND_SPECIAL);
 				}
 				else
 				{
-					place_object(y, x, TRUE, TRUE, OBJ_FOUND_SPECIAL);
+					place_object(y, x, true, true, OBJ_FOUND_SPECIAL);
 				}
 			}
 			else if (object_index)
@@ -6251,17 +6348,17 @@ static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalst
 				/* Get local object */
 				object_type *o_ptr = &object_type_body;
 
-				k_allow_special[object_index] = TRUE;
+				k_info[object_index]->allow_special = true;
 
 				/* Create the item */
 				object_prep(o_ptr, object_index);
 
 				/* Apply magic (no messages, no artifacts) */
-				apply_magic(o_ptr, dun_level, FALSE, TRUE, FALSE);
+				apply_magic(o_ptr, dun_level, false, true, false);
 
 				o_ptr->found = OBJ_FOUND_SPECIAL;
 
-				k_allow_special[object_index] = FALSE;
+				k_info[object_index]->allow_special = false;
 
 				drop_near(o_ptr, -1, y, x);
 			}
@@ -6277,7 +6374,7 @@ static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalst
 				object_type forge;
 				object_type *q_ptr = &forge;
 
-				a_allow_special[artifact_index] = TRUE;
+				a_allow_special[artifact_index] = true;
 
 				/* Wipe the object */
 				object_wipe(q_ptr);
@@ -6306,7 +6403,7 @@ static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalst
 
 				a_info[artifact_index].cur_num = 1;
 
-				a_allow_special[artifact_index] = FALSE;
+				a_allow_special[artifact_index] = false;
 
 				/* It's amazing that this "creating objects anywhere"
 				   junk ever worked.
@@ -6527,10 +6624,10 @@ static errr process_dungeon_file_aux(char *buf, int *yval, int *xval, int xvalst
 /*
  * Helper function for "process_dungeon_file()"
  */
-static cptr process_dungeon_file_expr(char **sp, char *fp)
+static const char *process_dungeon_file_expr(char **sp, char *fp)
 {
 	static char pref_tmp_value[8];
-	cptr v;
+	const char *v;
 
 	char *b;
 	char *s;
@@ -6571,40 +6668,40 @@ static cptr process_dungeon_file_expr(char **sp, char *fp)
 		}
 
 		/* Function: IOR */
-		else if (streq(t, "IOR"))
+		else if (equals(t, "IOR"))
 		{
 			v = "0";
 			while (*s && (f != b2))
 			{
 				t = process_dungeon_file_expr(&s, &f);
-				if (*t && !streq(t, "0")) v = "1";
+				if (*t && !equals(t, "0")) v = "1";
 			}
 		}
 
 		/* Function: AND */
-		else if (streq(t, "AND"))
+		else if (equals(t, "AND"))
 		{
 			v = "1";
 			while (*s && (f != b2))
 			{
 				t = process_dungeon_file_expr(&s, &f);
-				if (*t && streq(t, "0")) v = "0";
+				if (*t && equals(t, "0")) v = "0";
 			}
 		}
 
 		/* Function: NOT */
-		else if (streq(t, "NOT"))
+		else if (equals(t, "NOT"))
 		{
 			v = "1";
 			while (*s && (f != b2))
 			{
 				t = process_dungeon_file_expr(&s, &f);
-				if (*t && streq(t, "1")) v = "0";
+				if (*t && equals(t, "1")) v = "0";
 			}
 		}
 
 		/* Function: EQU */
-		else if (streq(t, "EQU"))
+		else if (equals(t, "EQU"))
 		{
 			v = "1";
 			if (*s && (f != b2))
@@ -6615,39 +6712,7 @@ static cptr process_dungeon_file_expr(char **sp, char *fp)
 			{
 				p = t;
 				t = process_dungeon_file_expr(&s, &f);
-				if (*t && !streq(p, t)) v = "0";
-			}
-		}
-
-		/* Function: LEQ */
-		else if (streq(t, "LEQ"))
-		{
-			v = "1";
-			if (*s && (f != b2))
-			{
-				t = process_dungeon_file_expr(&s, &f);
-			}
-			while (*s && (f != b2))
-			{
-				p = t;
-				t = process_dungeon_file_expr(&s, &f);
-				if (*t && (strcmp(p, t) > 0)) v = "0";
-			}
-		}
-
-		/* Function: GEQ */
-		else if (streq(t, "GEQ"))
-		{
-			v = "1";
-			if (*s && (f != b2))
-			{
-				t = process_dungeon_file_expr(&s, &f);
-			}
-			while (*s && (f != b2))
-			{
-				p = t;
-				t = process_dungeon_file_expr(&s, &f);
-				if (*t && (strcmp(p, t) < 0)) v = "0";
+				if (*t && !equals(p, t)) v = "0";
 			}
 		}
 
@@ -6670,7 +6735,7 @@ static cptr process_dungeon_file_expr(char **sp, char *fp)
 	/* Other */
 	else
 	{
-		bool_ text_mode = FALSE;
+		bool text_mode = false;
 
 		/* Accept all printables except spaces and brackets */
 		while (isprint(*s))
@@ -6696,66 +6761,29 @@ static cptr process_dungeon_file_expr(char **sp, char *fp)
 		/* Variable */
 		if (*b == '$')
 		{
-			/* System */
-			if (streq(b + 1, "SYS"))
-			{
-				v = ANGBAND_SYS;
-			}
-
-			/* Race */
-			else if (streq(b + 1, "RACE"))
-			{
-				v = rp_ptr->title.c_str(); // The string SHOULD be stable enough for this
-			}
-
-			/* Race Mod */
-			else if (streq(b + 1, "RACEMOD"))
-			{
-				v = rmp_ptr->title.c_str(); // The string SHOULD be stable enough for this
-			}
-
-			/* Class */
-			else if (streq(b + 1, "CLASS"))
-			{
-				v = cp_ptr->title.c_str(); // The string SHOULD be stable enough for this
-			}
-
-			/* Player */
-			else if (streq(b + 1, "PLAYER"))
-			{
-				v = game->player_base.c_str(); // The string SHOULD be stable enough for this
-			}
-
 			/* Town */
-			else if (streq(b + 1, "TOWN"))
+			if (equals(b + 1, "TOWN"))
 			{
 				strnfmt(pref_tmp_value, 8, "%d", p_ptr->town_num);
 				v = pref_tmp_value;
 			}
 
 			/* Town destroyed */
-			else if (prefix(b + 1, "TOWN_DESTROY"))
+			else if (starts_with(b + 1, "TOWN_DESTROY"))
 			{
 				strnfmt(pref_tmp_value, 8, "%d", town_info[atoi(b + 13)].destroyed);
 				v = pref_tmp_value;
 			}
 
-			/* Current quest number */
-			else if (streq(b + 1, "QUEST_NUMBER"))
-			{
-				strnfmt(pref_tmp_value, 8, "%d", p_ptr->inside_quest);
-				v = pref_tmp_value;
-			}
-
 			/* Number of last quest */
-			else if (streq(b + 1, "LEAVING_QUEST"))
+			else if (equals(b + 1, "LEAVING_QUEST"))
 			{
 				strnfmt(pref_tmp_value, 8, "%d", leaving_quest);
 				v = pref_tmp_value;
 			}
 
 			/* DAYTIME status */
-			else if (prefix(b + 1, "DAYTIME"))
+			else if (starts_with(b + 1, "DAYTIME"))
 			{
 				if ((bst(HOUR, turn) >= 6) && (bst(HOUR, turn) < 18))
 					v = "1";
@@ -6764,7 +6792,7 @@ static cptr process_dungeon_file_expr(char **sp, char *fp)
 			}
 
 			/* Quest status */
-			else if (prefix(b + 1, "QUEST"))
+			else if (starts_with(b + 1, "QUEST"))
 			{
 				/* "QUEST" uses a special parameter to determine the number of the quest */
 				if (*(b + 6) != '"')
@@ -6783,7 +6811,7 @@ static cptr process_dungeon_file_expr(char **sp, char *fp)
 					strcpy(pref_tmp_value, "-1");
 					for (i = 0; i < MAX_Q_IDX; i++)
 					{
-						if (streq(c, quest[i].name))
+						if (equals(c, quest[i].name))
 						{
 							strnfmt(pref_tmp_value, 8, "%d", quest[i].status);
 							break;
@@ -6793,17 +6821,6 @@ static cptr process_dungeon_file_expr(char **sp, char *fp)
 				v = pref_tmp_value;
 			}
 
-			/* Variant name */
-			else if (streq(b + 1, "VARIANT"))
-			{
-				v = "ToME";
-			}
-
-			/* Wilderness */
-			else if (streq(b + 1, "WILDERNESS"))
-			{
-				v = "NORMAL";
-			}
 		}
 
 		/* Constant */
@@ -6824,7 +6841,7 @@ static cptr process_dungeon_file_expr(char **sp, char *fp)
 }
 
 
-errr process_dungeon_file(cptr name, int *yval, int *xval, int ymax, int xmax, bool_ init, bool_ full)
+errr process_dungeon_file(const char *name, int *yval, int *xval, int ymax, int xmax, bool init, bool full)
 {
 	FILE *fp = 0;
 
@@ -6834,19 +6851,19 @@ errr process_dungeon_file(cptr name, int *yval, int *xval, int ymax, int xmax, b
 
 	errr err = 0;
 
-	bool_ bypass = FALSE;
+	bool bypass = false;
 
 	/* Save the start since it ought to be modified */
 	int xmin = *xval;
 
 	if (init)
 	{
-		meta_sleep = TRUE;
+		meta_sleep = true;
 		for (i = 0; i < 255; i++)
 		{
-			letter[i].defined = FALSE;
-			if (i == ' ') letter[i].ok = TRUE;
-			else letter[i].ok = FALSE;
+			letter[i].defined = false;
+			if (i == ' ') letter[i].ok = true;
+			else letter[i].ok = false;
 			letter[i].bx = 0;
 			letter[i].by = 0;
 		}
@@ -6886,7 +6903,7 @@ errr process_dungeon_file(cptr name, int *yval, int *xval, int ymax, int xmax, b
 		if ((buf[0] == '?') && (buf[1] == ':'))
 		{
 			char f;
-			cptr v;
+			const char *v;
 			char *s;
 
 			/* Start */
@@ -6896,7 +6913,7 @@ errr process_dungeon_file(cptr name, int *yval, int *xval, int ymax, int xmax, b
 			v = process_dungeon_file_expr(&s, &f);
 
 			/* Set flag */
-			bypass = (streq(v, "0") ? TRUE : FALSE);
+			bypass = (equals(v, "0") ? true : false);
 
 			/* Continue */
 			continue;
@@ -6910,7 +6927,7 @@ errr process_dungeon_file(cptr name, int *yval, int *xval, int ymax, int xmax, b
 		if (buf[0] == '%')
 		{
 			/* Process that file if allowed */
-			process_dungeon_file(buf + 2, yval, xval, ymax, xmax, FALSE, full);
+			process_dungeon_file(buf + 2, yval, xval, ymax, xmax, false, full);
 
 			/* Continue */
 			continue;

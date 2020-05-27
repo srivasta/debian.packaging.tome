@@ -1,12 +1,17 @@
 # Project definition.
 PROJECT (tome2)
-CMAKE_MINIMUM_REQUIRED (VERSION 3.1)
+CMAKE_MINIMUM_REQUIRED (VERSION 3.5)
 
 # We want a readable feature summary.
 INCLUDE(FeatureSummary)
 
 # pkg-config support
 INCLUDE(FindPkgConfig)
+
+#
+# C++ standard
+#
+SET(CMAKE_CXX_STANDARD 17)
 
 #
 # Basic common compiler flags.
@@ -28,7 +33,8 @@ SET(CMAKE_C_FLAGS_DEBUG     "-O0 -g")
 #
 # C++ Compiler Flags
 #
-SET(CMAKE_CXX_FLAGS         "${CMAKE_CXX_FLAGS} ${COMMON_COMPILER_FLAGS} --std=c++14")
+SET(CMAKE_CXX_FLAGS         "${CMAKE_CXX_FLAGS} ${COMMON_COMPILER_FLAGS}")
+SET(CMAKE_CXX_FLAGS         "${CMAKE_CXX_FLAGS} -DJSONCONS_NO_DEPRECATED")
 SET(CMAKE_CXX_FLAGS_RELEASE "-O2")
 SET(CMAKE_CXX_FLAGS_DEBUG   "-O0 -g -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC")
 
@@ -75,19 +81,6 @@ FIND_PACKAGE(X11)
 # GTK2 support (OPTIONAL)
 #
 FIND_PACKAGE(GTK2)
-
-#
-# SDL support (OPTIONAL)
-#
-FIND_PACKAGE(SDL)
-IF(SDL_FOUND)
-  # We assume that if we want to compile for SDL that
-  # any required dependencies should be installed.
-  FIND_PACKAGE(SDL_image)
-  FIND_PACKAGE(SDL_ttf)
-  SET_PACKAGE_PROPERTIES(SDL_image PROPERTIES TYPE REQUIRED)
-  SET_PACKAGE_PROPERTIES(SDL_ttf PROPERTIES TYPE REQUIRED)
-ENDIF()
 
 #
 # Curses support (OPTIONAL)

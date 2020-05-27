@@ -1,6 +1,6 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 #include "seed.hpp"
 #include "store_type_fwd.hpp"
 
@@ -11,7 +11,7 @@
  */
 struct town_type
 {
-	cptr name = nullptr;
+	const char *name = nullptr;
 
 	seed_t seed = seed_t::system();  /* Seed for RNG */
 
@@ -19,7 +19,7 @@ struct town_type
 
 	byte flags = 0;                          /* Town flags */
 
-	bool_ stocked = FALSE;                   /* Is the town actualy stocked ? */
+	bool stocked = false;                   /* Is the town actualy stocked ? */
 
-	bool_ destroyed = FALSE;                 /* Is the town destroyed? */
+	bool destroyed = false;                 /* Is the town destroyed? */
 };

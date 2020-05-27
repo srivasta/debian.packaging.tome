@@ -1,5 +1,4 @@
 #include "init2.hpp"
-#include "init2.h"
 
 #include "ability_type.hpp"
 #include "alloc_entry.hpp"
@@ -7,6 +6,7 @@
 #include "cave.hpp"
 #include "cave_type.hpp"
 #include "cli_comm.hpp"
+#include "config.hpp"
 #include "dungeon_info_type.hpp"
 #include "ego_item_type.hpp"
 #include "files.hpp"
@@ -48,15 +48,20 @@
 #include "tome/make_array.hpp"
 #include "town_type.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "variable.h"
 #include "variable.hpp"
 #include "vault_type.hpp"
 #include "wilderness_map.hpp"
 #include "wilderness_type_info.hpp"
+#include "z-form.hpp"
+#include "z-util.hpp"
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <cassert>
+#include <fcntl.h>
+#include <fmt/format.h>
 #include <type_traits>
+
+using boost::algorithm::equals;
 
 /*
  * This file is used to initialise various variables and arrays for the
@@ -125,8 +130,6 @@ void init_file_paths(char *path)
 	free(ANGBAND_DIR);
 
 	/* Free the sub-paths */
-	free(ANGBAND_DIR_CORE);
-	free(ANGBAND_DIR_DNGN);
 	free(ANGBAND_DIR_DATA);
 	free(ANGBAND_DIR_EDIT);
 	free(ANGBAND_DIR_FILE);
@@ -149,7 +152,7 @@ void init_file_paths(char *path)
 	{
 		int seplen = strlen(PATH_SEP);
 
-		if (strcmp(path + pathlen - seplen, PATH_SEP) == 0)
+		if (equals(path + pathlen - seplen, PATH_SEP))
 		{
 			path[pathlen - seplen] = '\0';
 			ANGBAND_DIR = strdup(path);
@@ -171,14 +174,6 @@ void init_file_paths(char *path)
 
 
 	/*** Build the sub-directory names ***/
-
-	/* Build a path name */
-	strcpy(tail, "core");
-	ANGBAND_DIR_CORE = strdup(path);
-
-	/* Build a path name */
-	strcpy(tail, "dngn");
-	ANGBAND_DIR_DNGN = strdup(path);
 
 	/* Build a path name */
 	strcpy(tail, "data");
@@ -240,7 +235,7 @@ s16b error_line;
 /*
  * Standard error message text
  */
-static cptr err_str[9] =
+static const char *err_str[9] =
 {
 	NULL,
 	"parse error",
@@ -257,7 +252,7 @@ static cptr err_str[9] =
 /*
  * Hack -- take notes on line 23
  */
-static void note(cptr str)
+static void note(const char *str)
 {
 	Term_erase(0, 23, 255);
 	Term_putstr(20, 23, -1, TERM_WHITE, str);
@@ -484,7 +479,7 @@ template<typename T> static errr init_x_info() {
 	if (err)
 	{
 		/* Error string */
-		cptr oops = (((err > 0) && (err < 8)) ? err_str[err] : "unknown");
+		const char *oops = (((err > 0) && (err < 8)) ? err_str[err] : "unknown");
 
 		/* Oops */
 		msg_format("Error %d at line %d of '%s'.", err, error_line, T::name);
@@ -512,7 +507,7 @@ static void init_basic()
 	/* Macro variables */
 	macro__pat = make_array<char *>(MACRO_MAX);
 	macro__act = make_array<char *>(MACRO_MAX);
-	macro__cmd = make_array<bool_>(MACRO_MAX);
+	macro__cmd = make_array<bool>(MACRO_MAX);
 
 	/* Macro action buffer */
 	macro__buf = make_array<char>(1024);
@@ -530,18 +525,12 @@ static void init_basic()
  */
 static errr init_misc()
 {
-	int xstart = 0;
-	int ystart = 0;
-	int i;
-
-	/*** Prepare the various "bizarre" arrays ***/
-
 	/* Initialise the values */
-	process_dungeon_file("misc.txt", &ystart, &xstart, 0, 0, TRUE, FALSE);
-
-	/* Init the spell effects */
-	for (i = 0; i < MAX_EFFECTS; i++)
-		effects[i].time = 0;
+	{
+		int xstart = 0;
+		int ystart = 0;
+		process_dungeon_file("misc.txt", &ystart, &xstart, 0, 0, true, false);
+	}
 
 	/* Initialize timers */
 	TIMER_INERTIA_CONTROL =
@@ -608,7 +597,7 @@ void create_stores_stock(int t)
 		st_ptr->stock.reserve(st_ptr->stock_size);
 	}
 
-	t_ptr->stocked = TRUE;
+	t_ptr->stocked = true;
 }
 
 /*
@@ -618,16 +607,14 @@ static errr init_other()
 {
 	auto const &d_info = game->edit_data.d_info;
 	auto const &r_info = game->edit_data.r_info;
-	auto const &k_info = game->edit_data.k_info;
 	auto const &a_info = game->edit_data.a_info;
 	auto &level_markers = game->level_markers;
 
 	/*** Prepare the "dungeon" information ***/
 
 	/* Allocate and Wipe the special gene flags */
-	m_allow_special = make_array<bool_>(r_info.size());
-	k_allow_special = make_array<bool_>(k_info.size());
-	a_allow_special = make_array<bool_>(a_info.size());
+	m_allow_special = make_array<bool>(r_info.size());
+	a_allow_special = make_array<bool>(a_info.size());
 
 
 	/*** Prepare "vinfo" array ***/
@@ -678,14 +665,12 @@ static errr init_other()
 	/*
 	 * Install the various level generators
 	 */
-	add_level_generator("dungeon", level_generate_dungeon);
-	add_level_generator("maze", level_generate_maze);
-	add_level_generator("life", level_generate_life);
-
-	/*** Pre-allocate space for the "format()" buffer ***/
-
-	/* Hack -- Just call the "format()" function */
-	format("%s (%s).", "Dark God <darkgod@t-o-m-e.net>", MAINTAINER);
+	{
+		auto &g = game->level_generators;
+		g.insert({ "dungeon", level_generate_dungeon });
+		g.insert({ "maze", level_generate_maze });
+		g.insert({ "life", level_generate_life });
+	}
 
 	/* Success */
 	return (0);
@@ -716,9 +701,9 @@ static errr init_alloc()
 
 	/* Scan the objects */
 	std::size_t kind_size = 0;
-	for (auto const &k_ref: k_info)
+	for (auto const &k_entry: k_info)
 	{
-		auto k_ptr = &k_ref;
+		auto const &k_ptr = k_entry.second;
 
 		/* Scan allocation pairs */
 		for (std::size_t j = 0; j < ALLOCATION_MAX; j++)
@@ -753,9 +738,9 @@ static errr init_alloc()
 	alloc.kind_table.resize(kind_size);
 
 	/* Scan the objects */
-	for (std::size_t i = 1; i < k_info.size(); i++)
+	for (auto const &k_entry: k_info)
 	{
-		auto k_ptr = &k_info[i];
+		auto const &k_ptr = k_entry.second;
 
 		/* Scan allocation pairs */
 		for (std::size_t j = 0; j < ALLOCATION_MAX; j++)
@@ -779,7 +764,7 @@ static errr init_alloc()
 
 				/* Load the entry */
 				auto &entry = alloc.kind_table[z];
-				entry.index = i;
+				entry.index = k_entry.first;
 				entry.level = x;
 				entry.prob1 = p;
 				entry.prob2 = p;
@@ -930,7 +915,7 @@ static void init_guardians()
 			/* Mark the final object */
 			if (d_ptr->final_object)
 			{
-				auto k_ptr = &k_info[d_ptr->final_object];
+				auto const &k_ptr = k_info.at(d_ptr->final_object);
 				k_ptr->flags |= TR_SPECIAL_GENE;
 			}
 
@@ -950,7 +935,7 @@ static void init_guardians()
  * may or may not be initialised, but the "plog()" and "quit()"
  * functions are "supposed" to work under any conditions.
  */
-static void init_angband_aux(cptr why)
+static void init_angband_aux(const char *why)
 {
 	/* Why */
 	plog(why);
@@ -1017,7 +1002,7 @@ static void init_angband_aux(cptr why)
  * Note that the "graf-xxx.prf" file must be loaded separately,
  * if needed, in the first (?) pass through "TERM_XTRA_REACT".
  */
-void init_angband()
+void init_angband(program_args const &args)
 {
 	int fd = -1;
 
@@ -1033,7 +1018,7 @@ void init_angband()
 	init_basic();
 
 	/* Select & init a module if needed */
-	select_module();
+	select_module(args);
 
 	/*** Choose which news.txt file to use ***/
 
@@ -1249,29 +1234,17 @@ void init_angband()
 	/* Initialise feature info */
 	note("[Initialising user pref files...]");
 
-	/* Access the "basic" pref file */
-	strcpy(buf, "pref.prf");
+	/* Process the "basic" pref file */
+	process_pref_file(name_file_pref("pref"));
 
-	/* Process that file */
-	process_pref_file(buf);
+	/* Process the "basic" system pref file */
+	process_pref_file(name_file_pref(fmt::format("pref-{}", ANGBAND_SYS)));
 
-	/* Access the "basic" system pref file */
-	sprintf(buf, "pref-%s.prf", ANGBAND_SYS);
+	/* Process the "user" pref file */
+	process_pref_file(name_file_pref("user"));
 
-	/* Process that file */
-	process_pref_file(buf);
-
-	/* Access the "user" pref file */
-	sprintf(buf, "user.prf");
-
-	/* Process that file */
-	process_pref_file(buf);
-
-	/* Access the "user" system pref file */
-	sprintf(buf, "user-%s.prf", ANGBAND_SYS);
-
-	/* Process that file */
-	process_pref_file(buf);
+	/* Process the "user" system pref file */
+	process_pref_file(name_file_pref(fmt::format("user-{}", ANGBAND_SYS)));
 
 	/* Done */
 	note("[Initialisation complete]");

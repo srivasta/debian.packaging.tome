@@ -13,7 +13,6 @@
 #include "cave_type.hpp"
 #include "cmd2.hpp"
 #include "cmd6.hpp"
-#include "dungeon.hpp"
 #include "dungeon_info_type.hpp"
 #include "ego_item_type.hpp"
 #include "feature_type.hpp"
@@ -48,11 +47,10 @@
 #include "store_info_type.hpp"
 #include "tables.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "variable.h"
 #include "variable.hpp"
 #include "wilderness_type_info.hpp"
 #include "xtra1.hpp"
+#include "z-form.hpp"
 #include "z-rand.hpp"
 
 #include <boost/algorithm/string/join.hpp>
@@ -81,301 +79,149 @@ static void apply_flags_set(s16b a_idx, s16b set_idx, object_flag_set *f);
  */
 static bool item_tester_full;
 
-
 /*
- * Max sizes of the following arrays
- */
-#define MAX_ROCKS      62       /* Used with rings (min 58) */
-#define MAX_AMULETS    34       /* Used with amulets (min 30) */
-#define MAX_WOODS      35       /* Used with staffs (min 32) */
-#define MAX_METALS     39       /* Used with wands/rods (min 32/30) */
-#define MAX_COLORS     66       /* Used with potions (min 62) */
-#define MAX_SHROOM     20       /* Used with mushrooms (min 20) */
-#define MAX_TITLES     55       /* Used with scrolls (min 55) */
-#define MAX_SYLLABLES 164       /* Used with scrolls (see below) */
-
-
-/*
- * Rings (adjectives and colors)
+ * Color arrays
  */
 
-static cptr ring_adj[MAX_ROCKS] =
-{
-	"Alexandrite", "Amethyst", "Aquamarine", "Azurite", "Beryl",
-	"Bloodstone", "Calcite", "Carnelian", "Corundum", "Diamond",
-	"Emerald", "Fluorite", "Garnet", "Granite", "Jade",
-	"Jasper", "Lapis Lazuli", "Malachite", "Marble", "Moonstone",
-	"Onyx", "Opal", "Pearl", "Quartz", "Quartzite",
-	"Rhodonite", "Ruby", "Sapphire", "Tiger Eye", "Topaz",
-	"Turquoise", "Zircon", "Platinum", "Bronze", "Gold",
-	"Obsidian", "Silver", "Tortoise Shell", "Mithril", "Jet",
-	"Engagement", "Adamantite",
-	"Wire", "Dilithium", "Bone", "Wooden",
-	"Spikard", "Serpent", "Wedding", "Double",
-	"Plain", "Brass", "Scarab", "Shining",
-	"Rusty", "Transparent", "Copper", "Black Opal", "Nickel",
-	"Glass", "Fluorspar", "Agate",
+namespace { // anonymous
+
+struct object_colors_t {
+
+	std::vector<byte> rings {
+		TERM_GREEN, TERM_VIOLET, TERM_L_BLUE, TERM_L_BLUE, TERM_L_GREEN,
+		TERM_RED, TERM_WHITE, TERM_RED, TERM_SLATE, TERM_WHITE,
+		TERM_GREEN, TERM_L_GREEN, TERM_RED, TERM_L_DARK, TERM_L_GREEN,
+		TERM_UMBER, TERM_BLUE, TERM_GREEN, TERM_WHITE, TERM_L_WHITE,
+		TERM_L_RED, TERM_L_WHITE, TERM_WHITE, TERM_L_WHITE, TERM_L_WHITE,
+		TERM_L_RED, TERM_RED, TERM_BLUE, TERM_YELLOW, TERM_YELLOW,
+		TERM_L_BLUE, TERM_L_UMBER, TERM_WHITE, TERM_L_UMBER, TERM_YELLOW,
+		TERM_L_DARK, TERM_L_WHITE, TERM_GREEN, TERM_L_BLUE, TERM_L_DARK,
+		TERM_YELLOW, TERM_VIOLET,
+		TERM_UMBER, TERM_L_WHITE, TERM_WHITE, TERM_UMBER,
+		TERM_BLUE, TERM_GREEN, TERM_YELLOW, TERM_ORANGE,
+		TERM_YELLOW, TERM_ORANGE, TERM_L_GREEN, TERM_YELLOW,
+		TERM_RED, TERM_WHITE, TERM_UMBER, TERM_L_DARK, TERM_L_WHITE,
+		TERM_WHITE, TERM_BLUE, TERM_L_WHITE
+	};
+
+	std::vector<byte> amulets {
+		TERM_YELLOW, TERM_L_UMBER, TERM_WHITE, TERM_L_WHITE, TERM_WHITE,
+		TERM_L_DARK, TERM_WHITE, TERM_ORANGE, TERM_L_UMBER, TERM_SLATE,
+		TERM_GREEN, TERM_YELLOW, TERM_L_BLUE, TERM_L_BLUE, TERM_L_WHITE,
+		TERM_L_UMBER, TERM_VIOLET, TERM_L_BLUE, TERM_BLUE, TERM_L_WHITE,
+		TERM_UMBER, TERM_L_BLUE, TERM_SLATE, TERM_RED, TERM_L_GREEN,
+		TERM_WHITE, TERM_L_DARK, TERM_L_WHITE, TERM_WHITE, TERM_L_GREEN,
+		TERM_GREEN, TERM_VIOLET, TERM_L_WHITE, TERM_UMBER
+	};
+
+	std::vector<byte> staves {
+		TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER,
+		TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER,
+		TERM_L_UMBER, TERM_L_UMBER, TERM_UMBER, TERM_L_UMBER, TERM_UMBER,
+		TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_RED,
+		TERM_RED, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_UMBER,
+		TERM_GREEN, TERM_L_UMBER, TERM_L_UMBER, TERM_L_WHITE, TERM_UMBER,
+		TERM_YELLOW, TERM_SLATE, TERM_UMBER, TERM_L_WHITE, TERM_L_UMBER
+	};
+
+	std::vector<byte> wands {
+		TERM_L_BLUE, TERM_L_DARK, TERM_WHITE, TERM_UMBER, TERM_YELLOW,
+		TERM_SLATE, TERM_L_WHITE, TERM_L_WHITE, TERM_L_WHITE, TERM_RED,
+		TERM_L_WHITE, TERM_L_WHITE, TERM_L_WHITE, TERM_WHITE, TERM_WHITE,
+		TERM_L_WHITE, TERM_L_WHITE, TERM_L_BLUE, TERM_L_UMBER, TERM_YELLOW,
+		TERM_L_UMBER, TERM_L_WHITE, TERM_L_WHITE, TERM_L_WHITE, TERM_L_WHITE,
+		TERM_L_BLUE, TERM_L_BLUE, TERM_UMBER, TERM_L_UMBER, TERM_L_UMBER,
+		TERM_WHITE, TERM_SLATE, TERM_SLATE, TERM_WHITE, TERM_VIOLET,
+		TERM_L_RED, TERM_L_BLUE, TERM_BLUE, TERM_RED
+	};
+
+	std::vector<byte> rods = wands;
+
+	std::vector<byte> food {
+		TERM_BLUE, TERM_L_DARK, TERM_L_DARK, TERM_UMBER, TERM_BLUE,
+		TERM_GREEN, TERM_RED, TERM_YELLOW, TERM_L_WHITE, TERM_GREEN,
+		TERM_SLATE, TERM_L_BLUE, TERM_L_GREEN, TERM_VIOLET, TERM_RED,
+		TERM_SLATE, TERM_L_UMBER, TERM_WHITE, TERM_WHITE, TERM_UMBER
+	};
+
+	std::vector<byte> potions {
+		TERM_WHITE, TERM_L_UMBER, TERM_GREEN, TERM_MULTI,
+		TERM_L_BLUE, TERM_BLUE, TERM_BLUE, TERM_L_DARK, TERM_UMBER, TERM_UMBER,
+		TERM_L_WHITE, TERM_L_GREEN, TERM_WHITE, TERM_L_UMBER, TERM_RED, TERM_L_BLUE,
+		TERM_BLUE, TERM_GREEN, TERM_RED, TERM_YELLOW, TERM_GREEN,
+		TERM_GREEN, TERM_SLATE, TERM_SLATE, TERM_L_WHITE, TERM_VIOLET,
+		TERM_L_BLUE, TERM_L_GREEN, TERM_RED, TERM_BLUE, TERM_RED,
+		TERM_GREEN, TERM_VIOLET, TERM_L_WHITE, TERM_ORANGE, TERM_ORANGE,
+		TERM_L_RED, TERM_L_RED, TERM_VIOLET, TERM_VIOLET, TERM_VIOLET,
+		TERM_RED, TERM_RED, TERM_L_WHITE, TERM_L_DARK, TERM_ORANGE,
+		TERM_VIOLET, TERM_RED, TERM_WHITE, TERM_YELLOW, TERM_VIOLET,
+		TERM_L_RED, TERM_RED, TERM_L_RED, TERM_YELLOW, TERM_GREEN,
+		TERM_MULTI, TERM_RED, TERM_YELLOW, TERM_YELLOW,
+		TERM_L_UMBER, TERM_UMBER, TERM_L_DARK, TERM_RED, TERM_WHITE, TERM_L_BLUE
+	};
+
+	std::vector<byte> scrolls =
+		std::vector<byte>(55, TERM_WHITE); // All scrolls are white.
+
 };
 
-static byte ring_col[MAX_ROCKS] =
+object_colors_t const &object_colors_0()
 {
-	TERM_GREEN, TERM_VIOLET, TERM_L_BLUE, TERM_L_BLUE, TERM_L_GREEN,
-	TERM_RED, TERM_WHITE, TERM_RED, TERM_SLATE, TERM_WHITE,
-	TERM_GREEN, TERM_L_GREEN, TERM_RED, TERM_L_DARK, TERM_L_GREEN,
-	TERM_UMBER, TERM_BLUE, TERM_GREEN, TERM_WHITE, TERM_L_WHITE,
-	TERM_L_RED, TERM_L_WHITE, TERM_WHITE, TERM_L_WHITE, TERM_L_WHITE,
-	TERM_L_RED, TERM_RED, TERM_BLUE, TERM_YELLOW, TERM_YELLOW,
-	TERM_L_BLUE, TERM_L_UMBER, TERM_WHITE, TERM_L_UMBER, TERM_YELLOW,
-	TERM_L_DARK, TERM_L_WHITE, TERM_GREEN, TERM_L_BLUE, TERM_L_DARK,
-	TERM_YELLOW, TERM_VIOLET,
-	TERM_UMBER, TERM_L_WHITE, TERM_WHITE, TERM_UMBER,
-	TERM_BLUE, TERM_GREEN, TERM_YELLOW, TERM_ORANGE,
-	TERM_YELLOW, TERM_ORANGE, TERM_L_GREEN, TERM_YELLOW,
-	TERM_RED, TERM_WHITE, TERM_UMBER, TERM_L_DARK, TERM_L_WHITE,
-	TERM_WHITE, TERM_BLUE, TERM_L_WHITE
-};
+	object_colors_t const *instance = new object_colors_t();
+	return *instance;
+}
+
+} // namespace anonymous
 
 
-/*
- * Amulets (adjectives and colors)
- */
-
-static cptr amulet_adj[MAX_AMULETS] =
-{
-	"Amber", "Driftwood", "Coral", "Agate", "Ivory",
-	"Obsidian", "Bone", "Brass", "Bronze", "Pewter",
-	"Tortoise Shell", "Golden", "Azure", "Crystal", "Silver",
-	"Copper", "Amethyst", "Mithril", "Sapphire", "Dragon Tooth",
-	"Carved Oak", "Sea Shell", "Flint Stone", "Ruby", "Scarab",
-	"Origami Paper", "Meteoric Iron", "Platinum", "Glass", "Beryl",
-	"Malachite", "Adamantite", "Mother-of-pearl", "Runed"
-};
-
-static byte amulet_col[MAX_AMULETS] =
-{
-	TERM_YELLOW, TERM_L_UMBER, TERM_WHITE, TERM_L_WHITE, TERM_WHITE,
-	TERM_L_DARK, TERM_WHITE, TERM_ORANGE, TERM_L_UMBER, TERM_SLATE,
-	TERM_GREEN, TERM_YELLOW, TERM_L_BLUE, TERM_L_BLUE, TERM_L_WHITE,
-	TERM_L_UMBER, TERM_VIOLET, TERM_L_BLUE, TERM_BLUE, TERM_L_WHITE,
-	TERM_UMBER, TERM_L_BLUE, TERM_SLATE, TERM_RED, TERM_L_GREEN,
-	TERM_WHITE, TERM_L_DARK, TERM_L_WHITE, TERM_WHITE, TERM_L_GREEN,
-	TERM_GREEN, TERM_VIOLET, TERM_L_WHITE, TERM_UMBER
-};
-
-
-/*
- * Staffs (adjectives and colors)
- */
-
-static cptr staff_adj[MAX_WOODS] =
-{
-	"Aspen", "Balsa", "Banyan", "Birch", "Cedar",
-	"Cottonwood", "Cypress", "Dogwood", "Elm", "Eucalyptus",
-	"Hemlock", "Hickory", "Ironwood", "Locust", "Mahogany",
-	"Maple", "Mulberry", "Oak", "Pine", "Redwood",
-	"Rosewood", "Spruce", "Sycamore", "Teak", "Walnut",
-	"Mistletoe", "Hawthorn", "Bamboo", "Silver", "Runed",
-	"Golden", "Ashen", "Gnarled", "Ivory", "Willow"
-};
-
-static byte staff_col[MAX_WOODS] =
-{
-	TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER,
-	TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER,
-	TERM_L_UMBER, TERM_L_UMBER, TERM_UMBER, TERM_L_UMBER, TERM_UMBER,
-	TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_RED,
-	TERM_RED, TERM_L_UMBER, TERM_L_UMBER, TERM_L_UMBER, TERM_UMBER,
-	TERM_GREEN, TERM_L_UMBER, TERM_L_UMBER, TERM_L_WHITE, TERM_UMBER,
-	TERM_YELLOW, TERM_SLATE, TERM_UMBER, TERM_L_WHITE, TERM_L_UMBER
-};
-
-
-/*
- * Wands (adjectives and colors)
- */
-
-static cptr wand_adj[MAX_METALS] =
-{
-	"Aluminium", "Cast Iron", "Chromium", "Copper", "Gold",
-	"Iron", "Magnesium", "Molybdenum", "Nickel", "Rusty",
-	"Silver", "Steel", "Tin", "Titanium", "Tungsten",
-	"Zirconium", "Zinc", "Aluminium-Plated", "Copper-Plated", "Gold-Plated",
-	"Nickel-Plated", "Silver-Plated", "Steel-Plated", "Tin-Plated", "Zinc-Plated",
-	"Mithril-Plated", "Mithril", "Runed", "Bronze", "Brass",
-	"Platinum", "Lead", "Lead-Plated", "Ivory" , "Adamantite",
-	"Uridium", "Long", "Short", "Hexagonal"
-};
-
-static byte wand_col[MAX_METALS] =
-{
-	TERM_L_BLUE, TERM_L_DARK, TERM_WHITE, TERM_UMBER, TERM_YELLOW,
-	TERM_SLATE, TERM_L_WHITE, TERM_L_WHITE, TERM_L_WHITE, TERM_RED,
-	TERM_L_WHITE, TERM_L_WHITE, TERM_L_WHITE, TERM_WHITE, TERM_WHITE,
-	TERM_L_WHITE, TERM_L_WHITE, TERM_L_BLUE, TERM_L_UMBER, TERM_YELLOW,
-	TERM_L_UMBER, TERM_L_WHITE, TERM_L_WHITE, TERM_L_WHITE, TERM_L_WHITE,
-	TERM_L_BLUE, TERM_L_BLUE, TERM_UMBER, TERM_L_UMBER, TERM_L_UMBER,
-	TERM_WHITE, TERM_SLATE, TERM_SLATE, TERM_WHITE, TERM_VIOLET,
-	TERM_L_RED, TERM_L_BLUE, TERM_BLUE, TERM_RED
-};
-
-
-/*
- * Rods (adjectives and colors).
- * Efficiency -- copied from wand arrays
- */
-
-static cptr rod_adj[MAX_METALS];
-
-static byte rod_col[MAX_METALS];
-
-
-/*
- * Mushrooms (adjectives and colors)
- */
-
-static cptr food_adj[MAX_SHROOM] =
-{
-	"Blue", "Black", "Black Spotted", "Brown", "Dark Blue",
-	"Dark Green", "Dark Red", "Yellow", "Furry", "Green",
-	"Grey", "Light Blue", "Light Green", "Violet", "Red",
-	"Slimy", "Tan", "White", "White Spotted", "Wrinkled",
-};
-
-static byte food_col[MAX_SHROOM] =
-{
-	TERM_BLUE, TERM_L_DARK, TERM_L_DARK, TERM_UMBER, TERM_BLUE,
-	TERM_GREEN, TERM_RED, TERM_YELLOW, TERM_L_WHITE, TERM_GREEN,
-	TERM_SLATE, TERM_L_BLUE, TERM_L_GREEN, TERM_VIOLET, TERM_RED,
-	TERM_SLATE, TERM_L_UMBER, TERM_WHITE, TERM_WHITE, TERM_UMBER
-};
-
-
-/*
- * Color adjectives and colors, for potions.
- * Hack -- The first four entries are hard-coded.
- * (water, apple juice, slime mold juice, something)
- */
-
-static cptr potion_adj[MAX_COLORS] =
-{
-	"Clear", "Light Brown", "Icky Green", "Strangely Phosphorescent",
-	"Azure", "Blue", "Blue Speckled", "Black", "Brown", "Brown Speckled",
-	"Bubbling", "Chartreuse", "Cloudy", "Copper Speckled", "Crimson", "Cyan",
-	"Dark Blue", "Dark Green", "Dark Red", "Gold Speckled", "Green",
-	"Green Speckled", "Grey", "Grey Speckled", "Hazy", "Indigo",
-	"Light Blue", "Light Green", "Magenta", "Metallic Blue", "Metallic Red",
-	"Metallic Green", "Metallic Purple", "Misty", "Orange", "Orange Speckled",
-	"Pink", "Pink Speckled", "Puce", "Purple", "Purple Speckled",
-	"Red", "Red Speckled", "Silver Speckled", "Smoky", "Tangerine",
-	"Violet", "Vermilion", "White", "Yellow", "Violet Speckled",
-	"Pungent", "Clotted Red", "Viscous Pink", "Oily Yellow", "Gloopy Green",
-	"Shimmering", "Coagulated Crimson", "Yellow Speckled", "Gold",
-	"Manly", "Stinking", "Oily Black", "Ichor", "Ivory White", "Sky Blue",
-};
-
-static byte potion_col[MAX_COLORS] =
-{
-	TERM_WHITE, TERM_L_UMBER, TERM_GREEN, TERM_MULTI,
-	TERM_L_BLUE, TERM_BLUE, TERM_BLUE, TERM_L_DARK, TERM_UMBER, TERM_UMBER,
-	TERM_L_WHITE, TERM_L_GREEN, TERM_WHITE, TERM_L_UMBER, TERM_RED, TERM_L_BLUE,
-	TERM_BLUE, TERM_GREEN, TERM_RED, TERM_YELLOW, TERM_GREEN,
-	TERM_GREEN, TERM_SLATE, TERM_SLATE, TERM_L_WHITE, TERM_VIOLET,
-	TERM_L_BLUE, TERM_L_GREEN, TERM_RED, TERM_BLUE, TERM_RED,
-	TERM_GREEN, TERM_VIOLET, TERM_L_WHITE, TERM_ORANGE, TERM_ORANGE,
-	TERM_L_RED, TERM_L_RED, TERM_VIOLET, TERM_VIOLET, TERM_VIOLET,
-	TERM_RED, TERM_RED, TERM_L_WHITE, TERM_L_DARK, TERM_ORANGE,
-	TERM_VIOLET, TERM_RED, TERM_WHITE, TERM_YELLOW, TERM_VIOLET,
-	TERM_L_RED, TERM_RED, TERM_L_RED, TERM_YELLOW, TERM_GREEN,
-	TERM_MULTI, TERM_RED, TERM_YELLOW, TERM_YELLOW,
-	TERM_L_UMBER, TERM_UMBER, TERM_L_DARK, TERM_RED, TERM_WHITE, TERM_L_BLUE
-};
-
-
-/*
- * Syllables for scrolls (must be 1-4 letters each)
- */
-
-static cptr syllables[MAX_SYLLABLES] =
-{
-	"a", "ab", "ag", "aks", "ala", "an", "ankh", "app",
-	"arg", "arze", "ash", "aus", "ban", "bar", "bat", "bek",
-	"bie", "bin", "bit", "bjor", "blu", "bot", "bu",
-	"byt", "comp", "con", "cos", "cre", "dalf", "dan",
-	"den", "der", "doe", "dok", "eep", "el", "eng", "er", "ere", "erk",
-	"esh", "evs", "fa", "fid", "flit", "for", "fri", "fu", "gan",
-	"gar", "glen", "gop", "gre", "ha", "he", "hyd", "i",
-	"ing", "ion", "ip", "ish", "it", "ite", "iv", "jo",
-	"kho", "kli", "klis", "la", "lech", "man", "mar",
-	"me", "mi", "mic", "mik", "mon", "mung", "mur", "nag", "nej",
-	"nelg", "nep", "ner", "nes", "nis", "nih", "nin", "o",
-	"od", "ood", "org", "orn", "ox", "oxy", "pay", "pet",
-	"ple", "plu", "po", "pot", "prok", "re", "rea", "rhov",
-	"ri", "ro", "rog", "rok", "rol", "sa", "san", "sat",
-	"see", "sef", "seh", "shu", "ski", "sna", "sne", "snik",
-	"sno", "so", "sol", "sri", "sta", "sun", "ta", "tab",
-	"tem", "ther", "ti", "tox", "trol", "tue", "turs", "u",
-	"ulk", "um", "un", "uni", "ur", "val", "viv", "vly",
-	"vom", "wah", "wed", "werg", "wex", "whon", "wun", "x",
-	"yerg", "yp", "zun", "tri", "blaa", "jah", "bul", "on",
-	"foo", "ju", "xuxu"
-};
-
-/*
- * Hold the titles of scrolls, 6 to 14 characters each
- * Also keep an array of scroll colors (always WHITE for now)
- */
-
-static char scroll_adj[MAX_TITLES][16];
-
-static byte scroll_col[MAX_TITLES];
-
-
-static byte object_flavor(object_kind const *k_ptr)
+static byte object_flavor(
+	object_colors_t const &object_colors,
+	std::shared_ptr<object_kind> k_ptr)
 {
 	/* Analyze the item */
 	switch (k_ptr->tval)
 	{
 	case TV_AMULET:
 		{
-			return (0x80 + amulet_col[k_ptr->sval]);
+			return 0x80 + object_colors.amulets.at(k_ptr->sval);
 		}
 
 	case TV_RING:
 		{
-			return (0x90 + ring_col[k_ptr->sval]);
+			return 0x90 + object_colors.rings.at(k_ptr->sval);
 		}
 
 	case TV_STAFF:
 		{
-			return (0xA0 + staff_col[k_ptr->sval]);
+			return 0xA0 + object_colors.staves.at(k_ptr->sval);
 		}
 
 	case TV_WAND:
 		{
-			return (0xB0 + wand_col[k_ptr->sval]);
+			return 0xB0 + object_colors.wands.at(k_ptr->sval);
 		}
 
 	case TV_ROD:
 		{
-			return (0xC0 + rod_col[k_ptr->sval]);
+			return 0xC0 + object_colors.rods.at(k_ptr->sval);
 		}
 
 	case TV_SCROLL:
 		{
-			return (0xD0 + scroll_col[k_ptr->sval]);
+			return 0xD0 + object_colors.scrolls.at(k_ptr->sval);
 		}
 
 	case TV_POTION:
 	case TV_POTION2:
 		{
-			return (0xE0 + potion_col[k_ptr->sval]);
+			return 0xE0 + object_colors.potions.at(k_ptr->sval);
 		}
 
 	case TV_FOOD:
 		{
 			if (k_ptr->sval < SV_FOOD_MIN_FOOD)
 			{
-				return (0xF0 + food_col[k_ptr->sval]);
+				return 0xF0 + object_colors.food.at(k_ptr->sval);
 			}
 
 			break;
@@ -393,7 +239,7 @@ static byte object_flavor(object_kind const *k_ptr)
  *
  * XXX XXX XXX Add "EASY_KNOW" flag to "k_info.txt" file
  */
-static bool_ object_easy_know(object_kind const *k_ptr)
+static bool object_easy_know(std::shared_ptr<object_kind> k_ptr)
 {
 	/* Analyze the "tval" */
 	switch (k_ptr->tval)
@@ -403,7 +249,7 @@ static bool_ object_easy_know(object_kind const *k_ptr)
 	case TV_MUSIC_BOOK:
 	case TV_SYMBIOTIC_BOOK:
 		{
-			return (TRUE);
+			return true;
 		}
 
 		/* Simple items */
@@ -416,7 +262,7 @@ static bool_ object_easy_know(object_kind const *k_ptr)
 	case TV_SPIKE:
 	case TV_JUNK:
 		{
-			return (TRUE);
+			return true;
 		}
 
 		/* All Food, Potions, Scrolls, Rods */
@@ -428,8 +274,8 @@ static bool_ object_easy_know(object_kind const *k_ptr)
 	case TV_ROD_MAIN:
 		{
 			if (k_ptr->flags & TR_NORM_ART)
-				return ( FALSE );
-			return (TRUE);
+				return ( false );
+			return true;
 		}
 
 		/* Some Rings, Amulets, Lites */
@@ -437,32 +283,14 @@ static bool_ object_easy_know(object_kind const *k_ptr)
 	case TV_AMULET:
 	case TV_LITE:
 		{
-			if (k_ptr->flags & TR_EASY_KNOW) return (TRUE);
-			return (FALSE);
+			if (k_ptr->flags & TR_EASY_KNOW) return true;
+			return false;
 		}
 	}
 
 	/* Nope */
-	return (FALSE);
+	return false;
 }
-
-
-
-/**
- * Shuffle flavor arrays into a random permutation
- */
-template <std::size_t N>
-static void shuffle_flavors(cptr adj[], byte col[])
-{
-	// The classic Fisher-Yates shuffle
-	for (std::size_t i = N - 1; i > 0; i--)
-	{
-		int j = rand_int(i + 1);
-		std::swap(adj[i], adj[j]);
-		std::swap(col[i], col[j]);
-	}
-}
-
 
 
 /*
@@ -503,109 +331,34 @@ void flavor_init()
 	/* Hack -- Induce consistant flavors */
 	set_quick_rng(seed_flavor());
 
-	/* Efficiency -- Rods/Wands share initial array */
-	for (std::size_t i = 0; i < MAX_METALS; i++)
-	{
-		rod_adj[i] = wand_adj[i];
-		rod_col[i] = wand_col[i];
-	}
-
+	/* Get a copy of the initial colors */
+	auto object_colors = object_colors_0();
 
 	/* Object flavors */
-	shuffle_flavors<MAX_ROCKS>(ring_adj, ring_col);
-	shuffle_flavors<MAX_AMULETS>(amulet_adj, amulet_col);
-	shuffle_flavors<MAX_WOODS>(staff_adj, staff_col);
-	shuffle_flavors<MAX_METALS>(wand_adj, wand_col);
-	shuffle_flavors<MAX_METALS>(rod_adj, rod_col);
-	shuffle_flavors<MAX_SHROOM>(food_adj, food_col);
-	shuffle_flavors<MAX_COLORS - 4>(potion_adj + 4, potion_col + 4);
-
-	/* Scrolls (random titles, always white) */
-	for (std::size_t i = 0; i < MAX_TITLES; i++)
-	{
-		/* Get a new title */
-		while (TRUE)
-		{
-			std::string buf;
-
-			/* Collect words until done */
-			while (1)
-			{
-				/* Choose one or two syllables */
-				int s = ((rand_int(100) < 30) ? 1 : 2);
-
-				/* Add a one or two syllable word */
-				std::string tmp;
-				for (int q = 0; q < s; q++)
-				{
-					tmp += syllables[rand_int(MAX_SYLLABLES)];
-				}
-
-				/* Stop before getting too long */
-				if (buf.size() + tmp.size() + 1 > 15)
-				{
-					break;
-				}
-
-				/* Add the word with separator */
-				if (buf.size() > 0)
-				{
-					buf += " ";
-				}
-				buf += tmp;
-			}
-
-			/* Save the title */
-			strcpy(scroll_adj[i], buf.c_str());
-
-			/* Assume okay */
-			bool_ okay = TRUE;
-
-			/* Check for "duplicate" scroll titles */
-			for (std::size_t j = 0; j < i; j++)
-			{
-				cptr hack1 = scroll_adj[j];
-				cptr hack2 = scroll_adj[i];
-
-				/* Compare first four characters */
-				if (*hack1++ != *hack2++) continue;
-				if (*hack1++ != *hack2++) continue;
-				if (*hack1++ != *hack2++) continue;
-				if (*hack1++ != *hack2++) continue;
-
-				/* Not okay */
-				okay = FALSE;
-
-				/* Stop looking */
-				break;
-			}
-
-			/* Break when done */
-			if (okay) break;
-		}
-
-		/* All scrolls are white */
-		scroll_col[i] = TERM_WHITE;
-	}
+	shuffle(object_colors.rings);
+	shuffle(object_colors.amulets);
+	shuffle(object_colors.staves);
+	shuffle(object_colors.wands);
+	shuffle(object_colors.rods);
+	shuffle(object_colors.food);
+	shuffle(object_colors.scrolls);
+	shuffle(object_colors.potions);
 
 	/* Hack -- Use the "complex" RNG */
 	set_complex_rng();
 
 	/* Analyze every object */
-	for (auto &k_ref: k_info)
+	for (auto &k_entry: k_info)
 	{
-		auto k_ptr = &k_ref;
-
-		/* Skip "empty" objects */
-		if (!k_ptr->name) continue;
+		auto const &k_ptr = k_entry.second;
 
 		/* Extract "flavor" (if any) */
-		k_ptr->flavor = object_flavor(k_ptr);
+		k_ptr->flavor = object_flavor(object_colors, k_ptr);
 
 		/* No flavor yields aware */
 		if ((!k_ptr->flavor) && (k_ptr->tval != TV_ROD_MAIN))
 		{
-			k_ptr->aware = TRUE;
+			k_ptr->aware = true;
 		}
 
 		/* Check for "easily known" */
@@ -618,7 +371,7 @@ void flavor_init()
  *
  * This involves resetting various things to their "default" state.
  *
- * If the "prefs" flag is TRUE, then we will also load the appropriate
+ * If the "prefs" flag is true, then we will also load the appropriate
  * "user pref file" based on the current setting of the "use_graphics"
  * flag.  This is useful for switching "graphics" on/off.
  *
@@ -652,11 +405,13 @@ void reset_visuals()
 	}
 
 	/* Extract default attr/char code for objects */
-	for (auto &k_ref: k_info)
+	for (auto &k_entry: k_info)
 	{
+		auto k_ptr = k_entry.second;
+
 		/* Default attr/char */
-		k_ref.x_attr = k_ref.d_attr;
-		k_ref.x_char = k_ref.d_char;
+		k_ptr->x_attr = k_ptr->d_attr;
+		k_ptr->x_char = k_ptr->d_char;
 	}
 
 	/* Extract default attr/char code for monsters */
@@ -684,7 +439,7 @@ void reset_visuals()
 	}
 
 	/* Normal symbols */
-	process_pref_file("font.prf");
+	process_pref_file(name_file_pref("font"));
 }
 
 
@@ -779,20 +534,22 @@ static void object_flags_xtra(object_type const *o_ptr, object_flag_set *f)
 /*
  * Disregard sets when calculating flags?
  */
-bool_ object_flags_no_set = FALSE;
+bool object_flags_no_set = false;
 
 /*
  * Obtain the "flags" for an item
  */
 object_flag_set object_flags(object_type const *o_ptr)
 {
-	auto const &k_info = game->edit_data.k_info;
 	auto const &a_info = game->edit_data.a_info;
 
-	auto k_ptr = &k_info[o_ptr->k_idx];
+	if (!o_ptr->k_ptr)
+	{
+		return object_flag_set();
+	}
 
 	/* Base object */
-	auto f = k_ptr->flags;
+	auto f = o_ptr->k_ptr->flags;
 
 	/* Artifact */
 	if (o_ptr->name1)
@@ -817,24 +574,20 @@ object_flag_set object_flags(object_type const *o_ptr)
 }
 
 /* Return object granted power */
-int object_power(object_type *o_ptr)
+boost::optional<int> object_power(object_type *o_ptr)
 {
-	auto const &k_info = game->edit_data.k_info;
 	auto const &a_info = game->edit_data.a_info;
 	auto const &e_info = game->edit_data.e_info;
 
-	auto k_ptr = &k_info[o_ptr->k_idx];
-	int power = -1;
-
 	/* Base object */
-	power = k_ptr->power;
+	auto power = o_ptr->k_ptr->power;
 
 	/* Ego-item */
 	if (o_ptr->name2)
 	{
 		auto e_ptr = &e_info[o_ptr->name2];
 
-		if (power == -1)
+		if (!power)
 		{
 			power = e_ptr->power;
 		}
@@ -843,7 +596,7 @@ int object_power(object_type *o_ptr)
 		{
 			auto e_ptr = &e_info[o_ptr->name2b];
 
-			if (power == -1)
+			if (!power)
 			{
 				power = e_ptr->power;
 			}
@@ -855,13 +608,13 @@ int object_power(object_type *o_ptr)
 	{
 		auto a_ptr = &a_info[o_ptr->name1];
 
-		if (power == -1)
+		if (!power)
 		{
 			power = a_ptr->power;
 		}
 	}
 
-	return (power);
+	return power;
 }
 
 
@@ -871,16 +624,15 @@ int object_power(object_type *o_ptr)
  */
 object_flag_set object_flags_known(object_type const *o_ptr)
 {
-	auto const &k_info = game->edit_data.k_info;
 	auto const &a_info = game->edit_data.a_info;
-
-	auto k_ptr = &k_info[o_ptr->k_idx];
 
 	/* Must be identified */
 	if (!object_known_p(o_ptr))
 	{
 		return object_flag_set();
 	}
+
+	auto k_ptr = o_ptr->k_ptr;
 
 	/* Base object */
 	auto flags = k_ptr->flags;
@@ -893,19 +645,11 @@ object_flag_set object_flags_known(object_type const *o_ptr)
 	{
 		auto a_ptr = &a_info[o_ptr->name1];
 
-		/* Need full knowledge or spoilers */
-		if ((o_ptr->ident & IDENT_MENTAL))
-		{
-			flags = a_ptr->flags;
+		flags = a_ptr->flags;
 
-			if ((!object_flags_no_set) && (a_ptr->set != -1))
-			{
-				apply_flags_set(o_ptr->name1, a_ptr->set, &flags);
-			}
-		}
-		else
+		if ((!object_flags_no_set) && (a_ptr->set != -1))
 		{
-			flags = object_flag_set();
+			apply_flags_set(o_ptr->name1, a_ptr->set, &flags);
 		}
 
 		flags |= a_ptr->oflags;
@@ -914,19 +658,8 @@ object_flag_set object_flags_known(object_type const *o_ptr)
 	/* Random artifact or ego item! */
 	if (o_ptr->art_flags)
 	{
-		/* Need full knowledge or spoilers */
-		if ((o_ptr->ident & IDENT_MENTAL))
-		{
-			flags |= o_ptr->art_flags;
-		}
-
+		flags |= o_ptr->art_flags;
 		flags |= o_ptr->art_oflags;
-	}
-
-	/* Full knowledge for *identified* objects */
-	if (!(o_ptr->ident & IDENT_MENTAL))
-	{
-		return flags;
 	}
 
 	/* Extra powers */
@@ -1025,29 +758,35 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 	auto const &random_artifacts = game->random_artifacts;
 	static auto const TR_PVAL_MASK = compute_pval_mask();
 
-	bool_ hack_name = FALSE;
+	bool hack_name = false;
 
-	bool_ append_name = FALSE;
+	bool append_name = false;
 
-	bool_ show_weapon = FALSE;
-	bool_ show_armour = FALSE;
+	bool show_weapon = false;
+	bool show_armour = false;
 
-	auto k_ptr = &k_info[o_ptr->k_idx];
+	auto k_ptr = o_ptr->k_ptr;
 
 	/* Extract some flags */
 	auto const flags = object_flags(o_ptr);
 
 	/* See if the object is "aware" */
-	bool_ aware = object_aware_p(o_ptr);
+	bool aware = object_aware_p(o_ptr);
 
 	/* See if the object is "known" */
-	bool_ known = object_known_p(o_ptr);
+	bool known = object_known_p(o_ptr);
 
 	/* Hack -- Extract the sub-type "indexx" */
 	auto const indexx = o_ptr->sval;
 
 	/* Extract default "base" string */
-	std::string basenm(k_ptr->name);
+	std::string k_name;
+	if (k_ptr)
+	{
+		k_name = k_ptr->name;
+	}
+
+	std::string basenm(k_name);
 
 	/* Assume no "modifier" string */
 	std::string modstr;
@@ -1061,7 +800,6 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 	case TV_JUNK:
 	case TV_SPIKE:
 	case TV_FLASK:
-	case TV_CHEST:
 	case TV_INSTRUMENT:
 	case TV_TOOL:
 	case TV_DIGGING:
@@ -1082,7 +820,7 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 	case TV_SWORD:
 	case TV_AXE:
 		{
-			show_weapon = TRUE;
+			show_weapon = true;
 			break;
 		}
 
@@ -1096,7 +834,7 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 	case TV_HARD_ARMOR:
 	case TV_DRAG_ARMOR:
 		{
-			show_armour = TRUE;
+			show_armour = true;
 			break;
 		}
 
@@ -1110,18 +848,13 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 		/* Amulets (including a few "Specials") */
 	case TV_AMULET:
 		{
-			/* Color the object */
-			modstr = amulet_adj[indexx];
-			if (aware) append_name = TRUE;
+			if (aware) append_name = true;
 
-			if (aware || o_ptr->ident & IDENT_STOREB)
-				basenm = "& Amulet~";
-			else
-				basenm = aware ? "& # Amulet~" : "& # Amulet~";
+			basenm = "& Amulet~";
 
 			if (known && o_ptr->artifact_name.empty() && artifact_p(o_ptr))
 			{
-				basenm = k_ptr->name;
+				basenm = k_name;
 			}
 
 			break;
@@ -1130,21 +863,19 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 		/* Rings (including a few "Specials") */
 	case TV_RING:
 		{
-			/* Color the object */
-			modstr = ring_adj[indexx];
-			if (aware) append_name = TRUE;
+			if (aware) append_name = true;
 
-			if (aware || o_ptr->ident & IDENT_STOREB)
-				basenm = "& Ring~";
-			else
-				basenm = aware ? "& # Ring~" : "& # Ring~";
+			basenm = "& Ring~";
 
 			/* Hack -- The One Ring */
-			if (!aware && (o_ptr->sval == SV_RING_POWER)) modstr = "Plain Gold";
+			if (!aware && (o_ptr->sval == SV_RING_POWER))
+			{
+				modstr = "Plain Gold";
+			}
 
 			if (known && o_ptr->artifact_name.empty() && artifact_p(o_ptr))
 			{
-				basenm = k_ptr->name;
+				basenm = k_name;
 			}
 
 			break;
@@ -1152,80 +883,62 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 
 	case TV_STAFF:
 		{
-			/* Color the object */
-			modstr = staff_adj[o_ptr->pval2 % MAX_WOODS];
-			if (aware) append_name = TRUE;
-			if (aware || o_ptr->ident & IDENT_STOREB)
-				basenm = "& Staff~";
-			else
-				basenm = "& # Staff~";
+			if (aware) append_name = true;
+
+			basenm = "& Staff~";
 			break;
 		}
 
 	case TV_WAND:
 		{
-			/* Color the object */
-			modstr = wand_adj[o_ptr->pval2 % MAX_METALS];
-			if (aware) append_name = TRUE;
-			if (aware || o_ptr->ident & IDENT_STOREB)
-				basenm = "& Wand~";
-			else
-				basenm = "& # Wand~";
+			if (aware) append_name = true;
+
+			basenm = "& Wand~";
 			break;
 		}
 
 	case TV_ROD:
 		{
-			/* Color the object */
-			modstr = rod_adj[indexx];
-			if (aware) append_name = TRUE;
-			if (aware || o_ptr->ident & IDENT_STOREB)
-				basenm = "& Rod Tip~";
-			else
-				basenm = aware ? "& # Rod Tip~" : "& # Rod Tip~";
+			if (aware) append_name = true;
+
+			basenm = "& Rod Tip~";
+
 			if (o_ptr->sval == SV_ROD_HOME)
 			{
 				basenm = "& Great Rod Tip~ of Home Summoning";
-				hack_name = TRUE;
+				hack_name = true;
 			}
+
 			break;
 		}
 
 	case TV_ROD_MAIN:
 		{
-			modstr = k_info[lookup_kind(TV_ROD, o_ptr->pval)].name;
+			modstr = k_info.at(lookup_kind(TV_ROD, o_ptr->pval))->name;
 			break;
 		}
 
 	case TV_SCROLL:
 		{
-			/* Color the object */
-			modstr = scroll_adj[indexx];
-			if (aware) append_name = TRUE;
-			if (aware || o_ptr->ident & IDENT_STOREB)
-				basenm = "& Scroll~";
-			else
-				basenm = aware ? "& Scroll~ titled \"#\"" : "& Scroll~ titled \"#\"";
+			if (aware) append_name = true;
+
+			basenm = "& Scroll~";
 			break;
 		}
 
 	case TV_POTION:
 	case TV_POTION2:
 		{
-			/* Color the object */
 			if ((o_ptr->tval != TV_POTION2) || (o_ptr->sval != SV_POTION2_MIMIC) || (!aware))
 			{
-				modstr = potion_adj[indexx];
-				if (aware) append_name = TRUE;
+				if (aware) append_name = true;
 			}
 			else
 			{
 				modstr = get_mimic_name(o_ptr->pval2);
 			}
-			if (aware || o_ptr->ident & IDENT_STOREB)
-				basenm = "& Potion~";
-			else
-				basenm = aware ? "& # Potion~" : "& # Potion~";
+
+			basenm = "& Potion~";
 			break;
 		}
 
@@ -1234,13 +947,9 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 			/* Ordinary food is "boring" */
 			if (o_ptr->sval >= SV_FOOD_MIN_FOOD) break;
 
-			/* Color the object */
-			modstr = food_adj[indexx];
-			if (aware) append_name = TRUE;
-			if (aware || o_ptr->ident & IDENT_STOREB)
-				basenm = "& Mushroom~";
-			else
-				basenm = aware ? "& # Mushroom~" : "& # Mushroom~";
+			if (aware) append_name = true;
+
+			basenm = "& Mushroom~";
 			break;
 		}
 
@@ -1248,7 +957,7 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 		/* Cloak of Mimicry */
 	case TV_CLOAK:
 		{
-			show_armour = TRUE;
+			show_armour = true;
 			if (o_ptr->sval == SV_MIMIC_CLOAK)
 			{
 				modstr = get_mimic_object_name(o_ptr->pval2);
@@ -1333,7 +1042,7 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 			monster_type monster;
 			monster.r_idx = o_ptr->pval;
 			monster.ego = o_ptr->pval2;
-			monster.ml = TRUE;
+			monster.ml = true;
 			monster.status = MSTATUS_ENEMY;
 
 			char name[80];
@@ -1362,7 +1071,7 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 	case TV_DAEMON_BOOK:
 	case TV_BOOK:
 		{
-			basenm = k_ptr->name;
+			basenm = k_name;
 			if (o_ptr->sval == 255)
 			{
 				modstr = spell_type_name(spell_at(o_ptr->pval));
@@ -1378,7 +1087,7 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 	/* Mega Hack */
 	if ((!hack_name) && known && (k_ptr->flags & TR_FULL_NAME))
 	{
-		basenm = k_ptr->name;
+		basenm = k_name;
 	}
 
 	/* Copy of the base string _without_ a prefix */
@@ -1390,7 +1099,7 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 	/* The object "expects" a "number" */
 	if (starts_with(basenm, "&"))
 	{
-		cptr ego = NULL;
+		std::string ego;
 
 		/* Grab any ego-item name */
 		if (known && (o_ptr->name2 || o_ptr->name2b) && (o_ptr->tval != TV_ROD_MAIN))
@@ -1446,7 +1155,7 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 			t += "The ";
 		}
 
-		else if (ego != NULL)
+		else if (!ego.empty())
 		{
 			if (is_a_vowel(ego[0]))
 			{
@@ -1635,7 +1344,7 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 		}
 		else
 		{
-			t += k_ptr->name;
+			t += k_name;
 		}
 	}
 
@@ -1719,31 +1428,15 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 		t += fmt::format(" (E:{}, L:{})", need_exp, o_ptr->elevel);
 	}
 
-	/* Hack -- Chests must be described in detail */
-	if (o_ptr->tval == TV_CHEST)
-	{
-		/* Not searched yet */
-		if (!known)
-		{
-			/* Nothing */
-		}
-
-		/* May be "empty" */
-		else if (!o_ptr->pval)
-		{
-			t += " (empty)";
-		}
-	}
-
 
 	/* Display the item like a weapon */
-	if (flags & TR_SHOW_MODS) show_weapon = TRUE;
+	if (flags & TR_SHOW_MODS) show_weapon = true;
 
 	/* Display the item like a weapon */
-	if (o_ptr->to_h && o_ptr->to_d) show_weapon = TRUE;
+	if (o_ptr->to_h && o_ptr->to_d) show_weapon = true;
 
 	/* Display the item like armour */
-	if (o_ptr->ac) show_armour = TRUE;
+	if (o_ptr->ac) show_armour = true;
 
 	/* Dump base weapon info */
 	switch (o_ptr->tval)
@@ -1976,12 +1669,6 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 	{
 		std::vector<std::string> inscrip;
 
-		/* Sensed stuff */
-		if ((o_ptr->ident & (IDENT_SENSE)) && sense_desc[o_ptr->sense] && sense_desc[o_ptr->sense][0] != '\0')
-		{
-			inscrip.push_back(sense_desc[o_ptr->sense]);
-		}
-
 		/* Hack - Note "cursed" if the item is 'known' and cursed */
 		if (cursed_p(o_ptr) && known && inscrip.empty())
 		{
@@ -1995,18 +1682,6 @@ static std::string object_desc_aux(object_type const *o_ptr, int pref, int mode)
 		if (auto const pos = o_ptr->inscription.find_first_of("%#") != std::string::npos)
 		{
 			inscrip.push_back(o_ptr->inscription.substr(0, pos));
-		}
-
-		/* Mega-Hack -- note empty wands/staffs */
-		if (!known && (o_ptr->ident & (IDENT_EMPTY)))
-		{
-			inscrip.push_back("empty");
-		}
-
-		/* Note "tried" if the object has been tested unsuccessfully */
-		if (!aware && object_tried_p(o_ptr))
-		{
-			inscrip.push_back("tried");
 		}
 
 		/* Note the discount, if any */
@@ -2051,31 +1726,20 @@ void object_desc(char *buf, object_type const *o_ptr, int pref, int mode)
  */
 void object_desc_store(char *buf, object_type *o_ptr, int pref, int mode)
 {
-	auto &k_info = game->edit_data.k_info;
+	/* Save the identification status */
+	bool saved_aware = o_ptr->k_ptr->aware;
+	auto saved_identified = o_ptr->identified;
 
-	/* Save the "aware" flag */
-	bool_ hack_aware = k_info[o_ptr->k_idx].aware;
-
-	/* Save the "known" flag */
-	bool_ hack_known = (o_ptr->ident & (IDENT_KNOWN)) ? TRUE : FALSE;
-
-
-	/* Set the "known" flag */
-	o_ptr->ident |= (IDENT_KNOWN);
-
-	/* Force "aware" for description */
-	k_info[o_ptr->k_idx].aware = TRUE;
-
+	/* Force full identification for description */
+	o_ptr->identified = true;
+	o_ptr->k_ptr->aware = true;
 
 	/* Describe the object */
 	object_desc(buf, o_ptr, pref, mode);
 
-
-	/* Restore "aware" flag */
-	k_info[o_ptr->k_idx].aware = hack_aware;
-
-	/* Clear the known flag */
-	if (!hack_known) o_ptr->ident &= ~(IDENT_KNOWN);
+	/* Restore identification status */
+	o_ptr->k_ptr->aware = saved_aware;
+	o_ptr->identified = saved_identified;
 }
 
 
@@ -2085,7 +1749,7 @@ void object_desc_store(char *buf, object_type *o_ptr, int pref, int mode)
  * Determine the "Activation" (if any) for an artifact
  * Return a string, or NULL for "no activation"
  */
-cptr item_activation(object_type *o_ptr)
+const char *item_activation(object_type *o_ptr)
 {
 	auto const &a_info = game->edit_data.a_info;
 	auto const &e_info = game->edit_data.e_info;
@@ -2122,11 +1786,11 @@ cptr item_activation(object_type *o_ptr)
 		}
 	}
 
-	return activation_aux(o_ptr, FALSE, 0);
+	return activation_aux(o_ptr, false, 0);
 }
 
 /* Grab the tval desc */
-static bool_ grab_tval_desc(int tval)
+static bool grab_tval_desc(int tval)
 {
 	int tv = 0;
 
@@ -2135,18 +1799,18 @@ static bool_ grab_tval_desc(int tval)
 		tv++;
 	}
 
-	if (!tval_descs[tv].tval) return FALSE;
+	if (!tval_descs[tv].tval) return false;
 
 	text_out_c(TERM_L_BLUE, tval_descs[tv].desc);
 	text_out("\n");
 
-	return TRUE;
+	return true;
 }
 
-static void check_first(bool_ *first)
+static void check_first(bool *first)
 {
 	if (*first) {
-		*first = FALSE;
+		*first = false;
 	}
 	else
 	{
@@ -2157,7 +1821,7 @@ static void check_first(bool_ *first)
 /*
  * Display the damage done with a multiplier
  */
-void output_dam(object_type *o_ptr, int mult, int mult2, cptr against, cptr against2, bool_ *first)
+void output_dam(object_type *o_ptr, int mult, int mult2, const char *against, const char *against2, bool *first)
 {
 	int dam;
 
@@ -2201,8 +1865,7 @@ void output_dam(object_type *o_ptr, int mult, int mult2, cptr against, cptr agai
 void display_weapon_damage(object_type *o_ptr)
 {
 	object_type forge, *old_ptr = &forge;
-	bool_ first = TRUE;
-	bool_ full = o_ptr->ident & (IDENT_MENTAL);
+	bool first = true;
 
 	/* Extract the flags */
 	auto const flags = object_flags(o_ptr);
@@ -2210,29 +1873,32 @@ void display_weapon_damage(object_type *o_ptr)
 	/* Ok now the hackish stuff, we replace the current weapon with this one */
 	object_copy(old_ptr, &p_ptr->inventory[INVEN_WIELD]);
 	object_copy(&p_ptr->inventory[INVEN_WIELD], o_ptr);
-	calc_bonuses(TRUE);
+	calc_bonuses(true);
 
 	text_out("\nUsing it you would have ");
 	text_out_c(TERM_L_GREEN, format("%d ", p_ptr->num_blow));
 	text_out(format("blow%s and do an average damage per turn of ", (p_ptr->num_blow) ? "s" : ""));
 
-	if (full && (flags & TR_SLAY_ANIMAL)) output_dam(o_ptr, 2, 0, "animals", NULL, &first);
-	if (full && (flags & TR_SLAY_EVIL)) output_dam(o_ptr, 2, 0, "evil creatures", NULL, &first);
-	if (full && (flags & TR_SLAY_ORC)) output_dam(o_ptr, 3, 0, "orcs", NULL, &first);
-	if (full && (flags & TR_SLAY_TROLL)) output_dam(o_ptr, 3, 0, "trolls", NULL, &first);
-	if (full && (flags & TR_SLAY_GIANT)) output_dam(o_ptr, 3, 0, "giants", NULL, &first);
-	if (full && (flags & TR_KILL_DRAGON)) output_dam(o_ptr, 5, 0, "dragons", NULL, &first);
-	else if (full && (flags & TR_SLAY_DRAGON)) output_dam(o_ptr, 3, 0, "dragons", NULL, &first);
-	if (full && (flags & TR_KILL_UNDEAD)) output_dam(o_ptr, 5, 0, "undead", NULL, &first);
-	else if (full && (flags & TR_SLAY_UNDEAD)) output_dam(o_ptr, 3, 0, "undead", NULL, &first);
-	if (full && (flags & TR_KILL_DEMON)) output_dam(o_ptr, 5, 0, "demons", NULL, &first);
-	else if (full && (flags & TR_SLAY_DEMON)) output_dam(o_ptr, 3, 0, "demons", NULL, &first);
+	if (flags & TR_SLAY_ANIMAL) output_dam(o_ptr, 2, 0, "animals", NULL, &first);
+	if (flags & TR_SLAY_EVIL) output_dam(o_ptr, 2, 0, "evil creatures", NULL, &first);
+	if (flags & TR_SLAY_ORC) output_dam(o_ptr, 3, 0, "orcs", NULL, &first);
+	if (flags & TR_SLAY_TROLL) output_dam(o_ptr, 3, 0, "trolls", NULL, &first);
+	if (flags & TR_SLAY_GIANT) output_dam(o_ptr, 3, 0, "giants", NULL, &first);
 
-	if (full && (flags & TR_BRAND_FIRE)) output_dam(o_ptr, 3, 6, "non fire resistant creatures", "fire susceptible creatures", &first);
-	if (full && (flags & TR_BRAND_COLD)) output_dam(o_ptr, 3, 6, "non cold resistant creatures", "cold susceptible creatures", &first);
-	if (full && (flags & TR_BRAND_ELEC)) output_dam(o_ptr, 3, 6, "non lightning resistant creatures", "lightning susceptible creatures", &first);
-	if (full && (flags & TR_BRAND_ACID)) output_dam(o_ptr, 3, 6, "non acid resistant creatures", "acid susceptible creatures", &first);
-	if (full && (flags & TR_BRAND_POIS)) output_dam(o_ptr, 3, 6, "non poison resistant creatures", "poison susceptible creatures", &first);
+	if (flags & TR_KILL_DRAGON) output_dam(o_ptr, 5, 0, "dragons", NULL, &first);
+	else if (flags & TR_SLAY_DRAGON) output_dam(o_ptr, 3, 0, "dragons", NULL, &first);
+
+	if (flags & TR_KILL_UNDEAD) output_dam(o_ptr, 5, 0, "undead", NULL, &first);
+	else if (flags & TR_SLAY_UNDEAD) output_dam(o_ptr, 3, 0, "undead", NULL, &first);
+
+	if (flags & TR_KILL_DEMON) output_dam(o_ptr, 5, 0, "demons", NULL, &first);
+	else if (flags & TR_SLAY_DEMON) output_dam(o_ptr, 3, 0, "demons", NULL, &first);
+
+	if (flags & TR_BRAND_FIRE) output_dam(o_ptr, 3, 6, "non fire resistant creatures", "fire susceptible creatures", &first);
+	if (flags & TR_BRAND_COLD) output_dam(o_ptr, 3, 6, "non cold resistant creatures", "cold susceptible creatures", &first);
+	if (flags & TR_BRAND_ELEC) output_dam(o_ptr, 3, 6, "non lightning resistant creatures", "lightning susceptible creatures", &first);
+	if (flags & TR_BRAND_ACID) output_dam(o_ptr, 3, 6, "non acid resistant creatures", "acid susceptible creatures", &first);
+	if (flags & TR_BRAND_POIS) output_dam(o_ptr, 3, 6, "non poison resistant creatures", "poison susceptible creatures", &first);
 
 	output_dam(o_ptr, 1, 0, (first) ? "all monsters" : "other monsters", NULL, &first);
 
@@ -2240,13 +1906,13 @@ void display_weapon_damage(object_type *o_ptr)
 
 	/* get our weapon back */
 	object_copy(&p_ptr->inventory[INVEN_WIELD], old_ptr);
-	calc_bonuses(TRUE);
+	calc_bonuses(true);
 }
 
 /*
  * Display the ammo damage done with a multiplier
  */
-void output_ammo_dam(object_type *o_ptr, int mult, int mult2, cptr against, cptr against2, bool_ *first)
+void output_ammo_dam(object_type *o_ptr, int mult, int mult2, const char *against, const char *against2, bool *first)
 {
 	int dam;
 	object_type *b_ptr = &p_ptr->inventory[INVEN_BOW];
@@ -2299,9 +1965,8 @@ void output_ammo_dam(object_type *o_ptr, int mult, int mult2, cptr against, cptr
  */
 void display_ammo_damage(object_type *o_ptr)
 {
-	bool_ first = TRUE;
+	bool first = true;
 	int i;
-	bool_ full = o_ptr->ident & (IDENT_MENTAL);
 
 	/* Extract the flags */
 	auto const flags = object_flags(o_ptr);
@@ -2310,23 +1975,27 @@ void display_ammo_damage(object_type *o_ptr)
 		text_out("\nUsing it you would do an average damage per throw of ");
 	else
 		text_out("\nUsing it with your current shooter you would do an average damage per shot of ");
-	if (full && (flags & TR_SLAY_ANIMAL)) output_ammo_dam(o_ptr, 2, 0, "animals", NULL, &first);
-	if (full && (flags & TR_SLAY_EVIL)) output_ammo_dam(o_ptr, 2, 0, "evil creatures", NULL, &first);
-	if (full && (flags & TR_SLAY_ORC)) output_ammo_dam(o_ptr, 3, 0, "orcs", NULL, &first);
-	if (full && (flags & TR_SLAY_TROLL)) output_ammo_dam(o_ptr, 3, 0, "trolls", NULL, &first);
-	if (full && (flags & TR_SLAY_GIANT)) output_ammo_dam(o_ptr, 3, 0, "giants", NULL, &first);
-	if (full && (flags & TR_KILL_DRAGON)) output_ammo_dam(o_ptr, 5, 0, "dragons", NULL, &first);
-	else if (full && (flags & TR_SLAY_DRAGON)) output_ammo_dam(o_ptr, 3, 0, "dragons", NULL, &first);
-	if (full && (flags & TR_KILL_UNDEAD)) output_ammo_dam(o_ptr, 5, 0, "undeads", NULL, &first);
-	else if (full && (flags & TR_SLAY_UNDEAD)) output_ammo_dam(o_ptr, 3, 0, "undeads", NULL, &first);
-	if (full && (flags & TR_KILL_DEMON)) output_ammo_dam(o_ptr, 5, 0, "demons", NULL, &first);
-	else if (full && (flags & TR_SLAY_DEMON)) output_ammo_dam(o_ptr, 3, 0, "demons", NULL, &first);
 
-	if (full && (flags & TR_BRAND_FIRE)) output_ammo_dam(o_ptr, 3, 6, "non fire resistant creatures", "fire susceptible creatures", &first);
-	if (full && (flags & TR_BRAND_COLD)) output_ammo_dam(o_ptr, 3, 6, "non cold resistant creatures", "cold susceptible creatures", &first);
-	if (full && (flags & TR_BRAND_ELEC)) output_ammo_dam(o_ptr, 3, 6, "non lightning resistant creatures", "lightning susceptible creatures", &first);
-	if (full && (flags & TR_BRAND_ACID)) output_ammo_dam(o_ptr, 3, 6, "non acid resistant creatures", "acid susceptible creatures", &first);
-	if (full && (flags & TR_BRAND_POIS)) output_ammo_dam(o_ptr, 3, 6, "non poison resistant creatures", "poison susceptible creatures", &first);
+	if (flags & TR_SLAY_ANIMAL) output_ammo_dam(o_ptr, 2, 0, "animals", NULL, &first);
+	if (flags & TR_SLAY_EVIL) output_ammo_dam(o_ptr, 2, 0, "evil creatures", NULL, &first);
+	if (flags & TR_SLAY_ORC) output_ammo_dam(o_ptr, 3, 0, "orcs", NULL, &first);
+	if (flags & TR_SLAY_TROLL) output_ammo_dam(o_ptr, 3, 0, "trolls", NULL, &first);
+	if (flags & TR_SLAY_GIANT) output_ammo_dam(o_ptr, 3, 0, "giants", NULL, &first);
+
+	if (flags & TR_KILL_DRAGON) output_ammo_dam(o_ptr, 5, 0, "dragons", NULL, &first);
+	else if (flags & TR_SLAY_DRAGON) output_ammo_dam(o_ptr, 3, 0, "dragons", NULL, &first);
+
+	if (flags & TR_KILL_UNDEAD) output_ammo_dam(o_ptr, 5, 0, "undeads", NULL, &first);
+	else if (flags & TR_SLAY_UNDEAD) output_ammo_dam(o_ptr, 3, 0, "undeads", NULL, &first);
+
+	if (flags & TR_KILL_DEMON) output_ammo_dam(o_ptr, 5, 0, "demons", NULL, &first);
+	else if (flags & TR_SLAY_DEMON) output_ammo_dam(o_ptr, 3, 0, "demons", NULL, &first);
+
+	if (flags & TR_BRAND_FIRE) output_ammo_dam(o_ptr, 3, 6, "non fire resistant creatures", "fire susceptible creatures", &first);
+	if (flags & TR_BRAND_COLD) output_ammo_dam(o_ptr, 3, 6, "non cold resistant creatures", "cold susceptible creatures", &first);
+	if (flags & TR_BRAND_ELEC) output_ammo_dam(o_ptr, 3, 6, "non lightning resistant creatures", "lightning susceptible creatures", &first);
+	if (flags & TR_BRAND_ACID) output_ammo_dam(o_ptr, 3, 6, "non acid resistant creatures", "acid susceptible creatures", &first);
+	if (flags & TR_BRAND_POIS) output_ammo_dam(o_ptr, 3, 6, "non poison resistant creatures", "poison susceptible creatures", &first);
 
 	output_ammo_dam(o_ptr, 1, 0, (first) ? "all monsters" : "other monsters", NULL, &first);
 	text_out(". ");
@@ -2351,8 +2020,6 @@ void display_ammo_damage(object_type *o_ptr)
  */
 static void describe_device(object_type *o_ptr)
 {
-	char buf[128];
-
 	/* Wands/... of shcool spell */
 	if (((o_ptr->tval == TV_WAND) || (o_ptr->tval == TV_STAFF)) && object_known_p(o_ptr))
 	{
@@ -2370,15 +2037,14 @@ static void describe_device(object_type *o_ptr)
 					       });
 
 		text_out("\nSpell level: ");
-		sprintf(buf, FMTs32b, get_level(o_ptr->pval2, 50));
-		text_out_c(TERM_L_BLUE, buf);
+
+		text_out_c(TERM_L_BLUE, fmt::format("{}", get_level(o_ptr->pval2, 50)));
 
 		text_out("\nMinimum Magic Device level to increase spell level: ");
-		text_out_c(TERM_L_BLUE, format("%d", spell_type_skill_level(spell)));
+		text_out_c(TERM_L_BLUE, fmt::format("{}", spell_type_skill_level(spell)));
 
 		text_out("\nSpell fail: ");
-		sprintf(buf, FMTs32b, spell_chance_device(spell));
-		text_out_c(TERM_GREEN, buf);
+		text_out_c(TERM_GREEN, fmt::format("{}", spell_chance_device(spell)));
 
 		text_out("\nSpell info: ");
 		text_out_c(TERM_YELLOW, spell_type_info(spell));
@@ -2397,7 +2063,7 @@ static void describe_device(object_type *o_ptr)
  * Print the level something was found on
  *
  */
-static cptr object_out_desc_where_found(s16b level, s16b dungeon)
+static const char *object_out_desc_where_found(s16b level, s16b dungeon)
 {
 	auto const &d_info = game->edit_data.d_info;
 	auto const &wf_info = game->edit_data.wf_info;
@@ -2431,28 +2097,20 @@ static cptr object_out_desc_where_found(s16b level, s16b dungeon)
 /*
  * Describe an item
  */
-bool_ object_out_desc(object_type *o_ptr, FILE *fff, bool_ trim_down, bool_ wait_for_it)
+bool object_out_desc(object_type *o_ptr, FILE *fff, bool trim_down, bool wait_for_it)
 {
 	auto const &set_info = game->edit_data.set_info;
 	auto const &st_info = game->edit_data.st_info;
-	auto const &k_info = game->edit_data.k_info;
 	auto const &a_info = game->edit_data.a_info;
 
-	cptr vp[64];
+	const char *vp[64];
 	byte vc[64];
 	int vn;
 
 	object_flag_set flags;
 
 	/* Extract the flags */
-	if ((!(o_ptr->ident & (IDENT_MENTAL))) && (!fff))
-	{
-		flags = o_ptr->art_oflags;
-	}
-	else
-	{
-		flags = object_flags(o_ptr);
-	}
+	flags = object_flags(o_ptr);
 
 	if (fff)
 	{
@@ -2463,8 +2121,7 @@ bool_ object_out_desc(object_type *o_ptr, FILE *fff, bool_ trim_down, bool_ wait
 	else
 	{
 		/* Save the screen */
-		character_icky = TRUE;
-		Term_save();
+		screen_save_no_flush();
 
 		/* Set up stuff for text_out */
 		text_out_hook = text_out_to_screen;
@@ -2479,11 +2136,9 @@ bool_ object_out_desc(object_type *o_ptr, FILE *fff, bool_ trim_down, bool_ wait
 
 	if (object_known_p(o_ptr))
 	{
-		if (o_ptr->k_idx && (!trim_down))
+		if (o_ptr->k_ptr && (!trim_down))
 		{
-			auto k_ptr = &k_info[o_ptr->k_idx];
-
-			text_out_c(TERM_ORANGE, k_ptr->text);
+			text_out_c(TERM_ORANGE, o_ptr->k_ptr->text);
 			text_out("\n");
 		}
 
@@ -2507,7 +2162,7 @@ bool_ object_out_desc(object_type *o_ptr, FILE *fff, bool_ trim_down, bool_ wait
 			else if (count_bits(o_ptr->pval3) > 1) text_out("It is sentient and can have access to the realms of ");
 			else text_out("It is sentient and can have access to the realm of ");
 
-			bool_ first = TRUE;
+			bool first = true;
 			for (std::size_t j = 0; j < flags_groups().size(); j++)
 			{
 				if (BIT(j) & o_ptr->pval3)
@@ -2545,10 +2200,10 @@ bool_ object_out_desc(object_type *o_ptr, FILE *fff, bool_ trim_down, bool_ wait
 				text_out(" if it is being worn. ");
 		}
 		/* Granted power */
-		if (object_power(o_ptr) != -1)
+		if (auto power_idx = object_power(o_ptr))
 		{
 			text_out("It grants you the power of ");
-			text_out(powers_type[object_power(o_ptr)].name);
+			text_out(game->powers.at(*power_idx)->name);
 			text_out(" if it is being worn.  ");
 		}
 
@@ -3162,11 +2817,6 @@ bool_ object_out_desc(object_type *o_ptr, FILE *fff, bool_ trim_down, bool_ wait
 		{
 			text_out("It has been blessed by the gods.  ");
 		}
-		if (flags & TR_AUTO_ID)
-		{
-			text_out("It identifies all items for you.  ");
-		}
-
 		if (flags & TR_TELEPORT)
 		{
 			text_out("It induces random teleportation.  ");
@@ -3315,10 +2965,9 @@ bool_ object_out_desc(object_type *o_ptr, FILE *fff, bool_ trim_down, bool_ wait
 			}
 		}
 
-		if (!object_known_p(o_ptr))
+		if (!object_known_p(o_ptr)) {
 			text_out("\nYou might need to identify the item to know some more about it...");
-		else if (!(o_ptr->ident & (IDENT_MENTAL)))
-			text_out("\nYou might need to *identify* the item to know more about it...");
+		}
 	}
 
 	/* Copying how others seem to do it. -- neil */
@@ -3393,7 +3042,7 @@ bool_ object_out_desc(object_type *o_ptr, FILE *fff, bool_ trim_down, bool_ wait
 			/* Restore the screen */
 			Term_load();
 		}
-		character_icky = FALSE;
+		character_icky = false;
 
 	}
 
@@ -3401,7 +3050,7 @@ bool_ object_out_desc(object_type *o_ptr, FILE *fff, bool_ trim_down, bool_ wait
 	text_out_hook = text_out_to_screen;
 
 	/* Gave knowledge */
-	return (TRUE);
+	return true;
 }
 
 
@@ -3435,7 +3084,7 @@ static s16b label_to_inven(int c)
 	if ((i < 0) || (i > INVEN_PACK)) return ( -1);
 
 	/* Empty slots can never be chosen */
-	if (!p_ptr->inventory[i].k_idx) return ( -1);
+	if (!p_ptr->inventory[i].k_ptr) return ( -1);
 
 	/* Return the index */
 	return (i);
@@ -3457,7 +3106,7 @@ static s16b label_to_equip(int c)
 	if ((i < INVEN_WIELD) || (i >= INVEN_TOTAL)) return ( -1);
 
 	/* Empty slots can never be chosen */
-	if (!p_ptr->inventory[i].k_idx) return ( -1);
+	if (!p_ptr->inventory[i].k_ptr) return ( -1);
 
 	/* Return the index */
 	return (i);
@@ -3480,7 +3129,10 @@ static int get_slot(int slot)
 			if (p_ptr->body_parts[slot + i - INVEN_WIELD])
 			{
 				/* Free ? return the slot */
-				if (!p_ptr->inventory[slot + i].k_idx) return (slot + i);
+				if (!p_ptr->inventory[slot + i].k_ptr)
+				{
+					return (slot + i);
+				}
 			}
 			else break;
 
@@ -3495,9 +3147,9 @@ static int get_slot(int slot)
 
 /*
  * Determine which equipment slot (if any) an item likes, ignoring the player's
- * current body and stuff if ideal == TRUE
+ * current body and stuff if ideal == true
  */
-s16b wield_slot_ideal(object_type const *o_ptr, bool_ ideal)
+s16b wield_slot_ideal(object_type const *o_ptr, bool ideal)
 {
 	/* Slot for equipment */
 	switch (o_ptr->tval)
@@ -3579,60 +3231,73 @@ s16b wield_slot_ideal(object_type const *o_ptr, bool_ ideal)
 
 	case TV_SHOT:
 		{
+			auto quiver_ptr = &p_ptr->inventory[INVEN_AMMO];
+			auto launcher_ptr = &p_ptr->inventory[INVEN_BOW];
+
 			if (ideal)
 			{
 				return INVEN_AMMO;
 			}
-			else if (p_ptr->inventory[INVEN_AMMO].k_idx &&
-			         object_similar(o_ptr, &p_ptr->inventory[INVEN_AMMO]) &&
-			         p_ptr->inventory[INVEN_AMMO].number + o_ptr->number < MAX_STACK_SIZE)
+			else if (quiver_ptr->k_ptr &&
+				 object_similar(o_ptr, quiver_ptr) &&
+				 quiver_ptr->number + o_ptr->number < MAX_STACK_SIZE)
 			{
 				return get_slot(INVEN_AMMO);
 			}
-			else if ((p_ptr->inventory[INVEN_BOW].k_idx) && (p_ptr->inventory[INVEN_BOW].tval == TV_BOW))
+			else if (launcher_ptr->k_ptr &&
+				(launcher_ptr->tval == TV_BOW) &&
+				(launcher_ptr->sval < 10))
 			{
-				if (p_ptr->inventory[INVEN_BOW].sval < 10)
-					return get_slot(INVEN_AMMO);
+				return get_slot(INVEN_AMMO);
 			}
 			return -1;
 		}
 
 	case TV_ARROW:
 		{
+			auto quiver_ptr = &p_ptr->inventory[INVEN_AMMO];
+			auto launcher_ptr = &p_ptr->inventory[INVEN_BOW];
+
 			if (ideal)
 			{
 				return INVEN_AMMO;
 			}
-			else if (p_ptr->inventory[INVEN_AMMO].k_idx &&
-			         object_similar(o_ptr, &p_ptr->inventory[INVEN_AMMO]) &&
-			         p_ptr->inventory[INVEN_AMMO].number + o_ptr->number < MAX_STACK_SIZE)
+			else if (quiver_ptr->k_ptr &&
+				object_similar(o_ptr, quiver_ptr) &&
+				quiver_ptr->number + o_ptr->number < MAX_STACK_SIZE)
 			{
 				return get_slot(INVEN_AMMO);
 			}
-			else if ((p_ptr->inventory[INVEN_BOW].k_idx) && (p_ptr->inventory[INVEN_BOW].tval == TV_BOW))
+			else if (launcher_ptr->k_ptr &&
+				(launcher_ptr->tval == TV_BOW) &&
+				(launcher_ptr->sval >= 10) &&
+				(launcher_ptr->sval < 20))
 			{
-				if ((p_ptr->inventory[INVEN_BOW].sval >= 10) && (p_ptr->inventory[INVEN_BOW].sval < 20))
-					return get_slot(INVEN_AMMO);
+				return get_slot(INVEN_AMMO);
 			}
 			return -1;
 		}
 
 	case TV_BOLT:
 		{
+			auto quiver_ptr = &p_ptr->inventory[INVEN_AMMO];
+			auto launcher_ptr = &p_ptr->inventory[INVEN_BOW];
+
 			if (ideal)
 			{
 				return INVEN_AMMO;
 			}
-			else if (p_ptr->inventory[INVEN_AMMO].k_idx &&
-			         object_similar(o_ptr, &p_ptr->inventory[INVEN_AMMO]) &&
-			         p_ptr->inventory[INVEN_AMMO].number + o_ptr->number < MAX_STACK_SIZE)
+			else if (quiver_ptr->k_ptr &&
+				 object_similar(o_ptr, quiver_ptr) &&
+				 quiver_ptr->number + o_ptr->number < MAX_STACK_SIZE)
 			{
 				return get_slot(INVEN_AMMO);
 			}
-			else if ((p_ptr->inventory[INVEN_BOW].k_idx) && (p_ptr->inventory[INVEN_BOW].tval == TV_BOW))
+			else if ((launcher_ptr->k_ptr) &&
+				 (launcher_ptr->tval == TV_BOW) &&
+				 (launcher_ptr->sval >= 20))
 			{
-				if (p_ptr->inventory[INVEN_BOW].sval >= 20)
-					return get_slot(INVEN_AMMO);
+				return get_slot(INVEN_AMMO);
 			}
 			return -1;
 		}
@@ -3667,15 +3332,15 @@ s16b wield_slot_ideal(object_type const *o_ptr, bool_ ideal)
  */
 s16b wield_slot(object_type const *o_ptr)
 {
-	return wield_slot_ideal(o_ptr, FALSE);
+	return wield_slot_ideal(o_ptr, false);
 }
 
 /*
  * Return a string mentioning how a given item is carried
  */
-static cptr mention_use(int i)
+static const char *mention_use(int i)
 {
-	cptr p;
+	const char *p;
 
 	/* Examine the location */
 	switch (i)
@@ -3776,9 +3441,9 @@ static cptr mention_use(int i)
  * Return a string describing how a given item is being worn.
  * Currently, only used for items in the equipment, not inventory.
  */
-cptr describe_use(int i)
+const char *describe_use(int i)
 {
-	cptr p = nullptr;
+	const char *p = nullptr;
 
 	switch (i)
 	{
@@ -3885,7 +3550,7 @@ static bool item_tester_okay(object_type const *o_ptr, object_filter_t const &fi
 	}
 
 	/* Require an item */
-	if (!o_ptr->k_idx)
+	if (!o_ptr->k_ptr)
 	{
 		return false;
 	}
@@ -3903,15 +3568,15 @@ static bool item_tester_okay(object_type const *o_ptr, object_filter_t const &fi
 
 
 
-static void show_equip_aux(bool_ mirror, object_filter_t const &filter);
-static void show_inven_aux(bool_ mirror, object_filter_t const &filter);
+static void show_equip_aux(bool mirror, object_filter_t const &filter);
+static void show_inven_aux(bool mirror, object_filter_t const &filter);
 
 /*
  * Choice window "shadow" of the "show_inven()" function
  */
 void display_inven()
 {
-	show_inven_aux(TRUE, object_filter::True());
+	show_inven_aux(true, object_filter::True());
 }
 
 
@@ -3921,7 +3586,7 @@ void display_inven()
  */
 void display_equip()
 {
-	show_equip_aux(TRUE, object_filter::True());
+	show_equip_aux(true, object_filter::True());
 }
 
 
@@ -3939,7 +3604,7 @@ byte get_item_letter_color(object_type const *o_ptr)
 	if (ego_item_p(o_ptr)) color = TERM_L_BLUE;
 	if (artifact_p(o_ptr)) color = TERM_YELLOW;
 	if (o_ptr->name1 && ( -1 != a_info[o_ptr->name1].set)) color = TERM_GREEN;
-	if (o_ptr->name1 && (a_info[o_ptr->name1].flags & TR_ULTIMATE) && (o_ptr->ident & (IDENT_MENTAL))) color = TERM_VIOLET;
+	if (o_ptr->name1 && (a_info[o_ptr->name1].flags & TR_ULTIMATE)) color = TERM_VIOLET;
 
 	return (color);
 }
@@ -3950,7 +3615,7 @@ byte get_item_letter_color(object_type const *o_ptr)
  *
  * Hack -- do not display "trailing" empty slots
  */
-void show_inven_aux(bool_ mirror, const object_filter_t &filter)
+void show_inven_aux(bool mirror, const object_filter_t &filter)
 {
 	int i, j, k, l, z = 0;
 	int row, col, len, lim;
@@ -3990,7 +3655,10 @@ void show_inven_aux(bool_ mirror, const object_filter_t &filter)
 		o_ptr = &p_ptr->inventory[i];
 
 		/* Skip non-objects */
-		if (!o_ptr->k_idx) continue;
+		if (!o_ptr->k_ptr)
+		{
+			continue;
+		}
 
 		/* Track */
 		z = i + 1;
@@ -4012,7 +3680,7 @@ void show_inven_aux(bool_ mirror, const object_filter_t &filter)
 		out_index[k] = i + 1;
 
 		/* Describe the object */
-		object_desc(o_name, o_ptr, TRUE, 3);
+		object_desc(o_name, o_ptr, true, 3);
 
 		/* Hack -- enforce max length */
 		o_name[lim] = '\0';
@@ -4068,7 +3736,10 @@ void show_inven_aux(bool_ mirror, const object_filter_t &filter)
 			byte a = object_attr(o_ptr);
 			char c = object_char(o_ptr);
 
-			if (!o_ptr->k_idx) c = ' ';
+			if (!o_ptr->k_ptr)
+			{
+				c = ' ';
+			}
 
 			Term_draw(col + 3, row + j, a, c);
 		}
@@ -4109,7 +3780,7 @@ void show_inven_aux(bool_ mirror, const object_filter_t &filter)
 
 static void show_inven(object_filter_t const &filter)
 {
-	show_inven_aux(FALSE, filter);
+	show_inven_aux(false, filter);
 }
 
 void show_inven_full()
@@ -4121,7 +3792,7 @@ void show_inven_full()
 
 static void show_equip(object_filter_t const &filter)
 {
-	show_equip_aux(FALSE, filter);
+	show_equip_aux(false, filter);
 }
 
 void show_equip_full()
@@ -4134,7 +3805,7 @@ void show_equip_full()
 /*
  * Display the equipment.
  */
-void show_equip_aux(bool_ mirror, object_filter_t const &filter)
+void show_equip_aux(bool mirror, object_filter_t const &filter)
 {
 	int i, j, k, l;
 	int row, col, len, lim, idx;
@@ -4186,14 +3857,14 @@ void show_equip_aux(bool_ mirror, object_filter_t const &filter)
 
 		/* Inform the player that he/she can't use a shield */
 		if ((p_ptr->body_parts[i - INVEN_WIELD] == INVEN_ARM) &&
-		                !o_ptr->k_idx &&
-		                p_ptr->inventory[i - INVEN_ARM + INVEN_WIELD].k_idx)
+			!o_ptr->k_ptr &&
+			p_ptr->inventory[i - INVEN_ARM + INVEN_WIELD].k_ptr)
 		{
 			object_type *q_ptr = &p_ptr->inventory[i - INVEN_ARM + INVEN_WIELD];
 			char q_name[80];
 
 			/* Description */
-			object_desc(q_name, q_ptr, TRUE, 3);
+			object_desc(q_name, q_ptr, true, 3);
 
 			/* Get weapon flags */
 			auto const flags = object_flags(q_ptr);
@@ -4218,7 +3889,7 @@ void show_equip_aux(bool_ mirror, object_filter_t const &filter)
 		}
 
 		if ((p_ptr->body_parts[i - INVEN_WIELD] == INVEN_WIELD) &&
-		                !o_ptr->k_idx)
+			!o_ptr->k_ptr)
 		{
 			sprintf(o_name, "(%s)", get_melee_name());
 
@@ -4239,7 +3910,7 @@ void show_equip_aux(bool_ mirror, object_filter_t const &filter)
 			idx++;
 
 			/* Description */
-			object_desc(o_name, o_ptr, TRUE, 3);
+			object_desc(o_name, o_ptr, true, 3);
 
 			/* Truncate the description */
 			o_name[lim] = 0;
@@ -4311,7 +3982,10 @@ void show_equip_aux(bool_ mirror, object_filter_t const &filter)
 			byte a = object_attr(o_ptr);
 			char c = object_char(o_ptr);
 
-			if (!o_ptr->k_idx) c = ' ';
+			if (!o_ptr->k_ptr)
+			{
+				c = ' ';
+			}
 
 			Term_draw(col + 3, row + j, a, c);
 		}
@@ -4403,7 +4077,7 @@ void toggle_inven_equip()
  *
  * The item can be negative to mean "item on floor".
  */
-bool_ verify(cptr prompt, int item)
+bool verify(const char *prompt, int item)
 {
 	char o_name[80];
 
@@ -4415,7 +4089,7 @@ bool_ verify(cptr prompt, int item)
 	o_ptr = get_object(item);
 
 	/* Describe */
-	object_desc(o_name, o_ptr, TRUE, 3);
+	object_desc(o_name, o_ptr, true, 3);
 
 	/* Prompt */
 	sprintf(out_val, "%s %s? ", prompt, o_name);
@@ -4430,7 +4104,7 @@ bool_ verify(cptr prompt, int item)
  *
  * The item can be negative to mean "item on floor".
  */
-static bool_ get_item_allow(int item)
+static bool get_item_allow(int item)
 {
 	/* Get object */
 	auto o_ptr = get_object(item);
@@ -4438,7 +4112,7 @@ static bool_ get_item_allow(int item)
 	/* No inscription */
 	if (o_ptr->inscription.empty())
 	{
-		return TRUE;
+		return true;
 	}
 
 	/* Find a '!' */
@@ -4451,7 +4125,7 @@ static bool_ get_item_allow(int item)
 		if ((s[1] == command_cmd) || (s[1] == '*'))
 		{
 			/* Verify the choice */
-			if (!verify("Really try", item)) return (FALSE);
+			if (!verify("Really try", item)) return false;
 		}
 
 		/* Find another '!' */
@@ -4459,7 +4133,7 @@ static bool_ get_item_allow(int item)
 	}
 
 	/* Allow it */
-	return (TRUE);
+	return true;
 }
 
 
@@ -4472,7 +4146,7 @@ static bool get_item_okay(int i, object_filter_t const &filter)
 	/* Illegal items */
 	if ((i < 0) || (i >= INVEN_TOTAL))
 	{
-		return (FALSE);
+		return false;
 	}
 
 	/* Verify the item */
@@ -4498,7 +4172,7 @@ static int get_tag(int *cp, char tag)
 		object_type *o_ptr = &p_ptr->inventory[i];
 
 		/* Skip non-objects */
-		if (!o_ptr->k_idx)
+		if (!o_ptr->k_ptr)
 		{
 			continue;
 		}
@@ -4522,7 +4196,7 @@ static int get_tag(int *cp, char tag)
 				*cp = i;
 
 				/* Success */
-				return (TRUE);
+				return true;
 			}
 
 			/* Check the special tags */
@@ -4532,7 +4206,7 @@ static int get_tag(int *cp, char tag)
 				*cp = i;
 
 				/* Success */
-				return (TRUE);
+				return true;
 			}
 
 			/* Find another '@' */
@@ -4541,7 +4215,7 @@ static int get_tag(int *cp, char tag)
 	}
 
 	/* No such tag */
-	return (FALSE);
+	return false;
 }
 
 /*
@@ -4621,7 +4295,7 @@ static void show_floor(int y, int x, object_filter_t const &filter)
 		o_ptr = &o_list[floor_list[i]];
 
 		/* Describe the object */
-		object_desc(o_name, o_ptr, TRUE, 3);
+		object_desc(o_name, o_ptr, true, 3);
 
 		/* Hack -- enforce max length */
 		o_name[lim] = '\0';
@@ -4688,26 +4362,26 @@ static void show_floor(int y, int x, object_filter_t const &filter)
  * This version of get_item() is called by get_item() when
  * the easy_floor is on.
  */
-static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter_t const &filter, select_by_name_t const &select_by_name)
+static bool get_item_floor(int *cp, const char *pmt, const char *str, int mode, object_filter_t const &filter, select_by_name_t const &select_by_name)
 {
 	char n1 = 0, n2 = 0, which = ' ';
 
 	int j, k, i1, i2, e1, e2;
 
-	bool_ done, item;
+	bool done, item;
 
-	bool_ oops = FALSE;
+	bool oops = false;
 
-	bool_ equip = FALSE;
-	bool_ inven = FALSE;
-	bool_ floor = FALSE;
-	bool_ automat = FALSE;
+	bool equip = false;
+	bool inven = false;
+	bool floor = false;
+	bool automat = false;
 
-	bool_ allow_equip = FALSE;
-	bool_ allow_inven = FALSE;
-	bool_ allow_floor = FALSE;
+	bool allow_equip = false;
+	bool allow_inven = false;
+	bool allow_floor = false;
 
-	bool_ toggle = FALSE;
+	bool toggle = false;
 
 	char tmp_val[160];
 	char out_val[160];
@@ -4734,7 +4408,7 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 			if (item_tester_okay(o_ptr, filter))
 			{
 				/* Success */
-				return (TRUE);
+				return true;
 			}
 		}
 
@@ -4742,16 +4416,16 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 		else if (get_item_okay(*cp, filter))
 		{
 			/* Success */
-			return (TRUE);
+			return true;
 		}
 	}
 
 
 	/* Extract args */
-	if (mode & (USE_EQUIP)) equip = TRUE;
-	if (mode & (USE_INVEN)) inven = TRUE;
-	if (mode & (USE_FLOOR)) floor = TRUE;
-	if (mode & (USE_AUTO)) automat = TRUE;
+	if (mode & (USE_EQUIP)) equip = true;
+	if (mode & (USE_INVEN)) inven = true;
+	if (mode & (USE_FLOOR)) floor = true;
+	if (mode & (USE_AUTO)) automat = true;
 
 
 	/* Paranoia XXX XXX XXX */
@@ -4759,10 +4433,10 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 
 
 	/* Not done */
-	done = FALSE;
+	done = false;
 
 	/* No item selected */
-	item = FALSE;
+	item = false;
 
 
 	/* Full inventory */
@@ -4797,22 +4471,22 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 	int const floor_num = floor_list.size(); // "int" for warning avoidance
 
 	/* Accept inventory */
-	if (i1 <= i2) allow_inven = TRUE;
+	if (i1 <= i2) allow_inven = true;
 
 	/* Accept equipment */
-	if (e1 <= e2) allow_equip = TRUE;
+	if (e1 <= e2) allow_equip = true;
 
 	/* Accept floor */
-	if (!floor_list.empty()) allow_floor = TRUE;
+	if (!floor_list.empty()) allow_floor = true;
 
 	/* Require at least one legal choice */
 	if (!allow_inven && !allow_equip && !allow_floor)
 	{
 		/* Oops */
-		oops = TRUE;
+		oops = true;
 
 		/* Done */
-		done = TRUE;
+		done = true;
 	}
 
 	/* Analyze choices */
@@ -4911,7 +4585,7 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 		else if (command_wrk == (USE_FLOOR))
 		{
 			j = floor_top;
-			k = MIN(floor_top + 23, floor_num) - 1;
+			k = std::min(floor_top + 23, floor_num) - 1;
 
 			/* Extract the legal requests */
 			n1 = I2A(j - floor_top);
@@ -5016,7 +4690,7 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 		{
 		case ESCAPE:
 			{
-				done = TRUE;
+				done = true;
 				break;
 			}
 
@@ -5078,7 +4752,7 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 				 * is only one item, we will always select it.
 				 * If we aren't examining the floor and there is only
 				 * one item, we will select it if floor_query_flag
-				 * is FALSE.
+				 * is false.
 				 */
 				if (floor_num == 1)
 				{
@@ -5090,14 +4764,14 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 						/* Allow player to "refuse" certain actions */
 						if (!get_item_allow(k))
 						{
-							done = TRUE;
+							done = true;
 							break;
 						}
 
 						/* Accept that choice */
 						(*cp) = k;
-						item = TRUE;
-						done = TRUE;
+						item = true;
+						done = true;
 
 						break;
 					}
@@ -5147,14 +4821,14 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 				/* Allow player to "refuse" certain actions */
 				if (!get_item_allow(k))
 				{
-					done = TRUE;
+					done = true;
 					break;
 				}
 
 				/* Accept that choice */
 				(*cp) = k;
-				item = TRUE;
-				done = TRUE;
+				item = true;
+				done = true;
 				break;
 			}
 
@@ -5184,14 +4858,14 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 						/* Allow player to "refuse" certain actions */
 						if (!get_item_allow(k))
 						{
-							done = TRUE;
+							done = true;
 							break;
 						}
 
 						/* Accept that choice */
 						(*cp) = k;
-						item = TRUE;
-						done = TRUE;
+						item = true;
+						done = true;
 					}
 					break;
 				}
@@ -5206,14 +4880,14 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 				/* Allow player to "refuse" certain actions */
 				if (!get_item_allow(k))
 				{
-					done = TRUE;
+					done = true;
 					break;
 				}
 
 				/* Accept that choice */
 				(*cp) = k;
-				item = TRUE;
-				done = TRUE;
+				item = true;
+				done = true;
 				break;
 			}
 
@@ -5228,8 +4902,8 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 				if (auto i = select_by_name(filter))
 				{
 					(*cp) = *i;
-					item = TRUE;
-					done = TRUE;
+					item = true;
+					done = true;
 				}
 				break;
 			}
@@ -5293,21 +4967,21 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 				/* Verify the item */
 				if (ver && !verify("Try", k))
 				{
-					done = TRUE;
+					done = true;
 					break;
 				}
 
 				/* Allow player to "refuse" certain actions */
 				if (!get_item_allow(k))
 				{
-					done = TRUE;
+					done = true;
 					break;
 				}
 
 				/* Accept that choice */
 				(*cp) = k;
-				item = TRUE;
-				done = TRUE;
+				item = true;
+				done = true;
 				break;
 			}
 		}
@@ -5359,7 +5033,7 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
 /*
  * Let the user select an item, save its "index"
  *
- * Return TRUE only if an acceptable item was chosen by the user.
+ * Return true only if an acceptable item was chosen by the user.
  *
  * The selected item must satisfy the "item_tester_hook()" function,
  * if that hook is set, and the "item_tester_tval", if that value is set.
@@ -5383,29 +5057,29 @@ static bool_ get_item_floor(int *cp, cptr pmt, cptr str, int mode, object_filter
  * and prompt for its use.
  *
  * If a legal item is selected from the inventory, we save it in "cp"
- * directly (0 to 35), and return TRUE.
+ * directly (0 to 35), and return true.
  *
  * If a legal item is selected from the floor, we save it in "cp" as
- * a negative (-1 to -511), and return TRUE.
+ * a negative (-1 to -511), and return true.
  *
  * If no item is available, we do nothing to "cp", and we display a
- * warning message, using "str" if available, and return FALSE.
+ * warning message, using "str" if available, and return false.
  *
- * If no item is selected, we do nothing to "cp", and return FALSE.
+ * If no item is selected, we do nothing to "cp", and return false.
  *
  * Global "p_ptr->command_new" is used when viewing the inventory or equipment
  * to allow the user to enter a command while viewing those screens, and
  * also to induce "auto-enter" of stores, and other such stuff.
  *
  * Global "p_ptr->command_wrk" is used to choose between equip/inven listings.
- * If it is TRUE then we are viewing inventory, else equipment.
+ * If it is true then we are viewing inventory, else equipment.
  *
  * We always erase the prompt when we are done, leaving a blank line,
  * or a warning message, if appropriate, if no items are available.
  */
-bool_ get_item(int *cp, cptr pmt, cptr str, int mode, object_filter_t const &filter, select_by_name_t const &select_by_name)
+bool get_item(int *cp, const char *pmt, const char *str, int mode, object_filter_t const &filter, select_by_name_t const &select_by_name)
 {
-	automatizer_create = FALSE;
+	automatizer_create = false;
 	return get_item_floor(cp, pmt, str, mode, filter, select_by_name);
 }
 
@@ -5414,12 +5088,12 @@ bool_ get_item(int *cp, cptr pmt, cptr str, int mode, object_filter_t const &fil
  */
 static bool item_tester_hook_getable(object_type const *o_ptr)
 {
-	if (!inven_carry_okay(o_ptr)) return (FALSE);
+	if (!inven_carry_okay(o_ptr)) return false;
 
-	if ((o_ptr->tval == TV_HYPNOS) && (!get_skill(SKILL_SYMBIOTIC))) return FALSE;
+	if ((o_ptr->tval == TV_HYPNOS) && (!get_skill(SKILL_SYMBIOTIC))) return false;
 
 	/* Assume yes */
-	return (TRUE);
+	return true;
 }
 
 /*
@@ -5465,10 +5139,6 @@ int wear_ammo(object_type *o_ptr)
 	{
 		/* Warn the player */
 		msg_print("Oops! It feels deathly cold!");
-
-		/* Note the curse */
-		o_ptr->ident |= (IDENT_SENSE);
-		o_ptr->sense = SENSE_CURSED;
 	}
 
 	/* Recalculate bonuses */
@@ -5519,7 +5189,7 @@ void pickup_ammo()
 
 				/* Describe the object */
 				char o_name[80];
-				object_desc(o_name, o_ptr, TRUE, 3);
+				object_desc(o_name, o_ptr, true, 3);
 
 				/* Message */
 				msg_format("You have %s (%c).", o_name, index_to_label(slot));
@@ -5569,14 +5239,12 @@ void object_pickup(int this_o_idx)
 	/* Access the item */
 	o_ptr = &o_list[this_o_idx];
 
-	if (p_ptr->auto_id)
-	{
-		object_aware(o_ptr);
-		object_known(o_ptr);
-	}
+	/* Auto-identify */
+	object_aware(o_ptr);
+	object_known(o_ptr);
 
 	/* Describe the object */
-	object_desc(o_name, o_ptr, TRUE, 3);
+	object_desc(o_name, o_ptr, true, 3);
 
 	/* Note that the pack is too full */
 	if (!inven_carry_okay(o_ptr) && !object_similar(o_ptr, &p_ptr->inventory[INVEN_AMMO]))
@@ -5606,7 +5274,7 @@ void object_pickup(int this_o_idx)
 		}
 		else
 		{
-			slot = inven_carry(o_ptr, FALSE);
+			slot = inven_carry(o_ptr, false);
 		}
 
 		/* Sanity check */
@@ -5618,16 +5286,13 @@ void object_pickup(int this_o_idx)
 			object_track(o_ptr);
 
 			/* Describe the object */
-			object_desc(o_name, o_ptr, TRUE, 3);
+			object_desc(o_name, o_ptr, true, 3);
 
 			/* Message */
 			msg_format("You have %s (%c).", o_name, index_to_label(slot));
 
 			/* Delete the object */
 			delete_object_idx(this_o_idx);
-
-                        /* Sense object. */
-                        sense_inventory();
 		}
 	}
 }
@@ -5651,7 +5316,7 @@ static void absorb_gold(cave_type const *c_ptr)
 		if (o_ptr->tval == TV_GOLD)
 		{
 			char goldname[80];
-			object_desc(goldname, o_ptr, TRUE, 3);
+			object_desc(goldname, o_ptr, true, 3);
 			/* Message */
 			msg_format("You have found %ld gold pieces worth of %s.",
 				   (long)o_ptr->pval, goldname);
@@ -5687,21 +5352,14 @@ static void sense_floor(cave_type const *c_ptr)
 		}
 	}
 
-	/* Mega Hack -- If we have auto-Id, do an ID sweep *before* squleching,
-	 * so that we don't have to walk over things twice to get them
-	 * squelched.  --dsb */
-	if (p_ptr->auto_id)
+	// Do an ID sweep *before* squleching so that we don't
+	// have to walk over things twice to get them squelched.
+	for (auto const o_idx: floor_object_idxs)
 	{
-		for (auto const o_idx: floor_object_idxs)
-		{
-			object_type *o_ptr = get_object(o_idx);
-			object_aware(o_ptr);
-			object_known(o_ptr);
-		}
+		object_type *o_ptr = get_object(o_idx);
+		object_aware(o_ptr);
+		object_known(o_ptr);
 	}
-
-	/* Sense floor tile */
-	sense_objects(floor_object_idxs);
 }
 
 void py_pickup_floor(int pickup)
@@ -5737,7 +5395,7 @@ void py_pickup_floor(int pickup)
 		{
 			/* Describe */
 			char o_name[80] = "";
-			object_desc(o_name, o_ptr, TRUE, 3);
+			object_desc(o_name, o_ptr, true, 3);
 
 			/* Message */
 			msg_format("You see %s.", o_name);
@@ -5745,13 +5403,13 @@ void py_pickup_floor(int pickup)
 		else
 		{
 			/* Are we actually going to pick up? */
-			bool_ do_pickup = TRUE;
+			bool do_pickup = true;
 
 			/* Hack -- query every item */
 			if (options->carry_query_flag || !can_carry_heavy(&o_list[floor_o_idx]))
 			{
 				char o_name[80] = "";
-				object_desc(o_name, o_ptr, TRUE, 3);
+				object_desc(o_name, o_ptr, true, 3);
 
 				if (!inven_carry_okay(o_ptr) && !object_similar(o_ptr, &p_ptr->inventory[INVEN_AMMO]))
 				{
@@ -5784,19 +5442,19 @@ void py_pickup_floor(int pickup)
 		else
 		{
 			/* Prompt for the item to pick up */
-			cptr q = "Get which item? ";
-			cptr s = "You have no room in your pack for any of the items here.";
+			const char *q = "Get which item? ";
+			const char *s = "You have no room in your pack for any of the items here.";
 			int item;
 			if (get_item(&item, q, s, (USE_FLOOR), item_tester_hook_getable))
 			{
 				s16b this_o_idx = 0 - item;
 
-				bool_ do_pickup = TRUE;
+				bool do_pickup = true;
 				if (!can_carry_heavy(&o_list[this_o_idx]))
 				{
 					/* Describe the object */
 					char o_name[80] = "";
-					object_desc(o_name, &o_list[this_o_idx], TRUE, 3);
+					object_desc(o_name, &o_list[this_o_idx], true, 3);
 
 					/* Prompt */
 					char out_val[160];
@@ -5844,7 +5502,7 @@ static void gain_flag_group(object_type *o_ptr)
 	{
 		char o_name[80];
 
-		object_desc(o_name, o_ptr, FALSE, 0);
+		object_desc(o_name, o_ptr, false, 0);
 		msg_format("%s gains access to the %s realm.", o_name, flags_groups()[grp].name);
 	}
 }
@@ -5917,7 +5575,7 @@ static void gain_flag_group_flag(object_type *o_ptr)
 
 		// Describe what happened
 		char o_name[80];
-		object_desc(o_name, o_ptr, FALSE, 0);
+		object_desc(o_name, o_ptr, false, 0);
 		msg_format("%s gains a new power from the %s realm.", o_name, flags_groups()[grp].name);
 
 		// We're done.
@@ -5986,12 +5644,12 @@ void object_gain_level(object_type *o_ptr)
 /*
  * Item sets fcts
  */
-bool_ wield_set(s16b a_idx, s16b set_idx, bool_ silent)
+bool wield_set(s16b a_idx, s16b set_idx, bool silent)
 {
 	auto &set_info = game->edit_data.set_info;
 	auto const &a_info = game->edit_data.a_info;
 
-	if ( -1 == a_info[a_idx].set) return (FALSE);
+	if ( -1 == a_info[a_idx].set) return false;
 
 	auto s_ptr = &set_info[set_idx];
 
@@ -6007,7 +5665,7 @@ bool_ wield_set(s16b a_idx, s16b set_idx, bool_ silent)
 	if (!s_ptr->arts[i].present)
 	{
 		s_ptr->num_use++;
-		s_ptr->arts[i].present = TRUE;
+		s_ptr->arts[i].present = true;
 		if (s_ptr->num_use > s_ptr->num)
 		{
 			msg_print("ERROR!! s_ptr->num_use > s_ptr->use");
@@ -6016,18 +5674,18 @@ bool_ wield_set(s16b a_idx, s16b set_idx, bool_ silent)
 		{
 			cmsg_format(TERM_GREEN, "%s item set completed.", s_ptr->name.c_str());
 		}
-		return (TRUE);
+		return true;
 	}
 
-	return (FALSE);
+	return false;
 }
 
-bool_ takeoff_set(s16b a_idx, s16b set_idx)
+bool takeoff_set(s16b a_idx, s16b set_idx)
 {
 	auto &set_info = game->edit_data.set_info;
 	auto const &a_info = game->edit_data.a_info;
 
-	if ( -1 == a_info[a_idx].set) return (FALSE);
+	if ( -1 == a_info[a_idx].set) return false;
 
 	auto s_ptr = &set_info[set_idx];
 
@@ -6042,7 +5700,7 @@ bool_ takeoff_set(s16b a_idx, s16b set_idx)
 
 	if (s_ptr->arts[i].present)
 	{
-		s_ptr->arts[i].present = FALSE;
+		s_ptr->arts[i].present = false;
 
 		assert(s_ptr->num_use > 0);
 		s_ptr->num_use--;
@@ -6052,10 +5710,10 @@ bool_ takeoff_set(s16b a_idx, s16b set_idx)
 			cmsg_format(TERM_GREEN, "%s item set not complete anymore.", s_ptr->name.c_str());
 		}
 
-		return (TRUE);
+		return true;
 	}
 
-	return (FALSE);
+	return false;
 }
 
 void apply_set(s16b a_idx, s16b set_idx)
@@ -6117,81 +5775,87 @@ static void apply_flags_set(s16b a_idx, s16b set_idx, object_flag_set *f)
 	}
 }
 
-/*
- * Return the "attr" for a given item.
- * Use "flavor" if available.
- * Default to user definitions.
- */
-
 byte object_attr(object_type const *o_ptr)
 {
-	auto const &k_info = game->edit_data.k_info;
 	auto const &random_artifacts = game->random_artifacts;
+
+	auto k_ptr = o_ptr->k_ptr;
 
 	if (o_ptr->tval == TV_RANDART)
 	{
 		return random_artifacts[o_ptr->sval].attr;
 	}
-	else if (k_info[o_ptr->k_idx].flavor)
+	else if (!k_ptr)
 	{
-		return misc_to_attr[k_info[o_ptr->k_idx].flavor];
+		return 0;
+	}
+	else if (k_ptr->flavor)
+	{
+		return misc_to_attr[k_ptr->flavor];
 	}
 	else
 	{
-		return k_info[o_ptr->k_idx].x_attr;
+		return k_ptr->x_attr;
 	}
 }
 
-byte object_attr_default(object_type *o_ptr)
+byte object_attr_default(object_type const *o_ptr)
 {
-	auto const &k_info = game->edit_data.k_info;
 	auto const &random_artifacts = game->random_artifacts;
+
+	auto k_ptr = o_ptr->k_ptr;
 
 	if (o_ptr->tval == TV_RANDART)
 	{
 		return random_artifacts[o_ptr->sval].attr;
 	}
-	else if (k_info[o_ptr->k_idx].flavor)
+	else if (!k_ptr)
 	{
-		return misc_to_attr[k_info[o_ptr->k_idx].flavor];
+		return 0;
+	}
+	else if (k_ptr->flavor)
+	{
+		return misc_to_attr[k_ptr->flavor];
 	}
 	else
 	{
-		return k_info[o_ptr->k_idx].d_attr;
+		return k_ptr->d_attr;
 	}
 }
-
-/*
- * Return the "char" for a given item.
- * Use "flavor" if available.
- * Default to user definitions.
- */
 
 char object_char(object_type const *o_ptr)
 {
-	auto const &k_info = game->edit_data.k_info;
+	auto k_ptr = o_ptr->k_ptr;
 
-	if (k_info[o_ptr->k_idx].flavor)
+	if (!k_ptr)
 	{
-		return misc_to_char[k_info[o_ptr->k_idx].flavor];
+		return '\0';
+	}
+	else if (k_ptr->flavor)
+	{
+		return misc_to_char[k_ptr->flavor];
 	}
 	else
 	{
-		return k_info[o_ptr->k_idx].x_char;
+		return k_ptr->x_char;
 	}
 }
 
 char object_char_default(object_type const *o_ptr)
 {
-	auto const &k_info = game->edit_data.k_info;
+	auto k_ptr = o_ptr->k_ptr;
 
-	if (k_info[o_ptr->k_idx].flavor)
+	if (!k_ptr)
 	{
-		return misc_to_char[k_info[o_ptr->k_idx].flavor];
+		return '\0';
+	}
+	else if (k_ptr->flavor)
+	{
+		return misc_to_char[k_ptr->flavor];
 	}
 	else
 	{
-		return k_info[o_ptr->k_idx].d_char;
+		return k_ptr->d_char;
 	}
 }
 
@@ -6200,13 +5864,11 @@ char object_char_default(object_type const *o_ptr)
  */
 bool artifact_p(object_type const *o_ptr)
 {
-	auto const &k_info = game->edit_data.k_info;
-
 	return
 		(o_ptr->tval == TV_RANDART) ||
 		(o_ptr->name1 ? true : false) ||
 	        (!o_ptr->artifact_name.empty()) ||
-		((k_info[o_ptr->k_idx].flags & TR_NORM_ART) ? true : false);
+		((o_ptr->k_ptr && (o_ptr->k_ptr->flags & TR_NORM_ART)) ? true : false);
 }
 
 /**
@@ -6214,7 +5876,7 @@ bool artifact_p(object_type const *o_ptr)
  */
 bool ego_item_p(object_type const *o_ptr)
 {
-	return o_ptr->name2 || (o_ptr->name2b ? TRUE : FALSE);
+	return o_ptr->name2 || (o_ptr->name2b ? true : false);
 }
 
 /*
@@ -6226,9 +5888,9 @@ bool is_ego_p(object_type const *o_ptr, s16b ego)
 }
 
 /**
- * Is the given object identified as cursed?
+ * Is the given object cursed?
  */
 bool cursed_p(object_type const *o_ptr)
 {
-	return o_ptr->ident & (IDENT_CURSED);
+	return bool(o_ptr->art_flags & TR_CURSED);
 }

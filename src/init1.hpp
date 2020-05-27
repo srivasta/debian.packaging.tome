@@ -1,6 +1,6 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 #include "dungeon_flag_set.hpp"
 
 int color_char_to_attr(char c);
@@ -24,4 +24,4 @@ errr init_st_info_txt(FILE *fp);
 errr init_ow_info_txt(FILE *fp);
 errr init_wf_info_txt(FILE *fp);
 errr grab_one_dungeon_flag(dungeon_flag_set *flags, const char *str);
-errr process_dungeon_file(cptr name, int *yval, int *xval, int ymax, int xmax, bool_ init, bool_ full);
+errr process_dungeon_file(const char *name, int *yval, int *xval, int ymax, int xmax, bool init, bool full);

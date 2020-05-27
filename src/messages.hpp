@@ -1,6 +1,6 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 #include "message.hpp"
 
 #include <boost/circular_buffer.hpp>
@@ -41,7 +41,7 @@ public:
 	/**
 	 * Add a message.
 	 */
-	void add(cptr msg, byte color);
+	void add(const char *msg, byte color);
 
 	/**
 	 * Add a message.

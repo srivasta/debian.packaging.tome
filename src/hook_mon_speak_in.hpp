@@ -1,8 +1,8 @@
 #pragma once
 
-#include "h-basic.h"
+#include "h-basic.hpp"
 
 struct hook_mon_speak_in {
 	s32b m_idx;
-	cptr m_name;
+	const char *m_name;
 };

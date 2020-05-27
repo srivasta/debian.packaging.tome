@@ -27,9 +27,8 @@
 #include "tome/squelch/object_status.hpp"
 #include "tome/squelch/automatizer.hpp"
 #include "util.hpp"
-#include "util.h"
-#include "variable.h"
 #include "variable.hpp"
+#include "z-form.hpp"
 
 #include <algorithm>
 #include <deque>
@@ -58,10 +57,10 @@ using squelch::StatusCondition;
 
 static squelch::Automatizer *automatizer = nullptr;
 
+bool automatizer_create = false;
+
 void squeltch_grid()
 {
-	auto const &k_info = game->edit_data.k_info;
-
 	if (!automatizer_enabled)
 	{
 		return;
@@ -77,7 +76,7 @@ void squeltch_grid()
 		object_type * o_ptr = &o_list[this_o_idx];
 
 		// We've now seen one of these
-		if (!k_info[o_ptr->k_idx].flavor)
+		if (!o_ptr->k_ptr->flavor)
 		{
 			object_aware(o_ptr);
 		}
@@ -103,7 +102,7 @@ void squeltch_inventory()
 		for (int i = 0; i < INVEN_PACK; i++)
 		{
 			object_type *o_ptr = &p_ptr->inventory[i];
-			if ((o_ptr->k_idx > 0) && automatizer->apply_rules(o_ptr, i))
+			if (o_ptr->k_ptr && automatizer->apply_rules(o_ptr, i))
 			{
 				// We have changes
 				changed = true;
@@ -207,10 +206,6 @@ static void automatizer_save_rules()
 		}
 	}
 
-	// Pretty-printing options
-	jsoncons::output_format format;
-	format.indent(2);
-
 	// Convert to a JSON document
 	auto rules_document = automatizer->to_json();
 
@@ -223,7 +218,9 @@ static void automatizer_save_rules()
 	}
 
 	// Write JSON to output
-	of << jsoncons::pretty_print(rules_document, format);
+	jsoncons::serialization_options serialization_options;
+	serialization_options.indent(2);
+	of << jsoncons::pretty_print(rules_document, serialization_options);
 	if (of.fail())
 	{
 		error();
@@ -251,16 +248,16 @@ static void rename_rule(Rule *rule)
 void do_cmd_automatizer()
 {
 	int active = ACTIVE_LIST;
-	cptr keys;
-	cptr keys2;
-	cptr keys3;
-	std::vector<cptr> rule_names;
+	const char *keys;
+	const char *keys2;
+	const char *keys3;
+	std::vector<const char *> rule_names;
 
 	if (!automatizer_enabled)
 	{
 		if (msg_box_auto("Automatizer is currently disabled, enable it? (y/n)") == 'y')
 		{
-			automatizer_enabled = TRUE;
+			automatizer_enabled = true;
 		}
 		else
 			return;
@@ -270,7 +267,7 @@ void do_cmd_automatizer()
 
 	automatizer->reset_view();
 
-	while (1)
+	while (true)
 	{
 		Term_clear();
 
@@ -367,7 +364,7 @@ void do_cmd_automatizer()
 			}
 			else if (c == 'k')
 			{
-				automatizer_enabled = FALSE;
+				automatizer_enabled = false;
 				break;
 			}
 			else if (c == '\t')
@@ -419,6 +416,8 @@ void do_cmd_automatizer()
 			}
 			else if (c == 'a')
 			{
+				if (!automatizer->selected_rule())
+					continue;
 				automatizer->add_new_condition(
 					squelch::new_condition_interactive);
 			}
@@ -432,7 +431,7 @@ void do_cmd_automatizer()
 				int new_sel =
 					automatizer->remove_current_selection();
 
-				if (new_sel == -1)
+				if (!new_sel)
 				{
 					active = ACTIVE_LIST;
 				}
@@ -585,11 +584,22 @@ bool automatizer_load(boost::filesystem::path const &path)
 	jsoncons::json rules_json;
 	try
 	{
-		rules_json = jsoncons::json::parse_file(path.string());
+		// Open
+		std::ifstream ifs(
+			path.string(),
+			std::ifstream::in | std::ifstream::binary);
+		// Parse
+		ifs >> rules_json;
 	}
 	catch (jsoncons::json_exception const &exc)
 	{
 		msg_format("Error parsing automatizer rules from '%s'.", path.c_str());
+		msg_print(exc.what());
+		return false;
+	}
+	catch (const std::ifstream::failure &exc)
+	{
+		msg_format("I/O error reading automatizer rules from '%s'.", path.c_str());
 		msg_print(exc.what());
 		return false;
 	}

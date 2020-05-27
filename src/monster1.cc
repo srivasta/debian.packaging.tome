@@ -20,12 +20,14 @@
 #include "variable.hpp"
 #include "wilderness_map.hpp"
 #include "wilderness_type_info.hpp"
+#include "z-form.hpp"
+#include "z-term.hpp"
 
 /*
  * Pronoun arrays, by gender.
  */
-static cptr wd_he[3] = { "it", "he", "she" };
-static cptr wd_his[3] = { "its", "his", "her" };
+static const char *wd_he[3] = { "it", "he", "she" };
+static const char *wd_his[3] = { "its", "his", "her" };
 
 
 /*
@@ -50,19 +52,20 @@ static cptr wd_his[3] = { "its", "his", "her" };
  */
 static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 {
-	bool_ old = FALSE;
-	bool_ sin = FALSE;
+	bool old = false;
+	bool sin = false;
 
 	int m, n, r;
 
-	cptr p, q;
+	const char *p;
+	const char *q;
 
-	bool_ breath = FALSE;
-	bool_ magic = FALSE;
+	bool breath = false;
+	bool magic = false;
 
-	int	vn = 0;
+	int vn = 0;
 	byte color[64];
-	cptr	vp[64];
+	const char *vp[64];
 
 	/* Shorthand */
 	auto const flags = r_ptr->flags;
@@ -115,7 +118,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 
 
 	/* Nothing yet */
-	old = FALSE;
+	old = false;
 
 	/* Describe location */
 	if (r_ptr->flags & RF_PET)
@@ -123,7 +126,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 		text_out(format("%^s is ", wd_he[msex]));
 		text_out_c(TERM_L_BLUE, "friendly");
 		text_out(" to you");
-		old = TRUE;
+		old = true;
 	}
 
 	/* Describe location */
@@ -134,7 +137,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 		else
 			text_out(format("%^s ", wd_he[msex]));
 		text_out_c(TERM_L_GREEN, "lives in the town or the wilderness");
-		old = TRUE;
+		old = true;
 	}
 	else
 	{
@@ -153,7 +156,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 			text_out_c(TERM_L_GREEN, format("%d", r_ptr->level));
 		}
 
-		old = TRUE;
+		old = true;
 	}
 
 
@@ -167,7 +170,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 		else
 		{
 			text_out(format("%^s ", wd_he[msex]));
-			old = TRUE;
+			old = true;
 		}
 		text_out("moves");
 
@@ -225,7 +228,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 		else
 		{
 			text_out(format("%^s ", wd_he[msex]));
-			old = TRUE;
+			old = true;
 		}
 
 		/* Describe */
@@ -236,7 +239,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 	if (old)
 	{
 		text_out(".  ");
-		old = FALSE;
+		old = false;
 	}
 
 
@@ -271,7 +274,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 		else text_out(" creature");
 
 		/* Group some variables */
-		if (TRUE)
+		if (true)
 		{
 			long i, j;
 
@@ -411,7 +414,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 	if (vn)
 	{
 		/* Note breath */
-		breath = TRUE;
+		breath = true;
 
 		/* Intro */
 		text_out(format("%^s", wd_he[msex]));
@@ -503,7 +506,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 	if (vn)
 	{
 		/* Note magic */
-		magic = TRUE;
+		magic = true;
 
 		/* Intro */
 		if (breath)
@@ -824,7 +827,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 
 	/* How aware is it? */
 	{
-		cptr act;
+		const char *act;
 
 		if (r_ptr->sleep > 200)
 		{
@@ -894,10 +897,10 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 		if (r_ptr->flags & RF_ONLY_ITEM) drop_gold = 0;
 
 		/* No "n" needed */
-		sin = FALSE;
+		sin = false;
 
 		/* Count maximum drop */
-		n = MAX(drop_gold, drop_item);
+		n = std::max(drop_gold, drop_item);
 
 		/* Intro text */
 		if (n == 0)
@@ -908,7 +911,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 		else if (n == 1)
 		{
 			text_out(format("%^s may carry a", wd_he[msex]));
-			sin = TRUE;
+			sin = true;
 		}
 		else if (n == 2)
 		{
@@ -930,7 +933,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 		else if (flags & RF_DROP_GOOD)
 		{
 			p = " good";
-			sin = FALSE;
+			sin = false;
 		}
 
 		/* Okay */
@@ -945,7 +948,7 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 		{
 			/* Handle singular "an" */
 			if (sin) text_out("n");
-			sin = FALSE;
+			sin = false;
 
 			/* Dump "object(s)" */
 			if (p) text_out_c(TERM_ORANGE, p);
@@ -960,11 +963,11 @@ static void roff_aux(std::shared_ptr<monster_race const> r_ptr)
 		if (drop_gold)
 		{
 			/* Cancel prefix */
-			if (!p) sin = FALSE;
+			if (!p) sin = false;
 
 			/* Handle singular "an" */
 			if (sin) text_out("n");
-			sin = FALSE;
+			sin = false;
 
 			/* Dump "treasure(s)" */
 			if (p) text_out(p);
@@ -1376,190 +1379,99 @@ void display_roff(int r_idx, int ego)
 }
 
 
-bool_ monster_quest(int r_idx)
+bool monster_quest(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
 	/* Random quests are in the dungeon */
-	if (r_ptr->flags & RF_WILD_ONLY) return FALSE;
+	if (r_ptr->flags & RF_WILD_ONLY) return false;
 
 	/* No random quests for aquatic monsters */
-	if (r_ptr->flags & RF_AQUATIC) return FALSE;
+	if (r_ptr->flags & RF_AQUATIC) return false;
 
 	/* No random quests for multiplying monsters */
-	if (r_ptr->spells & SF_MULTIPLY) return FALSE;
+	if (r_ptr->spells & SF_MULTIPLY) return false;
 
-	return TRUE;
+	return true;
 }
 
-
-bool_ monster_dungeon(int r_idx)
+bool monster_dungeon(const monster_race *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
-	if (!(r_ptr->flags & RF_WILD_ONLY))
-		return TRUE;
-	else
-		return FALSE;
+	return !(r_ptr->flags & RF_WILD_ONLY);
 }
 
-
-static bool_ monster_ocean(int r_idx)
+static bool monster_ocean(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
-	if (r_ptr->flags & RF_WILD_OCEAN)
-		return TRUE;
-	else
-		return FALSE;
+	return bool(r_ptr->flags & RF_WILD_OCEAN);
 }
 
-
-static bool_ monster_shore(int r_idx)
+static bool monster_shore(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
-	if (r_ptr->flags & RF_WILD_SHORE)
-		return TRUE;
-	else
-		return FALSE;
+	return bool(r_ptr->flags & RF_WILD_SHORE);
 }
 
-
-static bool_ monster_waste(int r_idx)
+static bool monster_waste(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
-	if (r_ptr->flags & RF_WILD_WASTE)
-		return TRUE;
-	else
-		return FALSE;
+	return bool(r_ptr->flags & RF_WILD_WASTE);
 }
 
-
-static bool_ monster_town(int r_idx)
+static bool monster_town(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
-	if (r_ptr->flags & RF_WILD_TOWN)
-		return TRUE;
-	else
-		return FALSE;
+	return bool(r_ptr->flags & RF_WILD_TOWN);
 }
 
-
-static bool_ monster_wood(int r_idx)
+static bool monster_wood(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
-	if (r_ptr->flags & RF_WILD_WOOD)
-		return TRUE;
-	else
-		return FALSE;
+	return bool(r_ptr->flags & RF_WILD_WOOD);
 }
 
-
-static bool_ monster_volcano(int r_idx)
+static bool monster_volcano(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
-	if (r_ptr->flags & RF_WILD_VOLCANO)
-		return TRUE;
-	else
-		return FALSE;
+	return bool(r_ptr->flags & RF_WILD_VOLCANO);
 }
 
-
-static bool_ monster_mountain(int r_idx)
+static bool monster_mountain(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
-	if (r_ptr->flags & RF_WILD_MOUNTAIN)
-		return TRUE;
-	else
-		return FALSE;
+	return bool(r_ptr->flags & RF_WILD_MOUNTAIN);
 }
 
-
-static bool_ monster_grass(int r_idx)
+static bool monster_grass(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
-
-	auto r_ptr = &r_info[r_idx];
-
-	if (r_ptr->flags & RF_WILD_GRASS)
-		return TRUE;
-	else
-		return FALSE;
+	return bool(r_ptr->flags & RF_WILD_GRASS);
 }
 
-
-static bool_ monster_deep_water(int r_idx)
+static bool monster_deep_water(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
+	if (!monster_dungeon(r_ptr))
+	{
+		return false;
+	}
 
-	auto r_ptr = &r_info[r_idx];
-
-	if (!monster_dungeon(r_idx)) return FALSE;
-
-	if (r_ptr->flags & RF_AQUATIC)
-		return TRUE;
-	else
-		return FALSE;
+	return bool(r_ptr->flags & RF_AQUATIC);
 }
 
-
-static bool_ monster_shallow_water(int r_idx)
+static bool monster_shallow_water(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
+	if (!monster_dungeon(r_ptr))
+	{
+		return false;
+	}
 
-	auto r_ptr = &r_info[r_idx];
-
-	if (!monster_dungeon(r_idx)) return FALSE;
-
-	if (r_ptr->flags & RF_AURA_FIRE)
-		return FALSE;
-	else
-		return TRUE;
+	return !(r_ptr->flags & RF_AURA_FIRE);
 }
 
-
-static bool_ monster_lava(int r_idx)
+static bool monster_lava(monster_race const *r_ptr)
 {
-	auto const &r_info = game->edit_data.r_info;
+	if (!monster_dungeon(r_ptr))
+	{
+		return false;
+	}
 
-	auto r_ptr = &r_info[r_idx];
-
-	if (!monster_dungeon(r_idx)) return FALSE;
-
-	if (((r_ptr->flags & RF_IM_FIRE) ||
-	                (r_ptr->flags & RF_CAN_FLY)) &&
-	                !(r_ptr->flags & RF_AURA_COLD))
-		return TRUE;
-	else
-		return FALSE;
+	return ((r_ptr->flags & RF_IM_FIRE) ||
+		(r_ptr->flags & RF_CAN_FLY)) &&
+		!(r_ptr->flags & RF_AURA_COLD);
 }
 
 
-void set_mon_num_hook()
+void reset_get_monster_hook()
 {
 	auto const &wf_info = game->edit_data.wf_info;
 
@@ -1569,38 +1481,38 @@ void set_mon_num_hook()
 		switch (wf_info[wilderness(p_ptr->wilderness_x, p_ptr->wilderness_y).feat].terrain_idx)
 		{
 		case TERRAIN_TOWN:
-			get_mon_num_hook = monster_town;
+			get_monster_hook = monster_town;
 			break;
 		case TERRAIN_DEEP_WATER:
-			get_mon_num_hook = monster_ocean;
+			get_monster_hook = monster_ocean;
 			break;
 		case TERRAIN_SHALLOW_WATER:
-			get_mon_num_hook = monster_shore;
+			get_monster_hook = monster_shore;
 			break;
 		case TERRAIN_DIRT:
-			get_mon_num_hook = monster_waste;
+			get_monster_hook = monster_waste;
 			break;
 		case TERRAIN_GRASS:
-			get_mon_num_hook = monster_grass;
+			get_monster_hook = monster_grass;
 			break;
 		case TERRAIN_TREES:
-			get_mon_num_hook = monster_wood;
+			get_monster_hook = monster_wood;
 			break;
 		case TERRAIN_SHALLOW_LAVA:
 		case TERRAIN_DEEP_LAVA:
-			get_mon_num_hook = monster_volcano;
+			get_monster_hook = monster_volcano;
 			break;
 		case TERRAIN_MOUNTAIN:
-			get_mon_num_hook = monster_mountain;
+			get_monster_hook = monster_mountain;
 			break;
 		default:
-			get_mon_num_hook = monster_dungeon;
+			get_monster_hook = monster_dungeon;
 			break;
 		}
 	}
 	else
 	{
-		get_mon_num_hook = monster_dungeon;
+		get_monster_hook = monster_dungeon;
 	}
 }
 
@@ -1608,64 +1520,55 @@ void set_mon_num_hook()
 /*
  * Check if monster can cross terrain
  */
-bool_ monster_can_cross_terrain(byte feat, std::shared_ptr<monster_race> r_ptr)
+bool monster_can_cross_terrain(byte feat, std::shared_ptr<monster_race> r_ptr)
 {
 	/* Deep water */
 	if (feat == FEAT_DEEP_WATER)
 	{
-		if ((r_ptr->flags & RF_AQUATIC) ||
-		                (r_ptr->flags & RF_CAN_FLY) ||
-		                (r_ptr->flags & RF_CAN_SWIM))
-			return TRUE;
-		else
-			return FALSE;
+		return ((r_ptr->flags & RF_AQUATIC) ||
+			(r_ptr->flags & RF_CAN_FLY) ||
+			(r_ptr->flags & RF_CAN_SWIM));
 	}
 	/* Shallow water */
 	else if (feat == FEAT_SHAL_WATER)
 	{
-		if (r_ptr->flags & RF_AURA_FIRE)
-			return FALSE;
-		else
-			return TRUE;
+		return !(r_ptr->flags & RF_AURA_FIRE);
 	}
 	/* Aquatic monster */
 	else if ((r_ptr->flags & RF_AQUATIC) &&
 	                !(r_ptr->flags & RF_CAN_FLY))
 	{
-		return FALSE;
+		return false;
 	}
 	/* Lava */
 	else if ((feat == FEAT_SHAL_LAVA) ||
-	                (feat == FEAT_DEEP_LAVA))
+		(feat == FEAT_DEEP_LAVA))
 	{
-		if ((r_ptr->flags & RF_IM_FIRE) ||
-		                (r_ptr->flags & RF_CAN_FLY))
-			return TRUE;
-		else
-			return FALSE;
+		return ((r_ptr->flags & RF_IM_FIRE) ||
+				(r_ptr->flags & RF_CAN_FLY));
 	}
 
-	return TRUE;
+	return true;
 }
 
 
-void set_mon_num2_hook(int y, int x)
+void set_monster_aux_hook(int y, int x)
 {
 	/* Set the monster list */
 	switch (cave[y][x].feat)
 	{
 	case FEAT_SHAL_WATER:
-		get_mon_num2_hook = monster_shallow_water;
+		get_monster_aux_hook = monster_shallow_water;
 		break;
 	case FEAT_DEEP_WATER:
-		get_mon_num2_hook = monster_deep_water;
+		get_monster_aux_hook = monster_deep_water;
 		break;
 	case FEAT_DEEP_LAVA:
 	case FEAT_SHAL_LAVA:
-		get_mon_num2_hook = monster_lava;
+		get_monster_aux_hook = monster_lava;
 		break;
 	default:
-		get_mon_num2_hook = NULL;
+		get_monster_aux_hook = NULL;
 		break;
 	}
 }

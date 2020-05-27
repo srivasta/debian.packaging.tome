@@ -1,6 +1,5 @@
 #pragma once
 
-#include <vector>
+#include "program_args.hpp"
 
-void sense_inventory();
-void sense_objects(std::vector<int> const &object_idxs);
+void play_game(program_args const &);
